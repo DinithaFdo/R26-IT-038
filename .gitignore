@@ -1,0 +1,22 @@
+# Python & Environment
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.env
+
+# Large Models & Weights
+*.bin
+*.pt
+*.pth
+*.safetensors
+*.pkl
+*.vhdx
+models/
+artifacts/
+
+# System & OS
+.DS_Store
+Thumbs.db
