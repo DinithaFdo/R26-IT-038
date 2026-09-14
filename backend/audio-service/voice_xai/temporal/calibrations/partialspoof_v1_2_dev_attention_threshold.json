@@ -1,0 +1,42 @@
+{
+  "mode": "global_density",
+  "value": 0.4657061994075775,
+  "status": "CALIBRATED_ON_PARTIALSPOOF_V1_2_DEV",
+  "selection_metric": "micro_temporal_f1_after_final_postprocessing",
+  "tie_breaker": "mean_spoof_file_iou_then_lower_bonafide_false_region_rate",
+  "precision": 0.519056811431388,
+  "recall": 0.9120967830194038,
+  "f1": 0.6616062032007936,
+  "micro_temporal_iou": 0.4943285039000009,
+  "mean_spoof_file_iou": 0.44345908099567055,
+  "bonafide_clip_false_region_rate": 0.05729984301412873,
+  "num_audio_files": 24844,
+  "dataset": {
+    "name": "PartialSpoof",
+    "version": "1.2",
+    "split": "dev",
+    "label_file": "/content/drive/MyDrive/Voice_Deepfake_Datasets/PartialSpoof/database/segment_labels/dev_seglab_0.01.npy",
+    "base_label_resolution_seconds": 0.01,
+    "evaluation_resolution_seconds": 0.02,
+    "label_semantics": {
+      "0": "spoof",
+      "1": "bonafide"
+    }
+  },
+  "pipeline": {
+    "calibration_pipeline_version": "xlsr_mamba_attention_rollout_weighted_overlap_v1",
+    "cache_signature": "8ed92ec07ee9eacfe7f1c7b3bf5576af66f741951a21a008b3fc1c9218758b49",
+    "target_sample_rate": 16000,
+    "max_window_seconds": 6.0,
+    "window_stride_seconds": 3.0,
+    "global_hop_seconds": 0.02,
+    "minimum_region_duration_seconds": 0.04,
+    "merge_gap_seconds": 0.1,
+    "score_definition": "xlsr_attention_rollout_density_uniform_baseline_1"
+  },
+  "model_artifact": {
+    "path": "/content/drive/MyDrive/MULTI_SCOPE_SSL_XLSR_MAMBA/models/xlsr_mamba_asvspoof2019_best.pt",
+    "size_bytes": 4704729,
+    "mtime_ns": 1786255987000000000
+  }
+}
