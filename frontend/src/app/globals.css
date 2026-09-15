@@ -1,0 +1,144 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 4%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 4%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 4%;
+    --primary: 0 0% 4%;
+    --primary-foreground: 0 0% 100%;
+    --brand: 25 100% 52%;
+    --brand-foreground: 0 0% 100%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 4%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 40%;
+    --accent: 0 0% 94%;
+    --accent-foreground: 0 0% 4%;
+    --destructive: 0 72% 48%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 88%;
+    --input: 0 0% 88%;
+    --ring: 0 0% 4%;
+    --radius: 0.5rem;
+    --surface: 0 0% 100%;
+    --surface-muted: 0 0% 97%;
+    --border-strong: 0 0% 12%;
+    --success: 142 58% 33%;
+    --warning: 38 92% 45%;
+    --code-background: 0 0% 96%;
+    --font-sans: "Zalando Sans", "Geist", "Inter", system-ui, sans-serif;
+    --font-mono: "Cascadia Code", "Cascadia Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+
+  .dark {
+    --background: 0 0% 4%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 6%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 6%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 4%;
+    --brand: 25 100% 52%;
+    --brand-foreground: 0 0% 100%;
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 64%;
+    --accent: 0 0% 14%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 72% 52%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
+    --ring: 0 0% 98%;
+    --surface: 0 0% 6%;
+    --surface-muted: 0 0% 10%;
+    --border-strong: 0 0% 82%;
+    --success: 142 58% 42%;
+    --warning: 38 92% 50%;
+    --code-background: 0 0% 10%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+
+  ::selection {
+    @apply bg-foreground text-background;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@media print {
+  @page {
+    margin: 12mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+  }
+
+  [data-print-report] .print-report-section > h2 {
+    break-after: avoid-page;
+    page-break-after: avoid;
+  }
+
+  [data-print-report] .print-keep-together {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  [data-print-report] .print-semantic-details > li {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  [data-print-report] table {
+    width: 100%;
+  }
+
+  [data-print-report] thead {
+    display: table-header-group;
+  }
+
+  [data-print-report] tr {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+}
+
+/*
+ * The decorative `.technical-grid` hero background was removed: separation on
+ * the landing page now comes from borders, spacing and surface tone rather
+ * than a repeating gradient overlay.
+ */
