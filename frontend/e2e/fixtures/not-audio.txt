@@ -1,0 +1,1 @@
+This is not an audio file. It exists to test client-side extension validation on the analyze page.
