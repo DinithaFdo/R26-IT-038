@@ -1,0 +1,131 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Picks up CLERK_ISSUER / CLERK_JWKS_URL / CLOUDINARY_* / API_KEY_HASH_SECRET
+    # and everything else the app requires at startup from your local,
+    # gitignored backend/.env. The explicit environment: block below
+    # overrides the handful of keys that must differ for the Docker network.
+    env_file:
+      - .env
+    environment:
+      APP_ENV: ${COMPOSE_APP_ENV:-development}
+      DEBUG: ${COMPOSE_DEBUG:-true}
+      HOST: 0.0.0.0
+      PORT: 8000
+      MONGODB_URI: ${COMPOSE_MONGODB_URI:-mongodb://mongodb:27017/multiscope}
+      MONGODB_DATABASE: ${COMPOSE_MONGODB_DATABASE:-multiscope}
+      STORAGE_POLICY: ${COMPOSE_STORAGE_POLICY:-optional}
+      CLOUDINARY_STORAGE_ENABLED: ${COMPOSE_CLOUDINARY_STORAGE_ENABLED:-false}
+      ALLOWED_ORIGINS: ${COMPOSE_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      UPLOAD_DIR: /tmp/multiscope/uploads
+      FFMPEG_BINARY: ffmpeg
+      FFPROBE_BINARY: ffprobe
+      # Trained checkpoints are bind-mounted read-only (see volumes: below)
+      # rather than baked into the image: they are training artifacts, they are
+      # gitignored, and `model_artifacts` is excluded by .dockerignore. This path is the
+      # mount point inside the container, not the host path.
+      MODEL_ROOT_DIR: /var/lib/multiscope/model_artifacts
+      # Only CNN and AASIST-Light are trained. Leaving these to backend/.env
+      # would silently disagree with the container's model root.
+      CNN_MODEL_MODE: ${COMPOSE_CNN_MODEL_MODE:-real}
+      AASIST_MODEL_MODE: ${COMPOSE_AASIST_MODEL_MODE:-real}
+      SSL_MODEL_MODE: disabled
+      GLOTTAL_MODEL_MODE: disabled
+      REQUIRED_MODEL_BRANCHES: lfcc_cnn_tcn,aasist
+      MODEL_DEVICE_POLICY: cpu
+      MODEL_DEFAULT_DEVICE: cpu
+      # Voice-XAI: begin with deterministic mock mode.
+      XAI_ENABLED: ${COMPOSE_XAI_ENABLED:-true}
+      XAI_MODE: ${COMPOSE_XAI_MODE:-mock}
+      XAI_PIPELINE_VERSION: voice-xai-pipeline-v1
+      XAI_MAX_WORKERS: 1
+      XAI_MAX_QUEUED_JOBS: 8
+      XAI_JOB_TIMEOUT_SECONDS: 120
+      XAI_ARTIFACT_RETENTION_SECONDS: 604800
+      XAI_ARTIFACT_ROOT: /var/lib/multiscope/xai-artifacts
+      XAI_TEMPORAL_LAYER_SELECTION: 0,3
+      XAI_TEMPORAL_THRESHOLD_PERCENTILE: 80
+      XAI_SEMANTIC_WINDOW_DURATION_SECONDS: 1.0
+      XAI_SEMANTIC_WINDOW_OVERLAP_SECONDS: 0.5
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    volumes:
+      - xai-artifacts:/var/lib/multiscope/xai-artifacts
+      # Read-only: the runtime loads checkpoints and must never modify them.
+      - ../model_artifacts:/var/lib/multiscope/model_artifacts:ro
+
+  mongodb:
+    image: mongo:7
+    ports:
+      - "${MONGODB_PORT:-27017}:27017"
+    volumes:
+      - mongodb-data:/data/db
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mongosh",
+          "--quiet",
+          "--eval",
+          "db.adminCommand('ping').ok",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        # NEXT_PUBLIC_* values are baked in at build time. Defaults below
+        # target the backend's host-exposed port, since the browser (not
+        # the frontend container) is what calls this URL. Export these
+        # from your shell, or add them to backend/.env, to build with your
+        # real Clerk keys instead of running Clerk-less.
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+        NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-MULTI-SCOPE}
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}
+        NEXT_PUBLIC_CLERK_SIGN_IN_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_URL:-/sign-in}
+        NEXT_PUBLIC_CLERK_SIGN_UP_URL: ${NEXT_PUBLIC_CLERK_SIGN_UP_URL:-/sign-up}
+        NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL:-/dashboard}
+        NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL: ${NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL:-/dashboard}
+    environment:
+      # Server-side only; safe to inject at runtime instead of build time.
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-}
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  mongodb-data:
+  xai-artifacts:
