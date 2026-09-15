@@ -1,0 +1,17 @@
+services:
+  backend:
+    build: .
+    container_name: ai-cls-backend
+
+    ports:
+      - "8000:8000"
+
+    env_file:
+      - .env
+
+    # Store models outside Git but mount them into the container at runtime.
+    # This keeps the image small and avoids copying large files into the build context.
+    volumes:
+      - ./models:/app/models:ro
+
+    restart: unless-stopped
