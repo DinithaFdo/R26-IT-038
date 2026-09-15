@@ -1,0 +1,15 @@
+.env
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+uploads/*
+!uploads/.gitkeep
+private_xai_artifacts/
+validation_data/real_world_sanity_set/manifest.csv
+validation_data/real_world_sanity_set/samples/*
+!validation_data/real_world_sanity_set/samples/.gitkeep

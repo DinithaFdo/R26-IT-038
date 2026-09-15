@@ -1,0 +1,4 @@
+# Compatibility wrapper. pyproject.toml is the canonical dependency declaration.
+# Use requirements.lock as exact constraints for reproducible installs.
+-c requirements.lock
+.[dev]

@@ -1,0 +1,19 @@
+{
+  "input_sample_rate": 48000,
+  "input_channels": 2,
+  "input_duration_seconds": 1.0,
+  "target_sample_rate": 16000,
+  "target_channels": 1,
+  "resampled": true,
+  "mono_conversion_applied": true,
+  "normalisation_applied": true,
+  "preprocessing_version": "audio-preprocessing-v2",
+  "minimum_duration_seconds": 1.0,
+  "model_window_duration_seconds": 6.0,
+  "model_window_overlap_seconds": 1.0,
+  "segment_count": 1,
+  "padding_policy": "right_zero",
+  "trim_policy": "none",
+  "ffmpeg_version": "ffmpeg version 6.1-test",
+  "ffprobe_version": "ffprobe version 6.1-test"
+}
