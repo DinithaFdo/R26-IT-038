@@ -1,0 +1,17 @@
+{
+  "model_version": "xgboost-surrogate-v4-2026-08-19",
+  "feature_schema_version": "xgboost-surrogate-v4-148",
+  "extractor_version": "voice-xai-acoustic-v4",
+  "output_space": "raw_margin",
+  "feature_count": 148,
+  "model_sha256": "04a3af554c64eea3e3ad9e4e3fb1030012015e4ab6dba793069eaa297385de86",
+  "feature_columns_sha256": "0ad97a5d2b1fbc8fdcf697dd947a9f1dd26c56e1954161a27407a5c2a24194d1",
+  "decision_threshold_sha256": "7c454760065c7a3dab96f16f367a7fc84b3a81e7eb467213e2d89751ea668f49",
+  "training_metadata_sha256": "ea3b22a064bf68cd75e5ba6cf2c83bbc9a2e15ab4acd91688c99a736c3d34a33",
+  "imputer_sha256": "35047b8dc7663cdf3f6af577d9cefd6fc0f2d04cc301d8ab116e4d71983f2fd8",
+  "decision_threshold": 0.32371800847220844,
+  "training_dataset_version": "ASVspoof2019 LA, ASVspoof5, and WaveFake/LJSpeech v4 training export",
+  "target_type": "independent_acoustic_evidence_model",
+  "manifest_version": "voice-xai-semantic-manifest-v2",
+  "shap_background_required": false
+}
