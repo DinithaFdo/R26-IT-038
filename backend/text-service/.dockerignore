@@ -1,0 +1,41 @@
+# ---------------------------
+# Python and virtual environments
+# ---------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.venv/
+
+# ---------------------------
+# Environment variables
+# (NEVER copy .env into a Docker image!)
+# ---------------------------
+.env
+.env.local
+.env.*
+
+# ---------------------------
+# Git
+# ---------------------------
+.git/
+.gitignore
+
+# ---------------------------
+# IDEs and OS files
+# ---------------------------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ---------------------------
+# Machine Learning models
+# (If downloaded locally, don't copy them into the image build context)
+# ---------------------------
+models/
+*.safetensors
+*.bin
+*.pt
+*.pth
