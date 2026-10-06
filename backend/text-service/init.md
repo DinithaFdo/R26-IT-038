@@ -35,3 +35,6 @@ POST /classify {text}
 ## 3. API Endpoints
 ### 3.1 Service Discovery
 - `GET /`: Returns service identity and Swagger documentation link (`{"message": "AI Detection API running", "docs": "/docs"}`).
+
+### 3.2 Classification Endpoint
+- `POST /classify`: Primary entrypoint executing full multi-modal text classification and conflict analysis.
