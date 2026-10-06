@@ -46,3 +46,4 @@ Translates raw attribution tensors into human-readable forensic reports.
 ## 6. Service Orchestration Pipeline (service.py)
 Coordinates end-to-end execution of classification, extraction, and explanation.
 - State Extraction: Accesses app.state.model and app.state.tokenizer without redundant reloads.
+- Step 1 (Inference): Runs forward pass to compute class logits and softmax probabilities.
