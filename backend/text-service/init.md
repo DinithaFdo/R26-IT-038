@@ -57,3 +57,4 @@ Coordinates end-to-end execution of classification, extraction, and explanation.
 Exposes RESTful endpoints for explainability auditing.
 - Endpoint: POST /xai/audit accepting JSON payload with request validation.
 - Dependency Injection: Injects Request object to safely access application state singletons.
+- Pre-Flight Verification: Validates that PyTorch model and tokenizer are initialized in memory.
