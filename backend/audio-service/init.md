@@ -181,3 +181,7 @@ Ensures millisecond-level precision in frontend player alignment.
 - Minimum duration: 1.0s.
 - Right-zero padding used; rollout density zeroed out for padded positions.
 
+### Export Formats
+- JSON: `{ "timestamps": [...], "densities": [...], "anomalies": [...] }`
+- Binary: Compact Float32 array for frontend WebGL canvas rendering.
+
