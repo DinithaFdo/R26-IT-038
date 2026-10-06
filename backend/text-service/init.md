@@ -62,3 +62,4 @@ Exposes RESTful endpoints for explainability auditing.
 ## 8. Memory Optimization & Resource Sharing
 Zero-duplication architecture sharing PyTorch weights across modules.
 - Lifespan Management: Loads transformer weights once in app.py lifespan context manager.
+- VRAM Efficiency: Avoids loading duplicate weights for both classification and XAI.
