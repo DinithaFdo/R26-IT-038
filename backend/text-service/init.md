@@ -208,3 +208,4 @@ The text service provides an integrated bridge to Dinitha's Hybrid Neural-symbol
 
 ### 10.3 Latency Telemetry
 - Telemetry fields log `classification_time_ms`, `math_extraction_time_ms`, `llm_generation_time_ms`, and `total_time_ms`.
+- `XAIResponse` automatically injects `final_label`, `leans_toward`, and `signal_analysis` from Ishara's classification pipeline.
