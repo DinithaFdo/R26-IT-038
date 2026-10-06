@@ -76,3 +76,7 @@ ESVAS is a non-invasive analytical explainability layer for deepfake voice detec
 - Fundamental frequency F0 mean and variance tracked per frame.
 - Captures pitch monotonicity characteristic of neural vocoders.
 
+### Micro-prosodic Jitter
+- Period-to-period variability of fundamental frequency.
+- Quantifies subtle vocal cord perturbation anomalies.
+
