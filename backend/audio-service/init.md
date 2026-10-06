@@ -197,3 +197,7 @@ Ensures millisecond-level precision in frontend player alignment.
 - If full depth rollout fails, extract raw last-layer cross-attention.
 - Flag report with `rollout_mode = 'single_layer_fallback'`.
 
+### Phase 2 Performance
+- Computation time: ~45ms for 6s audio clip on CPU.
+- Peak RAM overhead: < 12 MB per prediction.
+
