@@ -106,3 +106,4 @@ Specifications for visualizing token saliency on web dashboards.
 - Accessibility: Implements accessible high-contrast text styling over saturated token backgrounds.
 ## 14. Future Improvements & Roadmap
 Extending interpretability framework to multi-modal audio and image tasks.
+- SHAP Comparison: Evaluating KernelSHAP benchmarks against Integrated Gradients.
