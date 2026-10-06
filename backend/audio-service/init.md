@@ -457,3 +457,6 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 ### Service Health Check
 - `GET /ready` verifies XGBoost surrogate model loaded and PyTorch hook manager active.
 
+### OpenAPI Schema Specs
+- Full OpenAPI 3.0 component schemas added for `ExplanationResponse` model.
+
