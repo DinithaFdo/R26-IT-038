@@ -464,3 +464,8 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 - Decoupled, asynchronous, secure, owner-scoped REST endpoints.
 
 
+## 8. Verification & Test Suite
+
+### Unit Test: PyTorch Hooks
+- `test_hook_buffer_retention()`: Verifies hook attaches and captures tensors without modifying forward output values.
+
