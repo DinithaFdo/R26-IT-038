@@ -487,3 +487,7 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 ### ESVAS Documentation Status
 - All 4 phases, datasets, metrics, and API specifications documented in `init.md`.
 
+### Research Specification Alignment
+- Verified alignment with Component 4 (ESVAS) requirements by Silva S.P.S (IT22219602).
+- Ready for evaluation and audit.
+
