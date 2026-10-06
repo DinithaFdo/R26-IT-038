@@ -66,3 +66,6 @@ Exceptions encountered during downstream prediction are caught and re-raised as 
 - `signal_analysis`: Detailed diagnostics object holding stylometric signals, CSS score, and SHAP feature contributions.
 - `final_label`: Resolved multi-class categorization (`"AI-Generated"`, `"Human-Written"`, or `"Mixed"`).
 - `leans_toward`: Directional indication (`"AI-Generated"` | `"Human-Written"`) populated when `final_label` evaluates to `Mixed`.
+
+## 5. Adversarial Input Sanitization Layer
+The sanitization layer cleans input strings prior to classification across ten sequential defensive stages.
