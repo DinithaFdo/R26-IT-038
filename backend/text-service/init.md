@@ -78,3 +78,4 @@ Containerized deployment separating code artifacts from heavy binary model weigh
 - Environment Binding: Passes GEMINI_API_KEY, MODEL_PATH, and LOG_LEVEL via compose environment.
 ## 10. Security & Input Sanitization
 Validates input bounds and protects against adversarial payload processing.
+- Token Truncation: Restricts text input to maximum sequence length (512 tokens) to bound VRAM usage.
