@@ -71,3 +71,4 @@ Exceptions encountered during downstream prediction are caught and re-raised as 
 The sanitization layer cleans input strings prior to classification across ten sequential defensive stages.
 
 - **Stage 1 (Null & Control Chars)**: `_remove_null_bytes` strips null bytes (`\x00`) and unprintable ASCII control characters.
+- **Stage 2 (Zero-Width Characters)**: `_remove_zero_width_chars` purges zero-width spaces, joiners, non-joiners, and invisible delimiters (`\u200b`, `\u200c`, `\u200d`, `\ufeff`).
