@@ -73,3 +73,4 @@ The sanitization layer cleans input strings prior to classification across ten s
 - **Stage 1 (Null & Control Chars)**: `_remove_null_bytes` strips null bytes (`\x00`) and unprintable ASCII control characters.
 - **Stage 2 (Zero-Width Characters)**: `_remove_zero_width_chars` purges zero-width spaces, joiners, non-joiners, and invisible delimiters (`\u200b`, `\u200c`, `\u200d`, `\ufeff`).
 - **Stage 3 (Unicode Normalization)**: `_normalize_unicode` applies NFKC decomposition to standardize mathematical monospace, bold, and italic unicode alphabets.
+- **Stage 4 (Homoglyph Normalization)**: `_normalize_homoglyphs` resolves Cyrillic, Greek, and fullwidth look-alike characters to standard Latin equivalents via `HOMOGLYPH_MAP`.
