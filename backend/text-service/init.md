@@ -135,3 +135,6 @@ The stylometric feature extractor computes 28 active linguistic features from te
 - **Syntactic Features**: Includes average dependency parse depth (`avg_dep_depth`), sentence length variance (`sentence_len_variance`), and average sentence length (`sentence_avg_len`).
 - **Lexical Ratios**: Extracts character-per-word ratio, function word ratio, contraction ratio, and first-person singular pronoun density.
 - **Discourse Markers**: Quantifies transition words, modal verbs, hedging constructs, and coordinating conjunction density.
+
+### 7.5 Calibration Pipeline
+- Raw probability outputs from `predict_proba` are calibrated using Isotonic Regression to output well-calibrated stylometric posteriors (`p_style_cal`).
