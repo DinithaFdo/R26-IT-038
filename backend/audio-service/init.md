@@ -232,3 +232,7 @@ Ensures millisecond-level precision in frontend player alignment.
 - Base value (expected model output) $E[f(x)]$.
 - Stepwise contribution of top 10 acoustic features to final logit.
 
+### Artifact Integrity Verification
+- SHA-256 checksum verification for model weights (`.json`), column mapping (`.json`), and baseline (`.pkl`).
+- Prevents silently running mismatched surrogate models.
+
