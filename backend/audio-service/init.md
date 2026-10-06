@@ -372,3 +372,8 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 - Partially spoofed audio files with mixed bonafide/spoof segments.
 - Calibrates attention rollout detection thresholds.
 
+### Data Splitting Strategy
+- Train: 70% of ASVspoof 2019 LA train set.
+- Validation: 15% for hyperparameter tuning.
+- Test: 15% evaluation split (unseen speakers).
+
