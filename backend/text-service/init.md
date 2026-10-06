@@ -28,3 +28,4 @@ POST /classify {text}
   ├── [2] Semantic Inference: DeBERTa-v3-large predicts probabilities (prob_ai, prob_human)
   ├── [3] Token Highlighting: Computes attribution scores for UI visual emphasis (optional)
   ├── [4] Stylometric Branch: Extracts 28 linguistic features and computes calibrated probability
+  ├── [5] CSS-v2 Engine: Evaluates branch disagreement score (C) and conflict category
