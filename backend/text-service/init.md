@@ -76,3 +76,5 @@ Containerized deployment separating code artifacts from heavy binary model weigh
 - Compose Specification: Exposes port 8000 and connects to shared internal microservice network.
 - Healthcheck: Configures curl probe on /health endpoint to monitor worker readiness.
 - Environment Binding: Passes GEMINI_API_KEY, MODEL_PATH, and LOG_LEVEL via compose environment.
+## 10. Security & Input Sanitization
+Validates input bounds and protects against adversarial payload processing.
