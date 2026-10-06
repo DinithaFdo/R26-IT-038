@@ -177,3 +177,7 @@ Ensures millisecond-level precision in frontend player alignment.
 - Calibrated using PartialSpoof v1.2 DEV set.
 - Fixed threshold JSON: `partialspoof_v1_2_dev_attention_threshold.json`.
 
+### Short Utterance Handling
+- Minimum duration: 1.0s.
+- Right-zero padding used; rollout density zeroed out for padded positions.
+
