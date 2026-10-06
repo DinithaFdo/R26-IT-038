@@ -155,3 +155,6 @@ CSS-v2 measures epistemic disagreement between the semantic branch (DeBERTa) and
    $$s_S = 2 \cdot p_{style,cal} - 1 \in [-1, +1]$$
 4. **Conflict Score Metric**:
    $$C = 1.0 - 0.5 \cdot |s_D - s_S|$$
+
+### 8.3 Threshold Categorization
+- **MODERATE Conflict**: Triggered when $C > 0.30$, indicating emerging divergence between semantic and stylometric features.
