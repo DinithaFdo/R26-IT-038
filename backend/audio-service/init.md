@@ -253,3 +253,7 @@ Ensures millisecond-level precision in frontend player alignment.
 - Extracts top 5 positive (spoof-inducing) and top 5 negative (bonafide-inducing) features.
 - Ignores features with $|\\phi_i| < 0.01$.
 
+### Collinearity Management
+- TreeExplainer naturally distributes attribution among correlated features.
+- Grouped category attribution aggregates SHAP values per feature family.
+
