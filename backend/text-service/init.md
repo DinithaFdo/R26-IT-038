@@ -74,3 +74,4 @@ Containerized deployment separating code artifacts from heavy binary model weigh
 - Dockerignore: Skips heavy model weight directories during Docker build context transfer.
 - Dockerfile Architecture: Multi-stage python-slim base image minimizing overall image size.
 - Compose Specification: Exposes port 8000 and connects to shared internal microservice network.
+- Healthcheck: Configures curl probe on /health endpoint to monitor worker readiness.
