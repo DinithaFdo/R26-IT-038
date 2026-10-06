@@ -76,3 +76,4 @@ The sanitization layer cleans input strings prior to classification across ten s
 - **Stage 4 (Homoglyph Normalization)**: `_normalize_homoglyphs` resolves Cyrillic, Greek, and fullwidth look-alike characters to standard Latin equivalents via `HOMOGLYPH_MAP`.
 - **Stage 5 (HTML Entity Decoding)**: `_remove_html_entities` translates entity sequences (`&amp;`, `&lt;`, `&#x20;`) back to raw characters.
 - **Stage 6 (URL & Email Redaction)**: `_remove_urls` redacts web links and email addresses to avoid out-of-vocabulary token distortion.
+- **Stage 7 (Structural Redaction)**: `_remove_structural_patterns` cleans markdown artifacts, Reddit quote syntax, and conversational headers.
