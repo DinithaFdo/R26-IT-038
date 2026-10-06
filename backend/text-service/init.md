@@ -63,3 +63,4 @@ Exceptions encountered during downstream prediction are caught and re-raised as 
 - `token_highlights`: Sequence of highlighted tokens with relevance score (0.0 to 1.0) and discretized intensity (`high`, `mid`, `low`).
 - `model_version`: Identifier string designating semantic backbone (`deberta-v3-large-model2-domainfix`).
 - `processing_time_ms`: End-to-end execution latency in milliseconds for performance telemetry.
+- `signal_analysis`: Detailed diagnostics object holding stylometric signals, CSS score, and SHAP feature contributions.
