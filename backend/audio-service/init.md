@@ -105,3 +105,7 @@ ESVAS is a non-invasive analytical explainability layer for deepfake voice detec
 - Hop Length: 10 ms (160 samples at 16 kHz)
 - Window Function: Hann window
 
+### Buffer Cleanup Protocol
+- `HookManager.clear_buffers()` called in `finally` block.
+- Explicit `torch.cuda.empty_cache()` or Python `gc.collect()` invocation.
+
