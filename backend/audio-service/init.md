@@ -272,3 +272,7 @@ Ensures millisecond-level precision in frontend player alignment.
 - Template engine converts top SHAP attributions into human-readable sentences:
   *"High LFCC spectral variation and unnatural F0 stability strongly indicate synthetic vocoder origin."*
 
+### Surrogate Model Fidelity
+- R^2 score between surrogate output and primary ensemble score.
+- Fidelity target: R^2 > 0.91 on evaluation benchmark.
+
