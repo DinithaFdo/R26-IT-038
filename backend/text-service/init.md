@@ -20,3 +20,4 @@ Extracts transformer attention and gradient attributions.
 - Target Class Attribution: Selects the predicted class logit index as the target for gradient backpropagation.
 - Attribution Clamping: Evaluates positive causal attribution to prevent negative cancellation.
 - Min-Max Normalization: Rescales attribution scores into [0.0, 1.0] interval for heatmap rendering.
+- Subword Reconstruction: Handles subword tokens by matching offsets to full lexical tokens.
