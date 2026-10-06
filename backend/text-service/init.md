@@ -29,3 +29,5 @@ POST /classify {text}
   ├── [3] Token Highlighting: Computes attribution scores for UI visual emphasis (optional)
   ├── [4] Stylometric Branch: Extracts 28 linguistic features and computes calibrated probability
   ├── [5] CSS-v2 Engine: Evaluates branch disagreement score (C) and conflict category
+  └── [6] Final Label Resolver: Assigns final category (AI, Human, or Mixed) with directional lean
+```
