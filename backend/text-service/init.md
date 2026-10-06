@@ -13,3 +13,6 @@ The text classification backend service provides high-throughput, adversarially 
 - **API Framework**: FastAPI with ASGI Uvicorn server
 - **Deep Learning Engine**: PyTorch (CUDA L4 GPU / CPU fallback)
 - **Transformer Library**: HuggingFace Transformers (DeBERTa-v3-large architecture)
+- **Stylometric Engine**: XGBoost Classifier with Scikit-learn preprocessing
+- **Explainability**: SHAP (TreeExplainer) for stylometric feature contribution
+- **NLP Pipeline**: spaCy (`en_core_web_sm`) for syntactic and lexical dependency parsing
