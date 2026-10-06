@@ -61,3 +61,4 @@ Exceptions encountered during downstream prediction are caught and re-raised as 
 - `prob_ai` & `prob_human`: Softmax confidence probabilities computed by the semantic transformer branch.
 - `sanitization`: Metadata object containing `was_attacked` (boolean), `attack_report` (list of strings), and `clean_text`.
 - `token_highlights`: Sequence of highlighted tokens with relevance score (0.0 to 1.0) and discretized intensity (`high`, `mid`, `low`).
+- `model_version`: Identifier string designating semantic backbone (`deberta-v3-large-model2-domainfix`).
