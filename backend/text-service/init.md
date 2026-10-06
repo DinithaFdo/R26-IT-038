@@ -198,3 +198,9 @@ SHAP `TreeExplainer` computes local feature importances for XGBoost stylometric 
 ### 10.1 Module Bridge
 The text service provides an integrated bridge to Dinitha's Hybrid Neural-symbolic Interpretability Framework (HNIF).
 - Shared model tensors: `app.state.model` and `app.state.tokenizer` are reused directly by HNIF to eliminate redundant GPU VRAM allocation.
+
+### 10.2 /xai/audit Workflow
+1. MD5 hash lookup against audit cache
+2. Primary classification execution with `include_highlights=False`
+3. HNIF gradient-attention attribution extraction
+4. Linguistic noise filtering and LLM explanation generation
