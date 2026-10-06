@@ -56,3 +56,4 @@ Coordinates end-to-end execution of classification, extraction, and explanation.
 ## 7. FastAPI API Routing (router.py)
 Exposes RESTful endpoints for explainability auditing.
 - Endpoint: POST /xai/audit accepting JSON payload with request validation.
+- Dependency Injection: Injects Request object to safely access application state singletons.
