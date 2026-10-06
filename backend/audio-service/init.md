@@ -413,3 +413,9 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 | PartialSpoof | Calibration | EER / Threshold |
 
 
+## 7. API Integration & Service Architecture
+
+### Endpoint Definition
+`GET /api/v1/me/predictions/{prediction_id}/explanation`
+- Returns dual-view explanation object for prediction owner.
+
