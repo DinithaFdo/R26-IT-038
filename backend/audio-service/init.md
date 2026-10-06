@@ -165,3 +165,7 @@ Ensures millisecond-level precision in frontend player alignment.
 - 1D Gaussian filter ($\\sigma=1.5$) applied to ARS density vector.
 - Removes single-frame noise spikes and smooths region transitions.
 
+### Multi-Head Aggregation
+- Options: Mean over heads, Max over heads, or Attention-weighted head selection.
+- Default: Mean over heads for stable representation.
+
