@@ -53,3 +53,5 @@ Coordinates end-to-end execution of classification, extraction, and explanation.
 - Step 5 (Translation): Invokes llm_translator.generate_audit_report with top salient tokens.
 - Step 6 (Response Packaging): Compiles results into verified XAIResponse payload.
 - Error Handling: Catches inference errors, logs diagnostics, and raises formatted HTTPException.
+## 7. FastAPI API Routing (router.py)
+Exposes RESTful endpoints for explainability auditing.
