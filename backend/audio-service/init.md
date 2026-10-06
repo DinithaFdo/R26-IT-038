@@ -481,3 +481,6 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 ### Verification Test: AOPC Formula
 - `test_aopc_decay_curve()`: Verifies prediction score strictly decreases as top attributions are removed.
 
+### E2E Test Suite
+- `test_full_esvas_pipeline()`: Submits synthetic audio file, triggers inline prediction, executes ESVAS worker, and verifies explanation payload.
+
