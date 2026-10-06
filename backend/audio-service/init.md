@@ -143,3 +143,7 @@ Accounts for residual connections by adding identity matrix $I$.
 - Row-normalization ensures each row of $\hat{A}_l$ sums to 1.0.
 - Prevents exploding attention rollout weights across deep layers.
 
+### XLSR-53 Integration
+- First documented application of Attention Rollout to Wav2Vec2-XLSR backbone.
+- Tracks attention flow from raw audio frames to latent speech representations.
+
