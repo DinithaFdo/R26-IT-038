@@ -15,3 +15,4 @@ Extracts transformer attention and gradient attributions.
 - Integrated Gradients: Utilizes Captum LayerIntegratedGradients targeting the word embedding layer.
 - Baseline Strategy: Uses zero/pad token embedding tensor baselines for path-integral calculation.
 - Riemann Approximation: Computes m-step path integrals (default n_steps=50) for numerical stability.
+- Vector Norm: Applies Euclidean L2-norm across hidden dimensions to convert embedding gradients to scalar token scores.
