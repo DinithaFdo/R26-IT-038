@@ -301,3 +301,7 @@ AOPC = (1 / (L + 1)) * sum_{k=0}^L [ f(x) - f(x \ \Omega_l^k) ]
 ```
 Measures prediction degradation when top explanation segments $\\Omega_l^k$ are masked.
 
+### Perturbation Strategy
+- Replaces top-ranked 20ms audio frames with zero-padded silence or shaped background noise.
+- Evaluates classifier output drop $f(x) - f(x')$.
+
