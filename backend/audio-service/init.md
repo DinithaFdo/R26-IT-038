@@ -439,3 +439,12 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 - Generated ARS heatmaps & SHAP waterfall charts uploaded as private image assets.
 - Secure signed URLs served to frontend dashboard.
 
+### Error Response Format
+```json
+{
+  "error": "XAI_GENERATION_FAILED",
+  "message": "Attentive hook execution timed out",
+  "prediction_id": "..."
+}
+```
+
