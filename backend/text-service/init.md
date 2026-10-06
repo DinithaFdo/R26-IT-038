@@ -52,3 +52,4 @@ Coordinates end-to-end execution of classification, extraction, and explanation.
 - Step 4 (Filtering): Invokes linguistic_filter.apply_pos_mask to sanitize raw tokens.
 - Step 5 (Translation): Invokes llm_translator.generate_audit_report with top salient tokens.
 - Step 6 (Response Packaging): Compiles results into verified XAIResponse payload.
+- Error Handling: Catches inference errors, logs diagnostics, and raises formatted HTTPException.
