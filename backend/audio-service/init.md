@@ -387,3 +387,7 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 - RIR (Room Impulse Response) reverberation convolution.
 - Evaluates explanation stability under noisy conditions.
 
+### Class Imbalance Handling
+- Scale_pos_weight parameter tuned in XGBoost.
+- Stratified K-Fold cross-validation (K=5).
+
