@@ -475,3 +475,6 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 ### Unit Test: SHAP Values
 - `test_shap_value_sum()`: Verifies sum of SHAP values plus base value equals surrogate prediction.
 
+### Unit Test: IoU Calculation
+- `test_iou_disjoint_and_overlapping()`: Tests IoU calculation on zero overlap, partial overlap, and identical intervals.
+
