@@ -185,3 +185,7 @@ Ensures millisecond-level precision in frontend player alignment.
 - JSON: `{ "timestamps": [...], "densities": [...], "anomalies": [...] }`
 - Binary: Compact Float32 array for frontend WebGL canvas rendering.
 
+### Bounding Box Generation
+- Merges contiguous frame intervals above threshold separated by < 50ms.
+- Assigns candidate severity score based on mean rollout density.
+
