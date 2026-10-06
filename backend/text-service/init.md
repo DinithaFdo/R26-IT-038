@@ -100,3 +100,4 @@ Profiling execution latency across extraction, filtering, and LLM translation.
 - Thread Offloading: Offloads synchronous PyTorch computations to background thread pool.
 ## 13. Frontend UI Integration
 Specifications for visualizing token saliency on web dashboards.
+- Color Scale: Uses dynamic RGBA background interpolation: rgba(239, 68, 68, score).
