@@ -427,3 +427,7 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 - Validates `prediction_id` format (MongoDB ObjectId).
 - Ensures prediction status is `completed` before returning explanation.
 
+### Access Control Scopes
+- Enforces Clerk authentication user ID matching prediction owner ID.
+- 403 Forbidden returned on unauthorized attempts.
+
