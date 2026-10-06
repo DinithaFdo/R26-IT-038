@@ -382,3 +382,8 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 - Peak normalization to -1 dBFS.
 - Silence trimming: leading/trailing silence < -40 dB removed.
 
+### Augmentation Protocols
+- Additive Gaussian noise (SNR 10dB to 30dB).
+- RIR (Room Impulse Response) reverberation convolution.
+- Evaluates explanation stability under noisy conditions.
+
