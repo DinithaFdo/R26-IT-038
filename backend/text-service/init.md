@@ -39,3 +39,4 @@ Translates raw attribution tensors into human-readable forensic reports.
 - Configuration: Reads GEMINI_API_KEY from environment variables with graceful fallback validation.
 - Top-K Token Selection: Extracts the top-5 highest-scoring non-noise tokens to construct the prompt.
 - System Prompt: Instructs the model to act as a forensic AI interpretability auditor.
+- Anti-Hallucination: Strictly constrains generated explanations to provided salient tokens.
