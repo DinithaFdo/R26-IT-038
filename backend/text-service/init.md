@@ -97,3 +97,4 @@ The semantic classification branch utilizes `DeBERTa-v3-large` fine-tuned under 
 
 ### 6.3 Tokenizer Configuration
 - `MAX_LENGTH = 512` with standard truncation and batch padding for tensor alignment.
+- PyTorch 2.6+ compatibility patch: `torch.load` is wrapped with `weights_only=False` to safely load custom model checkpoints.
