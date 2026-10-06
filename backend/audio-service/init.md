@@ -309,3 +309,9 @@ Measures prediction degradation when top explanation segments $\\Omega_l^k$ are 
 - High AOPC score confirms explanation features are causally responsible for classification.
 - Low AOPC triggers warning: `Unverified Explanation (Potential Artifact)`.
 
+### Unified Report Structure
+1. **Executive Summary:** Verdict & Faithfulness score.
+2. **Temporal Map:** ARS timeline with flagged timestamps.
+3. **Acoustic Breakdown:** Top SHAP features with physical descriptions.
+4. **Audit Metrics:** IoU and AOPC quantitative scores.
+
