@@ -326,3 +326,6 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
   * Rely on AOPC score to determine which view is causally superior.
   * Annotate report with explicit conflict advisory.
 
+### Summary Generator Rules
+- Combines ECI score, top time window, and primary acoustic category into a 3-sentence summary for non-technical users.
+
