@@ -38,3 +38,9 @@ ESVAS is a non-invasive analytical explainability layer for deepfake voice detec
 - Phase 4 (Synthesis) merges outputs into unified schema.
 
 
+### Execution Requirements
+- **Python:** 3.11+
+- **PyTorch:** 2.x
+- **Device:** CPU / CUDA / MPS (Default: CPU for small model efficiency)
+
+
