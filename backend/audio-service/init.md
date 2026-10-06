@@ -341,3 +341,8 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 - Compares predicted ARS anomaly regions against FakeSound2 segment ground truth annotations.
 - Measures precision, recall, and frame-level F1 score.
 
+### Faithfulness Levels
+- **High:** ECI >= 0.75
+- **Medium:** 0.50 <= ECI < 0.75
+- **Low:** ECI < 0.50
+
