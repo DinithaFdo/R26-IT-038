@@ -10,3 +10,4 @@ Defines strict Pydantic schemas for request validation and serialization.
 - Swagger UI: Auto-generated OpenAPI v3 schemas ensure seamless API contract verification.
 ## 3. Mathematical Extraction Engine (core_extractor.py)
 Extracts transformer attention and gradient attributions.
+- Attention Extraction: Captures multi-head attention weights from the final transformer encoder layer.
