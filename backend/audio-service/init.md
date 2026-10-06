@@ -419,3 +419,7 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 `GET /api/v1/me/predictions/{prediction_id}/explanation`
 - Returns dual-view explanation object for prediction owner.
 
+### Async Background Execution
+- ESVAS processing runs in background worker task after prediction persistence.
+- Audio retained temporarily during XAI execution pass.
+
