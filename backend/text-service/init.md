@@ -244,3 +244,7 @@ python -m uvicorn app:app --reload --port 8000
 - Container: `ai-cls-backend` mapped to `8000:8000`
 - Mounts `./models:/app/models:ro` for read-only artifact protection
 - Restart Policy: `unless-stopped`
+
+### 12.4 CI/CD Automation (`.github/workflows/deploy.yml`)
+- Triggered on push to `main` branch or manual `workflow_dispatch`
+- Builds and pushes multi-arch images to Docker Hub (`ai-detection-backend:latest` and `${github.sha}`)
