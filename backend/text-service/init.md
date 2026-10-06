@@ -88,3 +88,4 @@ Comprehensive unit and integration test strategies for interpretability.
 - POS Unit Tests: Verifies that punctuation, prepositions, and stop-words receive zero attribution.
 - Normalization Tests: Asserts all normalized scores strictly reside within [0.0, 1.0].
 - LLM Mocks: Uses unittest.mock to simulate Gemini responses without network calls.
+- Integration Tests: FastAPI TestClient verifies end-to-end audit request and response schema.
