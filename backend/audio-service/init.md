@@ -236,3 +236,7 @@ Ensures millisecond-level precision in frontend player alignment.
 - SHA-256 checksum verification for model weights (`.json`), column mapping (`.json`), and baseline (`.pkl`).
 - Prevents silently running mismatched surrogate models.
 
+### Feature Column Alignment
+- Strict validation of input dataframe column names and order against `v4_column_order.json`.
+- Raises `ValueError` on column mismatch.
+
