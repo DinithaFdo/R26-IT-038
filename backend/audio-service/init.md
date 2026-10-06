@@ -484,3 +484,6 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 ### E2E Test Suite
 - `test_full_esvas_pipeline()`: Submits synthetic audio file, triggers inline prediction, executes ESVAS worker, and verifies explanation payload.
 
+### ESVAS Documentation Status
+- All 4 phases, datasets, metrics, and API specifications documented in `init.md`.
+
