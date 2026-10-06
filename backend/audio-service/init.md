@@ -215,3 +215,8 @@ Ensures millisecond-level precision in frontend player alignment.
 - **Positive SHAP value (> 0):** Pushes prediction towards **Spoof**.
 - **Negative SHAP value (< 0):** Pushes prediction towards **Bonafide**.
 
+### 148 Acoustic Feature Vector
+- 19 LFCCs x (mean, std, delta, delta-delta) = 76
+- Spectral Centroid, Bandwidth, Contrast, Rolloff = 32
+- F0, Jitter, Shimmer, HNR, GCI stats = 40
+
