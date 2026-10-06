@@ -25,3 +25,4 @@ The service is instantiated via `app.py`, which configures FastAPI lifespan hand
 POST /classify {text}
   │
   ├── [1] Sanitization Layer: Cleans text across 10 adversarial evasion categories
+  ├── [2] Semantic Inference: DeBERTa-v3-large predicts probabilities (prob_ai, prob_human)
