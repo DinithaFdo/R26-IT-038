@@ -27,3 +27,4 @@ POST /classify {text}
   ├── [1] Sanitization Layer: Cleans text across 10 adversarial evasion categories
   ├── [2] Semantic Inference: DeBERTa-v3-large predicts probabilities (prob_ai, prob_human)
   ├── [3] Token Highlighting: Computes attribution scores for UI visual emphasis (optional)
+  ├── [4] Stylometric Branch: Extracts 28 linguistic features and computes calibrated probability
