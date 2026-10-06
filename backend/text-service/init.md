@@ -107,3 +107,4 @@ Specifications for visualizing token saliency on web dashboards.
 ## 14. Future Improvements & Roadmap
 Extending interpretability framework to multi-modal audio and image tasks.
 - SHAP Comparison: Evaluating KernelSHAP benchmarks against Integrated Gradients.
+- Cross-Attention: Extending HNIF framework to encoder-decoder sequence generation models.
