@@ -61,3 +61,4 @@ Exposes RESTful endpoints for explainability auditing.
 - Response Annotation: Binds response_model=XAIResponse with 200, 400, 500 error mappings.
 ## 8. Memory Optimization & Resource Sharing
 Zero-duplication architecture sharing PyTorch weights across modules.
+- Lifespan Management: Loads transformer weights once in app.py lifespan context manager.
