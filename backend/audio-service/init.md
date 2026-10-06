@@ -284,3 +284,8 @@ Ensures millisecond-level precision in frontend player alignment.
 - Total execution time: ~65ms.
 - Returns structured semantic attribution dictionary.
 
+## 5. Phase 4 — Unified Synthesis & Faithfulness Evaluation
+
+### Cross-Modal Consistency (IoU)
+- Computes Intersection over Union (IoU) between ARS high-attention regions and temporal windows of top SHAP acoustic features.
+
