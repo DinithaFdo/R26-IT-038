@@ -66,3 +66,5 @@ Zero-duplication architecture sharing PyTorch weights across modules.
 - Inference Optimization: Sets model.eval() to disable dropout layers during attribution.
 - Gradient Scoping: Dynamically enables gradient tracking only inside Captum attribution scope.
 - Hardware Adaptability: Detects CUDA availability and seamlessly defaults to CPU execution.
+## 9. Containerization & Docker Deployment
+Containerized deployment separating code artifacts from heavy binary model weights.
