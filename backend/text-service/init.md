@@ -165,3 +165,6 @@ CSS-v2 measures epistemic disagreement between the semantic branch (DeBERTa) and
 - Stylometric feature reliability requires sufficient text volume; `CSS_MIN_WORD_COUNT` enforces a 150-word minimum.
 - Texts with fewer than 150 words bypass CSS calculation, returning `conflict_level = 'N/A'` with an informative explanation note.
 - If XGBoost artifacts are unreadable or missing, CSS cleanly reports `N/A` without interrupting primary semantic predictions.
+
+### 8.5 Directional Fields
+- `deberta_direction` and `xgboost_direction` expose whether each respective branch favors `"AI"` or `"Human"`.
