@@ -160,3 +160,6 @@ CSS-v2 measures epistemic disagreement between the semantic branch (DeBERTa) and
 - **MODERATE Conflict**: Triggered when $C > 0.30$, indicating emerging divergence between semantic and stylometric features.
 - **HIGH Conflict**: Triggered when $C > 0.60$, indicating diametrically opposing branch predictions.
 - **Conflict Levels**: Mapped to `LOW` ($C \le 0.30$), `MODERATE` ($0.30 < C \le 0.60$), and `HIGH` ($C > 0.60$).
+
+### 8.4 Minimum Sample Constraints
+- Stylometric feature reliability requires sufficient text volume; `CSS_MIN_WORD_COUNT` enforces a 150-word minimum.
