@@ -346,3 +346,7 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 - **Medium:** 0.50 <= ECI < 0.75
 - **Low:** ECI < 0.50
 
+### Rollout Unavailable Fallback
+- Generates semantic-only explanation report.
+- Explicitly notes missing temporal view due to branch config.
+
