@@ -72,3 +72,7 @@ ESVAS is a non-invasive analytical explainability layer for deepfake voice detec
 - 19 linear-frequency cepstral coefficients.
 - Extracted per 20ms frame with 10ms overlap.
 
+### Pitch (F0) Analysis
+- Fundamental frequency F0 mean and variance tracked per frame.
+- Captures pitch monotonicity characteristic of neural vocoders.
+
