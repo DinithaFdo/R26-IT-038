@@ -26,3 +26,4 @@ Applies linguistic and part-of-speech filtering to eliminate non-causal grammati
 - spaCy Model: Uses en_core_web_sm pipeline with parser and tagger enabled.
 - POS Filter (PUNCT): Marks punctuation tokens (commas, periods, quotation marks) as noise.
 - POS Filter (CCONJ): Filters coordinating conjunctions (and, but, or) to prevent spurious importance.
+- POS Filter (DET): Masks definite and indefinite articles (the, a, an) as non-causal tokens.
