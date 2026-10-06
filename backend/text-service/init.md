@@ -141,3 +141,7 @@ The stylometric feature extractor computes 28 active linguistic features from te
 
 ### 7.6 Stylometric Empirical Performance
 - Achieves 93.05% in-distribution accuracy, AUROC of 0.98053, and 84.22% average OOD accuracy.
+
+## 8. Conflicting Signal Score (CSS-v2)
+### 8.1 Motivation
+CSS-v2 measures epistemic disagreement between the semantic branch (DeBERTa) and stylometric branch (XGBoost) to detect mixed-authorship or adversarial evasions.
