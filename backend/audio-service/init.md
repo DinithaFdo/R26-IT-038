@@ -169,3 +169,7 @@ Ensures millisecond-level precision in frontend player alignment.
 - Options: Mean over heads, Max over heads, or Attention-weighted head selection.
 - Default: Mean over heads for stable representation.
 
+### Overlapping Window Fusion
+- 6.0s windows with 1.0s overlap.
+- Cosine taper applied at window boundaries prior to stitching ARS segments.
+
