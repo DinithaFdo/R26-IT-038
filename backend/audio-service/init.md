@@ -151,3 +151,7 @@ Accounts for residual connections by adding identity matrix $I$.
 - 1D temporal density map aligned with audio time axis.
 - Maps model attention weight focus per 20ms frame.
 
+### Anomaly Candidate Thresholding
+- Top 20% highest attention values (80th percentile) marked as candidate fake regions.
+- Output format: list of time interval tuples `[(t_start, t_end)]`.
+
