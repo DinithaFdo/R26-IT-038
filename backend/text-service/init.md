@@ -219,3 +219,8 @@ The text service provides an integrated bridge to Dinitha's Hybrid Neural-symbol
 - `XGB_CALIBRATOR_PATH`: Filesystem path to Isotonic calibrator artifact
 - `DEBERTA_TEMPERATURE_PATH`: Path to temperature calibration file
 - `CSS_MIN_WORD_COUNT`: Minimum word count threshold for CSS analysis (default: `150`)
+
+### 11.2 Networking and Security Settings
+- `ALLOWED_ORIGINS`: Comma-delimited CORS origins (defaults: `http://localhost:3000,http://localhost:5173`)
+- `HOST` and `PORT`: Service bind targets (default `0.0.0.0:8000`)
+- Secrets Policy: API tokens and credentials must be injected strictly via environment variables, never committed to VCS.
