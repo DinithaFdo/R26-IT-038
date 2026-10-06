@@ -276,3 +276,7 @@ Ensures millisecond-level precision in frontend player alignment.
 - R^2 score between surrogate output and primary ensemble score.
 - Fidelity target: R^2 > 0.91 on evaluation benchmark.
 
+### Explainer Caching
+- `shap.TreeExplainer` instance initialized once at startup.
+- Retained in memory to avoid ~300ms explainer creation latency per request.
+
