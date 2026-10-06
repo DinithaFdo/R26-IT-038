@@ -139,3 +139,7 @@ A_hat_l = 0.5 * A_l + 0.5 * I
 ```
 Accounts for residual connections by adding identity matrix $I$.
 
+### Layer Normalization
+- Row-normalization ensures each row of $\hat{A}_l$ sums to 1.0.
+- Prevents exploding attention rollout weights across deep layers.
+
