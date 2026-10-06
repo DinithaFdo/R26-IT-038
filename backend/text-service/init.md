@@ -43,3 +43,5 @@ Translates raw attribution tensors into human-readable forensic reports.
 - Report Length Constraint: Enforces a concise 3-sentence summary targeting non-technical stakeholders.
 - Fault Tolerance: Implements template-based deterministic fallback when API limits or errors occur.
 - Generation Hyperparameters: Configures low temperature (0.2) and top_p for deterministic auditing.
+## 6. Service Orchestration Pipeline (service.py)
+Coordinates end-to-end execution of classification, extraction, and explanation.
