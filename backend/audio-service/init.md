@@ -472,3 +472,6 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 ### Integration Test: Attention Rollout
 - `test_attention_rollout_dimensions()`: Asserts ARS output length matches input frame sequence count.
 
+### Unit Test: SHAP Values
+- `test_shap_value_sum()`: Verifies sum of SHAP values plus base value equals surrogate prediction.
+
