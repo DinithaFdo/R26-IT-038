@@ -174,3 +174,4 @@ CSS-v2 measures epistemic disagreement between the semantic branch (DeBERTa) and
 - If `conflict_level == "HIGH"`: `final_label = "Mixed"`, with `leans_toward = label`.
 - Otherwise: `final_label = label`, and `leans_toward = None`.
 - Condition for `Mixed`: Requires both word count $\ge 150$ and `HIGH` conflict ($C > 0.60$).
+- **Label Invariance Principle**: The raw DeBERTa `label` field remains unaltered and strictly preserves semantic branch output.
