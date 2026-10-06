@@ -18,3 +18,4 @@ Extracts transformer attention and gradient attributions.
 - Vector Norm: Applies Euclidean L2-norm across hidden dimensions to convert embedding gradients to scalar token scores.
 - Hybrid Fusion Equation: Score = Final Layer Base Attention * Captum Integrated Gradients.
 - Target Class Attribution: Selects the predicted class logit index as the target for gradient backpropagation.
+- Attribution Clamping: Evaluates positive causal attribution to prevent negative cancellation.
