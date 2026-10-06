@@ -435,3 +435,7 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 - Raw PCM audio buffer retained in memory during XAI run.
 - Automatically deleted upon completion of Phase 4 synthesis.
 
+### Cloudinary Artifact Storage
+- Generated ARS heatmaps & SHAP waterfall charts uploaded as private image assets.
+- Secure signed URLs served to frontend dashboard.
+
