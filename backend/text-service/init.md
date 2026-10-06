@@ -185,3 +185,7 @@ CSS-v2 measures epistemic disagreement between the semantic branch (DeBERTa) and
 ### 9.1 TreeExplainer Integration
 SHAP `TreeExplainer` computes local feature importances for XGBoost stylometric predictions.
 - Explainer instances are loaded lazily upon first inference to optimize initial container boot time.
+
+### 9.2 Signal Extraction
+- Isolates the top 3 positive contributors (`shap_ai_signals`) pushing towards AI classification.
+- Isolates the top 3 negative contributors (`shap_human_signals`) pushing towards Human classification.
