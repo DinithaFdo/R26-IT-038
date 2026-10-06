@@ -478,3 +478,6 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 ### Unit Test: IoU Calculation
 - `test_iou_disjoint_and_overlapping()`: Tests IoU calculation on zero overlap, partial overlap, and identical intervals.
 
+### Verification Test: AOPC Formula
+- `test_aopc_decay_curve()`: Verifies prediction score strictly decreases as top attributions are removed.
+
