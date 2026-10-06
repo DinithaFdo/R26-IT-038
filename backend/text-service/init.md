@@ -205,3 +205,6 @@ The text service provides an integrated bridge to Dinitha's Hybrid Neural-symbol
 3. HNIF gradient-attention attribution extraction
 4. Linguistic noise filtering and LLM explanation generation
 - `include_highlights=False` avoids an unnecessary forward pass during audit queries since HNIF generates deep token heatmaps.
+
+### 10.3 Latency Telemetry
+- Telemetry fields log `classification_time_ms`, `math_extraction_time_ms`, `llm_generation_time_ms`, and `total_time_ms`.
