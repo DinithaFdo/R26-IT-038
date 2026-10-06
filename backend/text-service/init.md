@@ -115,3 +115,10 @@ The semantic classification branch utilizes `DeBERTa-v3-large` fine-tuned under 
 ## 7. Stylometric Branch (XGBoost)
 ### 7.1 Architecture & Role
 The stylometric branch evaluates structural writing patterns, lexical variety, and syntactic distributions using an XGBoost gradient-boosted decision tree.
+
+### 7.2 Artifact Dependencies
+Requires four coordinated serialized artifacts:
+1. XGBoost model binary (`XGB_MODEL_PATH`)
+2. StandardScaler feature scaler (`XGB_SCALER_PATH`)
+3. Feature names list (`XGB_FEATURES_PATH`)
+4. Isotonic probability calibrator (`XGB_CALIBRATOR_PATH`)
