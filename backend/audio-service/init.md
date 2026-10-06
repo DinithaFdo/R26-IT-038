@@ -113,3 +113,7 @@ ESVAS is a non-invasive analytical explainability layer for deepfake voice detec
 - Zero-mean unit-variance per utterance over non-padded audio frames.
 - Prevents silence padding from distorting feature variance.
 
+### Thread Safety
+- Context-local dictionary keyed by `prediction_id`.
+- Ensures multi-threaded concurrent predictions do not leak hook data.
+
