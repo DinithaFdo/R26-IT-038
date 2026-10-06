@@ -25,3 +25,4 @@ Extracts transformer attention and gradient attributions.
 Applies linguistic and part-of-speech filtering to eliminate non-causal grammatical noise.
 - spaCy Model: Uses en_core_web_sm pipeline with parser and tagger enabled.
 - POS Filter (PUNCT): Marks punctuation tokens (commas, periods, quotation marks) as noise.
+- POS Filter (CCONJ): Filters coordinating conjunctions (and, but, or) to prevent spurious importance.
