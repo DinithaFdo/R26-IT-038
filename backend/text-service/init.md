@@ -42,3 +42,4 @@ Translates raw attribution tensors into human-readable forensic reports.
 - Anti-Hallucination: Strictly constrains generated explanations to provided salient tokens.
 - Report Length Constraint: Enforces a concise 3-sentence summary targeting non-technical stakeholders.
 - Fault Tolerance: Implements template-based deterministic fallback when API limits or errors occur.
+- Generation Hyperparameters: Configures low temperature (0.2) and top_p for deterministic auditing.
