@@ -189,3 +189,6 @@ SHAP `TreeExplainer` computes local feature importances for XGBoost stylometric 
 ### 9.2 Signal Extraction
 - Isolates the top 3 positive contributors (`shap_ai_signals`) pushing towards AI classification.
 - Isolates the top 3 negative contributors (`shap_human_signals`) pushing towards Human classification.
+
+### 9.3 Display Name Translation
+- Raw feature keys are mapped into user-friendly strings via `_SHAP_DISPLAY_NAMES` (e.g., `avg_dep_depth` → 'Sentence Complexity / Depth').
