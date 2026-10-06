@@ -226,3 +226,10 @@ The text service provides an integrated bridge to Dinitha's Hybrid Neural-symbol
 - Secrets Policy: API tokens and credentials must be injected strictly via environment variables, never committed to VCS.
 
 > **Path Convention Warning**: All model and artifact path variables must use Linux forward slashes (`/app/models/...`) when deployed to Docker or Modal.
+
+## 12. Deployment & Operations
+### 12.1 Local Execution
+Run locally within the `ai-detection-app` directory:
+```bash
+python -m uvicorn app:app --reload --port 8000
+```
