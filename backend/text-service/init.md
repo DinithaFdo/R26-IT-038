@@ -209,3 +209,10 @@ The text service provides an integrated bridge to Dinitha's Hybrid Neural-symbol
 ### 10.3 Latency Telemetry
 - Telemetry fields log `classification_time_ms`, `math_extraction_time_ms`, `llm_generation_time_ms`, and `total_time_ms`.
 - `XAIResponse` automatically injects `final_label`, `leans_toward`, and `signal_analysis` from Ishara's classification pipeline.
+
+## 11. Configuration & Environment Variables
+### 11.1 Model File Locations
+- `MODEL2_PATH`: Root filesystem directory for DeBERTa checkpoint files
+- `XGB_MODEL_PATH`: Filesystem path to serialized XGBoost model
+- `XGB_SCALER_PATH`: Filesystem path to StandardScaler joblib artifact
+- `XGB_FEATURES_PATH`: Filesystem path to feature names JSON list
