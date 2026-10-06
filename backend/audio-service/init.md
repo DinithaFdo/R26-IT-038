@@ -360,3 +360,7 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 - ~121,000 utterances across logical access attacks (TTS & VC).
 - Used for training and validating the XGBoost surrogate model.
 
+### ASVspoof 2021 LA
+- ~180,000 utterances including telephony codec and transmission channel variations.
+- Tests ESVAS robustness under bandpass filtering and lossy compression.
+
