@@ -19,3 +19,4 @@ Extracts transformer attention and gradient attributions.
 - Hybrid Fusion Equation: Score = Final Layer Base Attention * Captum Integrated Gradients.
 - Target Class Attribution: Selects the predicted class logit index as the target for gradient backpropagation.
 - Attribution Clamping: Evaluates positive causal attribution to prevent negative cancellation.
+- Min-Max Normalization: Rescales attribution scores into [0.0, 1.0] interval for heatmap rendering.
