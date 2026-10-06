@@ -149,3 +149,5 @@ CSS-v2 measures epistemic disagreement between the semantic branch (DeBERTa) and
 ### 8.2 Formulation
 1. **Semantic Calibration**: Logit temperature scaling with $T = 1.7084$:
    $$p_{sem,cal} = \text{softmax}(\log(p_{ai})/T, \log(p_{human})/T)$$
+2. **Semantic Decision Margin**:
+   $$s_D = 2 \cdot p_{sem,cal} - 1 \in [-1, +1]$$
