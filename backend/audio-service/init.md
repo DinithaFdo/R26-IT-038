@@ -147,3 +147,7 @@ Accounts for residual connections by adding identity matrix $I$.
 - First documented application of Attention Rollout to Wav2Vec2-XLSR backbone.
 - Tracks attention flow from raw audio frames to latent speech representations.
 
+### Attention Rollout Spectrogram (ARS)
+- 1D temporal density map aligned with audio time axis.
+- Maps model attention weight focus per 20ms frame.
+
