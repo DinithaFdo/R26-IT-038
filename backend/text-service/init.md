@@ -110,3 +110,4 @@ Extending interpretability framework to multi-modal audio and image tasks.
 - Cross-Attention: Extending HNIF framework to encoder-decoder sequence generation models.
 - Explanation Caching: Redis key-value cache keyed by SHA-256 text hash for instant lookups.
 - Fairness Audits: Analyzing token importance distribution across demographic datasets.
+- CI/CD Integration: GitHub Actions workflow running pytest and black/flake8 on every PR.
