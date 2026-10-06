@@ -44,3 +44,6 @@ POST /classify {text}
 
 ### 3.4 Explainability Audit Endpoint
 - `POST /xai/audit`: Dual-pipeline endpoint running classification combined with HNIF token-level heatmap and LLM interpretability synthesis.
+
+### 3.5 Interactive Documentation
+- `GET /docs`: Auto-generated OpenAPI (Swagger UI) providing schema validation and interactive request debugging.
