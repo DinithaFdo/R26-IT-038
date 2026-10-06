@@ -249,3 +249,7 @@ Ensures millisecond-level precision in frontend player alignment.
 - 500 representative bonafide audio samples from ASVspoof 2019 LA training set.
 - Pre-computed and cached in `background_baseline.pkl`.
 
+### Top-K Thresholding
+- Extracts top 5 positive (spoof-inducing) and top 5 negative (bonafide-inducing) features.
+- Ignores features with $|\\phi_i| < 0.01$.
+
