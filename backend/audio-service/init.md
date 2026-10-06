@@ -377,3 +377,8 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 - Validation: 15% for hyperparameter tuning.
 - Test: 15% evaluation split (unseen speakers).
 
+### Dataset Preprocessing Protocol
+- Audio downsampled to 16 kHz mono.
+- Peak normalization to -1 dBFS.
+- Silence trimming: leading/trailing silence < -40 dB removed.
+
