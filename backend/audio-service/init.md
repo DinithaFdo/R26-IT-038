@@ -56,3 +56,9 @@ ESVAS is a non-invasive analytical explainability layer for deepfake voice detec
 - **End Users:** Clear natural language text summary with visual heatmaps.
 
 
+### Ethical Boundaries
+- Operates strictly in detection/explanation mode.
+- Zero synthesis or voice modification capabilities.
+- Privacy preserved: No PII stored; transient audio lifecycle enforced.
+
+
