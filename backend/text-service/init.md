@@ -163,3 +163,4 @@ CSS-v2 measures epistemic disagreement between the semantic branch (DeBERTa) and
 
 ### 8.4 Minimum Sample Constraints
 - Stylometric feature reliability requires sufficient text volume; `CSS_MIN_WORD_COUNT` enforces a 150-word minimum.
+- Texts with fewer than 150 words bypass CSS calculation, returning `conflict_level = 'N/A'` with an informative explanation note.
