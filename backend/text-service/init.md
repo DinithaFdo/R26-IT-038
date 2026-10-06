@@ -93,3 +93,4 @@ The semantic classification branch utilizes `DeBERTa-v3-large` fine-tuned under 
 ### 6.2 Model Loading Strategy
 `model_loader.load_models()` handles eager loading of `AutoModelForSequenceClassification` and `AutoTokenizer` into memory during application startup.
 - Model weights are resolved from the `MODEL2_PATH` environment variable (default: `./models/branch1_deberta_large_model2_domainfix_final`).
+- `_ensure_model_directory` performs fail-fast validation, verifying that the target model path exists and contains required weights before server binding.
