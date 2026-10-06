@@ -193,3 +193,7 @@ Ensures millisecond-level precision in frontend player alignment.
 - Subtracts baseline ambient noise attention profile.
 - Prevents silent audio gaps from triggering false positive attention regions.
 
+### Single-Layer Fallback
+- If full depth rollout fails, extract raw last-layer cross-attention.
+- Flag report with `rollout_mode = 'single_layer_fallback'`.
+
