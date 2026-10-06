@@ -68,3 +68,7 @@ ESVAS is a non-invasive analytical explainability layer for deepfake voice detec
 - Registered via `module.register_forward_hook(hook_fn)`.
 - Captures intermediate branch hidden states and attention matrices.
 
+### LFCC Feature Extraction
+- 19 linear-frequency cepstral coefficients.
+- Extracted per 20ms frame with 10ms overlap.
+
