@@ -431,3 +431,7 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 - Enforces Clerk authentication user ID matching prediction owner ID.
 - 403 Forbidden returned on unauthorized attempts.
 
+### Transient Audio Lifecycle
+- Raw PCM audio buffer retained in memory during XAI run.
+- Automatically deleted upon completion of Phase 4 synthesis.
+
