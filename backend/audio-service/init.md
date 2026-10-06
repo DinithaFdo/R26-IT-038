@@ -211,3 +211,7 @@ Ensures millisecond-level precision in frontend player alignment.
 - Fast exact SHAP calculation for tree ensembles.
 - Computes Shapley values for each extracted acoustic feature.
 
+### Attribution Direction
+- **Positive SHAP value (> 0):** Pushes prediction towards **Spoof**.
+- **Negative SHAP value (< 0):** Pushes prediction towards **Bonafide**.
+
