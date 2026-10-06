@@ -423,3 +423,7 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 - ESVAS processing runs in background worker task after prediction persistence.
 - Audio retained temporarily during XAI execution pass.
 
+### Payload Validation
+- Validates `prediction_id` format (MongoDB ObjectId).
+- Ensures prediction status is `completed` before returning explanation.
+
