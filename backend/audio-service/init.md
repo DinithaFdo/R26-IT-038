@@ -51,3 +51,8 @@ ESVAS is a non-invasive analytical explainability layer for deepfake voice detec
 - `SynthesisEvaluator`: Evaluates IoU & AOPC consistency.
 
 
+### Target Audience & Persona
+- **Forensic Auditors:** Detailed mathematical attributions and raw tensors.
+- **End Users:** Clear natural language text summary with visual heatmaps.
+
+
