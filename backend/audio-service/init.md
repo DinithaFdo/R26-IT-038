@@ -18,3 +18,8 @@ ESVAS is a non-invasive analytical explainability layer for deepfake voice detec
 3. **Modular:** Independent execution phases.
 
 
+### Dual-View Explanation Concept
+- **View A (Temporal):** Identifies *where* spoofing occurs.
+- **View B (Semantic):** Identifies *what* acoustic features indicate synthetic origin.
+
+
