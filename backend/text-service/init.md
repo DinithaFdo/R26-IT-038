@@ -16,3 +16,6 @@ The text classification backend service provides high-throughput, adversarially 
 - **Stylometric Engine**: XGBoost Classifier with Scikit-learn preprocessing
 - **Explainability**: SHAP (TreeExplainer) for stylometric feature contribution
 - **NLP Pipeline**: spaCy (`en_core_web_sm`) for syntactic and lexical dependency parsing
+
+### 1.3 Application Lifespan and Routing
+The service is instantiated via `app.py`, which configures FastAPI lifespan handlers to load heavy neural network models into memory during startup and mount the `/classify` and `/xai` sub-routers.
