@@ -84,3 +84,7 @@ ESVAS is a non-invasive analytical explainability layer for deepfake voice detec
 - Frame-to-frame amplitude variation coefficient.
 - Measures glottal flow dynamics stability.
 
+### Harmonics-to-Noise Ratio (HNR)
+- Evaluates acoustic signal purity in dB.
+- Highlights high-frequency spectral phase distortion.
+
