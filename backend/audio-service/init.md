@@ -321,3 +321,8 @@ ECI = 0.5 * IoU_score + 0.5 * Normalized_AOPC
 ```
 Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 
+### Conflict Resolution Rules
+- If IoU < 0.40 (Temporal & Semantic disagree):
+  * Rely on AOPC score to determine which view is causally superior.
+  * Annotate report with explicit conflict advisory.
+
