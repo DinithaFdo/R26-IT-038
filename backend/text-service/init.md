@@ -71,3 +71,4 @@ Containerized deployment separating code artifacts from heavy binary model weigh
 - Volume Mount Strategy: Mounts external ./models directory directly into container at /app/models.
 - Volume Security: Enforces :ro flag to prevent container runtime from modifying checkpoint files.
 - Git Exclusions: Prevents binary files (*.safetensors, *.bin) from polluting git history.
+- Dockerignore: Skips heavy model weight directories during Docker build context transfer.
