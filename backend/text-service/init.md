@@ -81,3 +81,4 @@ Validates input bounds and protects against adversarial payload processing.
 - Token Truncation: Restricts text input to maximum sequence length (512 tokens) to bound VRAM usage.
 - Character Sanitization: Strips zero-width spaces and malicious unicode bypass sequences.
 - Rate Limiting: Safeguards compute-intensive interpretability queries with sliding window limits.
+- Error Masking: Wraps internal exceptions in safe client-facing error structures.
