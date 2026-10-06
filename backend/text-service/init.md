@@ -248,3 +248,7 @@ python -m uvicorn app:app --reload --port 8000
 ### 12.4 CI/CD Automation (`.github/workflows/deploy.yml`)
 - Triggered on push to `main` branch or manual `workflow_dispatch`
 - Builds and pushes multi-arch images to Docker Hub (`ai-detection-backend:latest` and `${github.sha}`)
+
+### 12.5 Serverless Modal Deployment (`modal_app.py`)
+- Deployed on NVIDIA L4 GPU with persistent volume `ai-models` mounted at `/app/models`
+- Configured with `scaledown_window=180` and `timeout=600` for cost-efficient cold-start management
