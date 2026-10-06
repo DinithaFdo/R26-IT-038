@@ -123,3 +123,6 @@ Requires four coordinated serialized artifacts:
 3. Feature names list (`XGB_FEATURES_PATH`)
 4. Isotonic probability calibrator (`XGB_CALIBRATOR_PATH`)
 - Availability is verified at runtime via `is_css_available()`; missing artifacts trigger graceful fallback without terminating semantic classification.
+
+### 7.3 Natural Language Processing Pipeline
+- Tokenization and dependency parsing leverage spaCy (`en_core_web_sm`), initialized lazily via `_get_nlp()` to optimize memory footprint.
