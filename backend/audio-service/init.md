@@ -368,3 +368,7 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 - ~30,000 audio clips with precise segment-level temporal manipulation timestamps.
 - Used as primary ground truth for IoU and ARS temporal localization accuracy.
 
+### PartialSpoof v1.2 DEV
+- Partially spoofed audio files with mixed bonafide/spoof segments.
+- Calibrates attention rollout detection thresholds.
+
