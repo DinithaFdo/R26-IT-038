@@ -451,3 +451,6 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 ### Rate Limiting Rules
 - Max 10 explanation requests per user per minute (`PREDICTION_RATE_LIMIT_PER_WINDOW`).
 
+### Response Caching
+- `Cache-Control: private, max-age=3600` for completed explanation reports.
+
