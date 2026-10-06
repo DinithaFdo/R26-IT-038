@@ -391,3 +391,7 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 - Scale_pos_weight parameter tuned in XGBoost.
 - Stratified K-Fold cross-validation (K=5).
 
+### License & Compliance
+- Academic research license compliance for ASVspoof & FakeSound2.
+- No commercial redistribution of raw audio samples.
+
