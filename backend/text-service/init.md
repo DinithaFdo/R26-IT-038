@@ -145,3 +145,7 @@ The stylometric feature extractor computes 28 active linguistic features from te
 ## 8. Conflicting Signal Score (CSS-v2)
 ### 8.1 Motivation
 CSS-v2 measures epistemic disagreement between the semantic branch (DeBERTa) and stylometric branch (XGBoost) to detect mixed-authorship or adversarial evasions.
+
+### 8.2 Formulation
+1. **Semantic Calibration**: Logit temperature scaling with $T = 1.7084$:
+   $$p_{sem,cal} = \text{softmax}(\log(p_{ai})/T, \log(p_{human})/T)$$
