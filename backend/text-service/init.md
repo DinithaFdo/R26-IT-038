@@ -85,3 +85,4 @@ Validates input bounds and protects against adversarial payload processing.
 ## 11. Testing & Verification Suite
 Comprehensive unit and integration test strategies for interpretability.
 - Test Fixtures: Provides lightweight dummy PyTorch transformer for offline unit testing.
+- POS Unit Tests: Verifies that punctuation, prepositions, and stop-words receive zero attribution.
