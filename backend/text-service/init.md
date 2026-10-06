@@ -58,3 +58,4 @@ Exposes RESTful endpoints for explainability auditing.
 - Endpoint: POST /xai/audit accepting JSON payload with request validation.
 - Dependency Injection: Injects Request object to safely access application state singletons.
 - Pre-Flight Verification: Validates that PyTorch model and tokenizer are initialized in memory.
+- Response Annotation: Binds response_model=XAIResponse with 200, 400, 500 error mappings.
