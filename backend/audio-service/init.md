@@ -121,3 +121,7 @@ ESVAS is a non-invasive analytical explainability layer for deepfake voice detec
 - If REAPER binary fails or returns empty GCI, fall back to Parselmouth/Praat pitch bounds.
 - Log warning and set `gci_reliability_flag = false`.
 
+### Extraction Latency Budget
+- Maximum allowed overhead: < 80ms for 6.0s audio clip.
+- Efficient C-extensions used for LFCC & Praat calls.
+
