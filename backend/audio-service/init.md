@@ -268,3 +268,7 @@ Ensures millisecond-level precision in frontend player alignment.
 }
 ```
 
+### Natural Language Narrative
+- Template engine converts top SHAP attributions into human-readable sentences:
+  *"High LFCC spectral variation and unnatural F0 stability strongly indicate synthetic vocoder origin."*
+
