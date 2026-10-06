@@ -8,3 +8,5 @@ Defines strict Pydantic schemas for request validation and serialization.
 - TokenScore: Schema capturing token string, raw score, normalized score, and noise flag.
 - XAIResponse: Output contract containing predicted_class, confidence, heatmap_data, and interpretability_report.
 - Swagger UI: Auto-generated OpenAPI v3 schemas ensure seamless API contract verification.
+## 3. Mathematical Extraction Engine (core_extractor.py)
+Extracts transformer attention and gradient attributions.
