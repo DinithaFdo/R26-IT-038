@@ -6,3 +6,4 @@ Provides deep-learning interpretability by extracting causal mathematical weight
 Defines strict Pydantic schemas for request validation and serialization.
 - XAIRequest: Input contract wrapping incoming text string for explainability processing.
 - TokenScore: Schema capturing token string, raw score, normalized score, and noise flag.
+- XAIResponse: Output contract containing predicted_class, confidence, heatmap_data, and interpretability_report.
