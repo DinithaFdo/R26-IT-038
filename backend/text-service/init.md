@@ -37,3 +37,4 @@ Applies linguistic and part-of-speech filtering to eliminate non-causal grammati
 Translates raw attribution tensors into human-readable forensic reports.
 - LLM Provider: Integrates Google Gemini API via official SDK client.
 - Configuration: Reads GEMINI_API_KEY from environment variables with graceful fallback validation.
+- Top-K Token Selection: Extracts the top-5 highest-scoring non-noise tokens to construct the prompt.
