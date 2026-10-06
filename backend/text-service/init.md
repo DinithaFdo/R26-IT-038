@@ -50,3 +50,8 @@ POST /classify {text}
 
 ### 3.6 Error Handling Strategy
 Exceptions encountered during downstream prediction are caught and re-raised as `HTTPException(status_code=500, detail=str(exc))` to preserve stack-trace diagnostics in logging.
+
+## 4. Data Contracts & Schemas
+### 4.1 Request Contract
+`ClassifyRequest` requires:
+- `text`: non-empty string (`min_length=1`).
