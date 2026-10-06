@@ -138,3 +138,6 @@ The stylometric feature extractor computes 28 active linguistic features from te
 
 ### 7.5 Calibration Pipeline
 - Raw probability outputs from `predict_proba` are calibrated using Isotonic Regression to output well-calibrated stylometric posteriors (`p_style_cal`).
+
+### 7.6 Stylometric Empirical Performance
+- Achieves 93.05% in-distribution accuracy, AUROC of 0.98053, and 84.22% average OOD accuracy.
