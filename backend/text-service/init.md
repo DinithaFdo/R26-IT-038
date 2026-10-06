@@ -45,3 +45,4 @@ Translates raw attribution tensors into human-readable forensic reports.
 - Generation Hyperparameters: Configures low temperature (0.2) and top_p for deterministic auditing.
 ## 6. Service Orchestration Pipeline (service.py)
 Coordinates end-to-end execution of classification, extraction, and explanation.
+- State Extraction: Accesses app.state.model and app.state.tokenizer without redundant reloads.
