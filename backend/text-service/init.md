@@ -59,3 +59,5 @@ Exposes RESTful endpoints for explainability auditing.
 - Dependency Injection: Injects Request object to safely access application state singletons.
 - Pre-Flight Verification: Validates that PyTorch model and tokenizer are initialized in memory.
 - Response Annotation: Binds response_model=XAIResponse with 200, 400, 500 error mappings.
+## 8. Memory Optimization & Resource Sharing
+Zero-duplication architecture sharing PyTorch weights across modules.
