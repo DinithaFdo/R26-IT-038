@@ -239,3 +239,8 @@ python -m uvicorn app:app --reload --port 8000
 - Security: Enforces execution under non-root `appuser`
 - Build Steps: Pre-downloads spaCy `en_core_web_sm` model during layer caching
 - Optimization: `PYTHONDONTWRITEBYTECODE=1`, `PYTHONUNBUFFERED=1`
+
+### 12.3 Docker Compose Setup
+- Container: `ai-cls-backend` mapped to `8000:8000`
+- Mounts `./models:/app/models:ro` for read-only artifact protection
+- Restart Policy: `unless-stopped`
