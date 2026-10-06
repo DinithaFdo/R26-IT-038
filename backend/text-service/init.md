@@ -48,3 +48,4 @@ Coordinates end-to-end execution of classification, extraction, and explanation.
 - State Extraction: Accesses app.state.model and app.state.tokenizer without redundant reloads.
 - Step 1 (Inference): Runs forward pass to compute class logits and softmax probabilities.
 - Step 2 (Classification): Extracts argmax label and percentage confidence score.
+- Step 3 (Feature Extraction): Invokes core_extractor.extract_hybrid_attribution.
