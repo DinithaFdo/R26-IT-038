@@ -405,3 +405,11 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 ### Metadata Schema
 - Tracks dataset source, speaker ID, attack algorithm, and channel codec for each test sample.
 
+### Benchmark Summary Matrix
+| Dataset | Role | Metric |
+|---|---|---|
+| ASVspoof 2019 | Surrogate Train | R^2 > 0.91 |
+| FakeSound2 | ARS Eval | IoU > 0.75 |
+| PartialSpoof | Calibration | EER / Threshold |
+
+
