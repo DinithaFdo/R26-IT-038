@@ -175,3 +175,7 @@ CSS-v2 measures epistemic disagreement between the semantic branch (DeBERTa) and
 - Otherwise: `final_label = label`, and `leans_toward = None`.
 - Condition for `Mixed`: Requires both word count $\ge 150$ and `HIGH` conflict ($C > 0.60$).
 - **Label Invariance Principle**: The raw DeBERTa `label` field remains unaltered and strictly preserves semantic branch output.
+
+### 8.7 CSS Validation Metrics
+- CSS achieves a 4.5× error ratio differential (35.9% error in high conflict vs 7.9% in low conflict) with an AUROC-error of 0.7219.
+- In 101 out of 999 discordant cases, XGBoost was correct when DeBERTa misclassified.
