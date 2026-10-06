@@ -83,3 +83,5 @@ The sanitization layer cleans input strings prior to classification across ten s
 
 ### 5.1 Sanitization Audit Output
 The sanitizer returns `{clean_text, attacks_detected, attack_report, original_length, clean_length}` which is passed down to logging and response schemas.
+
+> **Security Boundary Notice**: The sanitization layer mitigates known heuristic and visual spoofing attacks; it does not offer cryptographic robustness against arbitrary adversarial perturbations.
