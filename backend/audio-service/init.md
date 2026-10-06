@@ -125,3 +125,11 @@ ESVAS is a non-invasive analytical explainability layer for deepfake voice detec
 - Maximum allowed overhead: < 80ms for 6.0s audio clip.
 - Efficient C-extensions used for LFCC & Praat calls.
 
+## 3. Phase 2 — Temporal Attention Rollout (ARS)
+
+### Mathematical Formulation
+```
+R_l = A_hat_l * R_{l-1}
+```
+Recursive multiplication over sequence of layers $l=1 \dots L$.
+
