@@ -5,3 +5,4 @@ Provides deep-learning interpretability by extracting causal mathematical weight
 ## 2. Core Schemas & Validation (schemas.py)
 Defines strict Pydantic schemas for request validation and serialization.
 - XAIRequest: Input contract wrapping incoming text string for explainability processing.
+- TokenScore: Schema capturing token string, raw score, normalized score, and noise flag.
