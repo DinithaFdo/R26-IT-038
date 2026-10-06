@@ -151,3 +151,5 @@ CSS-v2 measures epistemic disagreement between the semantic branch (DeBERTa) and
    $$p_{sem,cal} = \text{softmax}(\log(p_{ai})/T, \log(p_{human})/T)$$
 2. **Semantic Decision Margin**:
    $$s_D = 2 \cdot p_{sem,cal} - 1 \in [-1, +1]$$
+3. **Stylometric Decision Margin**:
+   $$s_S = 2 \cdot p_{style,cal} - 1 \in [-1, +1]$$
