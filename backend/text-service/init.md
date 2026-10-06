@@ -96,3 +96,4 @@ Profiling execution latency across extraction, filtering, and LLM translation.
 - spaCy Filtering Latency: Token POS tagging and masking executes in ~8ms.
 - LLM Translation Latency: Remote Gemini API call consumes ~450ms.
 - Total Turnaround: Complete forensic audit completes within ~660ms.
+- Async Concurrency: Runs LLM translation asynchronously to prevent event loop blocking.
