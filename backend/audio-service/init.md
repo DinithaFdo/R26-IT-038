@@ -44,3 +44,10 @@ ESVAS is a non-invasive analytical explainability layer for deepfake voice detec
 - **Device:** CPU / CUDA / MPS (Default: CPU for small model efficiency)
 
 
+### Component Interaction
+- `HookManager`: Intercepts branch activations.
+- `AttentionRolloutEngine`: Calculates temporal heatmaps.
+- `SemanticXGBExplainer`: Calculates SHAP attributions.
+- `SynthesisEvaluator`: Evaluates IoU & AOPC consistency.
+
+
