@@ -80,3 +80,6 @@ The sanitization layer cleans input strings prior to classification across ten s
 - **Stage 8 (Punctuation Normalization)**: `_normalize_quotes_and_dashes` standardizes curly smart quotes, em-dashes, and en-dashes to standard ASCII delimiters.
 - **Stage 9 (Repeated Punctuation)**: `_normalize_repeated_punctuation` condenses multi-exclamations (`!!!!`) and multi-periods (`....`) to bounded representations.
 - **Stage 10 (Whitespace Normalization)**: `_normalize_whitespace` compresses horizontal tabs and spaces, limits consecutive newlines to two, and strips outer whitespace.
+
+### 5.1 Sanitization Audit Output
+The sanitizer returns `{clean_text, attacks_detected, attack_report, original_length, clean_length}` which is passed down to logging and response schemas.
