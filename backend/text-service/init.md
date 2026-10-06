@@ -58,3 +58,4 @@ Exceptions encountered during downstream prediction are caught and re-raised as 
 
 ### 4.2 ClassifyResponse Fields
 - `label`: Raw semantic prediction (`"AI-Generated"` | `"Human-Written"`).
+- `prob_ai` & `prob_human`: Softmax confidence probabilities computed by the semantic transformer branch.
