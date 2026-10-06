@@ -86,3 +86,4 @@ Validates input bounds and protects against adversarial payload processing.
 Comprehensive unit and integration test strategies for interpretability.
 - Test Fixtures: Provides lightweight dummy PyTorch transformer for offline unit testing.
 - POS Unit Tests: Verifies that punctuation, prepositions, and stop-words receive zero attribution.
+- Normalization Tests: Asserts all normalized scores strictly reside within [0.0, 1.0].
