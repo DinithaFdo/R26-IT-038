@@ -216,3 +216,6 @@ The text service provides an integrated bridge to Dinitha's Hybrid Neural-symbol
 - `XGB_MODEL_PATH`: Filesystem path to serialized XGBoost model
 - `XGB_SCALER_PATH`: Filesystem path to StandardScaler joblib artifact
 - `XGB_FEATURES_PATH`: Filesystem path to feature names JSON list
+- `XGB_CALIBRATOR_PATH`: Filesystem path to Isotonic calibrator artifact
+- `DEBERTA_TEMPERATURE_PATH`: Path to temperature calibration file
+- `CSS_MIN_WORD_COUNT`: Minimum word count threshold for CSS analysis (default: `150`)
