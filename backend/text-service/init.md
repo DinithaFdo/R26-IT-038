@@ -13,3 +13,4 @@ Extracts transformer attention and gradient attributions.
 - Attention Extraction: Captures multi-head attention weights from the final transformer encoder layer.
 - Attention Aggregation: Averages attention heads across tokens to produce a unified 1D vector.
 - Integrated Gradients: Utilizes Captum LayerIntegratedGradients targeting the word embedding layer.
+- Baseline Strategy: Uses zero/pad token embedding tensor baselines for path-integral calculation.
