@@ -109,3 +109,7 @@ ESVAS is a non-invasive analytical explainability layer for deepfake voice detec
 - `HookManager.clear_buffers()` called in `finally` block.
 - Explicit `torch.cuda.empty_cache()` or Python `gc.collect()` invocation.
 
+### Feature Normalization
+- Zero-mean unit-variance per utterance over non-padded audio frames.
+- Prevents silence padding from distorting feature variance.
+
