@@ -126,3 +126,6 @@ Requires four coordinated serialized artifacts:
 
 ### 7.3 Natural Language Processing Pipeline
 - Tokenization and dependency parsing leverage spaCy (`en_core_web_sm`), initialized lazily via `_get_nlp()` to optimize memory footprint.
+
+### 7.4 Feature Set (28 Active Features)
+The stylometric feature extractor computes 28 active linguistic features from text inputs.
