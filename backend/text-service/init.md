@@ -49,3 +49,4 @@ Coordinates end-to-end execution of classification, extraction, and explanation.
 - Step 1 (Inference): Runs forward pass to compute class logits and softmax probabilities.
 - Step 2 (Classification): Extracts argmax label and percentage confidence score.
 - Step 3 (Feature Extraction): Invokes core_extractor.extract_hybrid_attribution.
+- Step 4 (Filtering): Invokes linguistic_filter.apply_pos_mask to sanitize raw tokens.
