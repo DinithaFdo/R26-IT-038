@@ -70,3 +70,4 @@ Zero-duplication architecture sharing PyTorch weights across modules.
 Containerized deployment separating code artifacts from heavy binary model weights.
 - Volume Mount Strategy: Mounts external ./models directory directly into container at /app/models.
 - Volume Security: Enforces :ro flag to prevent container runtime from modifying checkpoint files.
+- Git Exclusions: Prevents binary files (*.safetensors, *.bin) from polluting git history.
