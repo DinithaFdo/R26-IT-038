@@ -224,3 +224,7 @@ Ensures millisecond-level precision in frontend player alignment.
 - Top-N features ranked by absolute SHAP value $|\\phi_i|$.
 - Identifies dominant physical contributors to spoofing decision.
 
+### Beeswarm Plot Data Structure
+- Formats global feature impact & feature value intensity (high/low).
+- Serves summary view across evaluation datasets.
+
