@@ -99,3 +99,6 @@ The semantic classification branch utilizes `DeBERTa-v3-large` fine-tuned under 
 - `MAX_LENGTH = 512` with standard truncation and batch padding for tensor alignment.
 - PyTorch 2.6+ compatibility patch: `torch.load` is wrapped with `weights_only=False` to safely load custom model checkpoints.
 - Inferences execute inside `torch.no_grad()` contexts on device resolved via `get_device()` (CUDA L4 GPU in production, CPU fallback locally).
+
+### 6.4 Classification Decision Boundary
+- If `config.id2label` is not present, index defaults are pinned to `0 = Human-Written` and `1 = AI-Generated`.
