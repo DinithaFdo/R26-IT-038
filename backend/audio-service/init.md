@@ -201,3 +201,9 @@ Ensures millisecond-level precision in frontend player alignment.
 - Computation time: ~45ms for 6s audio clip on CPU.
 - Peak RAM overhead: < 12 MB per prediction.
 
+## 4. Phase 3 — Semantic Explanation (XGBoost-SHAP)
+
+### XGBoost Surrogate Model
+- Trained to mimic primary classifier decisions on physical acoustic features.
+- Model version: `v4_semantic_xgboost`.
+
