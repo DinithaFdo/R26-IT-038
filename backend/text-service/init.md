@@ -38,3 +38,6 @@ POST /classify {text}
 
 ### 3.2 Classification Endpoint
 - `POST /classify`: Primary entrypoint executing full multi-modal text classification and conflict analysis.
+
+### 3.3 Classification Health Probe
+- `GET /classify/health`: Health and readiness probe verifying model availability in memory.
