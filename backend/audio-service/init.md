@@ -23,3 +23,12 @@ ESVAS is a non-invasive analytical explainability layer for deepfake voice detec
 - **View B (Semantic):** Identifies *what* acoustic features indicate synthetic origin.
 
 
+```
+[Audio Input] -> [Multi-Branch Classifier] -> [Prediction Output]
+                         |
+            (PyTorch Hooks / Immutable Read)
+                         v
+                    [ESVAS Layer] -> [Dual-View Report]
+```
+
+
