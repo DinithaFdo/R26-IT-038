@@ -29,3 +29,4 @@ Applies linguistic and part-of-speech filtering to eliminate non-causal grammati
 - POS Filter (DET): Masks definite and indefinite articles (the, a, an) as non-causal tokens.
 - POS Filter (ADP): Filters prepositions and adpositions (in, to, for, with).
 - POS Filter (SPACE): Identifies and suppresses newline and space tokens from heatmap consideration.
+- POS Filter (PART): Eliminates grammatical particles (e.g., possessive markers, negative particles).
