@@ -32,3 +32,9 @@ ESVAS is a non-invasive analytical explainability layer for deepfake voice detec
 ```
 
 
+### Decoupling Rules
+- Phase 1 (Extraction) runs inline during inference pass.
+- Phase 2 (Rollout) & Phase 3 (SHAP) execute asynchronously in background task.
+- Phase 4 (Synthesis) merges outputs into unified schema.
+
+
