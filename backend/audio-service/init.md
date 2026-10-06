@@ -399,3 +399,6 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 - Surrogate trained on ASVspoof 2019 evaluated directly on In-the-Wild dataset.
 - Measures feature attribution shift across out-of-domain samples.
 
+### Audio Standardization
+- Uniform 16,000 Hz, 16-bit PCM mono format required before feature extraction.
+
