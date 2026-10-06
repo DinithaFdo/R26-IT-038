@@ -104,3 +104,6 @@ The semantic classification branch utilizes `DeBERTa-v3-large` fine-tuned under 
 - If `config.id2label` is not present, index defaults are pinned to `0 = Human-Written` and `1 = AI-Generated`.
 - Raw binary decision logic: `label = "AI-Generated" if prob_ai >= 0.5 else "Human-Written"`.
 - Temperature scaling constant `T = 1.7084` (loaded from `DEBERTA_TEMPERATURE_PATH`) is applied strictly to calibrate probabilities for CSS calculation without altering the raw label.
+
+### 6.5 Token Highlighting Extraction
+- Subword token attribution scores are extracted and mapped into word-level highlights with `high`, `mid`, and `low` saliency tiers.
