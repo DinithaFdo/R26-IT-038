@@ -36,3 +36,4 @@ Applies linguistic and part-of-speech filtering to eliminate non-causal grammati
 ## 5. Agentic LLM Translation Layer (llm_translator.py)
 Translates raw attribution tensors into human-readable forensic reports.
 - LLM Provider: Integrates Google Gemini API via official SDK client.
+- Configuration: Reads GEMINI_API_KEY from environment variables with graceful fallback validation.
