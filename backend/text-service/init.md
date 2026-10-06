@@ -79,3 +79,4 @@ Containerized deployment separating code artifacts from heavy binary model weigh
 ## 10. Security & Input Sanitization
 Validates input bounds and protects against adversarial payload processing.
 - Token Truncation: Restricts text input to maximum sequence length (512 tokens) to bound VRAM usage.
+- Character Sanitization: Strips zero-width spaces and malicious unicode bypass sequences.
