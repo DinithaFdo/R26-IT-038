@@ -103,3 +103,4 @@ Specifications for visualizing token saliency on web dashboards.
 - Color Scale: Uses dynamic RGBA background interpolation: rgba(239, 68, 68, score).
 - Interactive Tooltip: Displays raw score, normalized score, and POS tag on token hover.
 - Audit Card: Renders 3-sentence summary in a dedicated callout card with confidence badge.
+- Accessibility: Implements accessible high-contrast text styling over saturated token backgrounds.
