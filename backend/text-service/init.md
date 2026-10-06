@@ -111,3 +111,7 @@ The semantic classification branch utilizes `DeBERTa-v3-large` fine-tuned under 
 ### 6.6 Semantic Branch Empirical Benchmarks
 - **In-Distribution Performance**: Achieves 99.75% accuracy with an AUROC of 0.99988 on test splits.
 - **Out-of-Distribution Generalization**: 87.9% average across external datasets (M4GT: 78.7%, Ghostbuster: 87.6%, CHEAT: 97.3%).
+
+## 7. Stylometric Branch (XGBoost)
+### 7.1 Architecture & Role
+The stylometric branch evaluates structural writing patterns, lexical variety, and syntactic distributions using an XGBoost gradient-boosted decision tree.
