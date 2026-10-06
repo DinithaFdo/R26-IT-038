@@ -92,3 +92,4 @@ Comprehensive unit and integration test strategies for interpretability.
 ## 12. Performance Benchmarks & Latency Profiling
 Profiling execution latency across extraction, filtering, and LLM translation.
 - Inference Latency: Raw classification forward pass takes ~25ms on GPU.
+- Extraction Latency: Captum 50-step path integral takes ~180ms.
