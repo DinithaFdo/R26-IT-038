@@ -55,3 +55,4 @@ Coordinates end-to-end execution of classification, extraction, and explanation.
 - Error Handling: Catches inference errors, logs diagnostics, and raises formatted HTTPException.
 ## 7. FastAPI API Routing (router.py)
 Exposes RESTful endpoints for explainability auditing.
+- Endpoint: POST /xai/audit accepting JSON payload with request validation.
