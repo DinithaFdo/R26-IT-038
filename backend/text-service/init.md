@@ -97,3 +97,4 @@ Profiling execution latency across extraction, filtering, and LLM translation.
 - LLM Translation Latency: Remote Gemini API call consumes ~450ms.
 - Total Turnaround: Complete forensic audit completes within ~660ms.
 - Async Concurrency: Runs LLM translation asynchronously to prevent event loop blocking.
+- Thread Offloading: Offloads synchronous PyTorch computations to background thread pool.
