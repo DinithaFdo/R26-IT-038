@@ -23,3 +23,4 @@ Extracts transformer attention and gradient attributions.
 - Subword Reconstruction: Handles subword tokens by matching offsets to full lexical tokens.
 ## 4. NLP & Linguistic Filtering (linguistic_filter.py)
 Applies linguistic and part-of-speech filtering to eliminate non-causal grammatical noise.
+- spaCy Model: Uses en_core_web_sm pipeline with parser and tagger enabled.
