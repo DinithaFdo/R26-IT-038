@@ -35,3 +35,4 @@ Applies linguistic and part-of-speech filtering to eliminate non-causal grammati
 - Semantic Saliency: Preserves content words (NOUN, VERB, ADJ, ADV) to isolate genuine causal triggers.
 ## 5. Agentic LLM Translation Layer (llm_translator.py)
 Translates raw attribution tensors into human-readable forensic reports.
+- LLM Provider: Integrates Google Gemini API via official SDK client.
