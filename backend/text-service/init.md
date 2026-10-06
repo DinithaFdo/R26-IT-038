@@ -31,3 +31,7 @@ POST /classify {text}
   ├── [5] CSS-v2 Engine: Evaluates branch disagreement score (C) and conflict category
   └── [6] Final Label Resolver: Assigns final category (AI, Human, or Mixed) with directional lean
 ```
+
+## 3. API Endpoints
+### 3.1 Service Discovery
+- `GET /`: Returns service identity and Swagger documentation link (`{"message": "AI Detection API running", "docs": "/docs"}`).
