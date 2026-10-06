@@ -364,3 +364,7 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 - ~180,000 utterances including telephony codec and transmission channel variations.
 - Tests ESVAS robustness under bandpass filtering and lossy compression.
 
+### FakeSound2 Benchmark
+- ~30,000 audio clips with precise segment-level temporal manipulation timestamps.
+- Used as primary ground truth for IoU and ARS temporal localization accuracy.
+
