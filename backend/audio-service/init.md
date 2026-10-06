@@ -295,3 +295,9 @@ IoU(ARS_anomalies, SHAP_feature_windows) > 0.75 => Consistent (Status: Verified)
 ```
 Flagged as highly trustworthy dual-view explanation.
 
+### AOPC Metric Formula
+```
+AOPC = (1 / (L + 1)) * sum_{k=0}^L [ f(x) - f(x \ \Omega_l^k) ]
+```
+Measures prediction degradation when top explanation segments $\\Omega_l^k$ are masked.
+
