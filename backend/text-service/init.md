@@ -122,3 +122,4 @@ Requires four coordinated serialized artifacts:
 2. StandardScaler feature scaler (`XGB_SCALER_PATH`)
 3. Feature names list (`XGB_FEATURES_PATH`)
 4. Isotonic probability calibrator (`XGB_CALIBRATOR_PATH`)
+- Availability is verified at runtime via `is_css_available()`; missing artifacts trigger graceful fallback without terminating semantic classification.
