@@ -257,3 +257,14 @@ Ensures millisecond-level precision in frontend player alignment.
 - TreeExplainer naturally distributes attribution among correlated features.
 - Grouped category attribution aggregates SHAP values per feature family.
 
+### SHAP JSON Schema
+```json
+{
+  "base_value": 0.12,
+  "prediction": 0.94,
+  "top_features": [
+    {"name": "lfcc_coef_2_std", "shap_value": +0.31, "value": 4.12, "category": "spectral"}
+  ]
+}
+```
+
