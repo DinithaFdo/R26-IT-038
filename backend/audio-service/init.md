@@ -354,3 +354,9 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 - Completes ESVAS pipeline execution.
 - Outputs audit-compliant explanation document.
 
+## 6. Evaluation Datasets & Setup
+
+### ASVspoof 2019 LA
+- ~121,000 utterances across logical access attacks (TTS & VC).
+- Used for training and validating the XGBoost surrogate model.
+
