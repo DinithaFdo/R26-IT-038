@@ -245,3 +245,7 @@ Ensures millisecond-level precision in frontend player alignment.
 - **Prosodic:** F0 trajectory, duration, energy contours.
 - **Glottal:** GCI jitter, shimmer, HNR, glottal pulse shape.
 
+### Background Dataset Baseline
+- 500 representative bonafide audio samples from ASVspoof 2019 LA training set.
+- Pre-computed and cached in `background_baseline.pkl`.
+
