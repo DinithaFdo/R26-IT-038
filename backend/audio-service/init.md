@@ -402,3 +402,6 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 ### Audio Standardization
 - Uniform 16,000 Hz, 16-bit PCM mono format required before feature extraction.
 
+### Metadata Schema
+- Tracks dataset source, speaker ID, attack algorithm, and channel codec for each test sample.
+
