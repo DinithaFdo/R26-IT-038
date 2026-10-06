@@ -12,3 +12,9 @@ ESVAS is a non-invasive analytical explainability layer for deepfake voice detec
 - **G10 (Acoustic Interpretability):** Applies SHAP on physical features rather than raw pixels.
 
 
+### Core Principles
+1. **Non-invasive:** Uses PyTorch hooks without altering classifier weights.
+2. **Unidirectional:** Explanations cannot alter prediction outcomes.
+3. **Modular:** Independent execution phases.
+
+
