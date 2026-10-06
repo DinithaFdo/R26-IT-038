@@ -220,3 +220,7 @@ Ensures millisecond-level precision in frontend player alignment.
 - Spectral Centroid, Bandwidth, Contrast, Rolloff = 32
 - F0, Jitter, Shimmer, HNR, GCI stats = 40
 
+### Feature Importance Ranking
+- Top-N features ranked by absolute SHAP value $|\\phi_i|$.
+- Identifies dominant physical contributors to spoofing decision.
+
