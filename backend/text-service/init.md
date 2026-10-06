@@ -134,3 +134,4 @@ The stylometric feature extractor computes 28 active linguistic features from te
 - **Measure of Textual Lexical Diversity (MTLD)**: Evaluated forward and backward with a factor threshold of 0.72 (`_compute_mtld`).
 - **Syntactic Features**: Includes average dependency parse depth (`avg_dep_depth`), sentence length variance (`sentence_len_variance`), and average sentence length (`sentence_avg_len`).
 - **Lexical Ratios**: Extracts character-per-word ratio, function word ratio, contraction ratio, and first-person singular pronoun density.
+- **Discourse Markers**: Quantifies transition words, modal verbs, hedging constructs, and coordinating conjunction density.
