@@ -305,3 +305,7 @@ Measures prediction degradation when top explanation segments $\\Omega_l^k$ are 
 - Replaces top-ranked 20ms audio frames with zero-padded silence or shaped background noise.
 - Evaluates classifier output drop $f(x) - f(x')$.
 
+### Faithfulness Validation
+- High AOPC score confirms explanation features are causally responsible for classification.
+- Low AOPC triggers warning: `Unverified Explanation (Potential Artifact)`.
+
