@@ -117,3 +117,7 @@ ESVAS is a non-invasive analytical explainability layer for deepfake voice detec
 - Context-local dictionary keyed by `prediction_id`.
 - Ensures multi-threaded concurrent predictions do not leak hook data.
 
+### REAPER Fallback
+- If REAPER binary fails or returns empty GCI, fall back to Parselmouth/Praat pitch bounds.
+- Log warning and set `gci_reliability_flag = false`.
+
