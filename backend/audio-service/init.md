@@ -96,3 +96,7 @@ ESVAS is a non-invasive analytical explainability layer for deepfake voice detec
 - Tensors stored in process-isolated thread-local storage.
 - Automatically purged after Phase 2 & 3 completion.
 
+### Attention Weight Interception
+- Intercepts self-attention weights from Transformer/Conformer encoder blocks.
+- Preserves multi-head tensor shapes: `[batch, heads, seq_len, seq_len]`.
+
