@@ -233,3 +233,9 @@ Run locally within the `ai-detection-app` directory:
 ```bash
 python -m uvicorn app:app --reload --port 8000
 ```
+
+### 12.2 Containerization (Dockerfile)
+- Base Image: `python:3.11-slim`
+- Security: Enforces execution under non-root `appuser`
+- Build Steps: Pre-downloads spaCy `en_core_web_sm` model during layer caching
+- Optimization: `PYTHONDONTWRITEBYTECODE=1`, `PYTHONUNBUFFERED=1`
