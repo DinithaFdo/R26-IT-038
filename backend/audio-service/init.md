@@ -155,3 +155,9 @@ Accounts for residual connections by adding identity matrix $I$.
 - Top 20% highest attention values (80th percentile) marked as candidate fake regions.
 - Output format: list of time interval tuples `[(t_start, t_end)]`.
 
+### Frame-to-Time Mapping
+```
+timestamp_seconds = frame_index * hop_length_samples / sample_rate
+```
+Ensures millisecond-level precision in frontend player alignment.
+
