@@ -224,3 +224,5 @@ The text service provides an integrated bridge to Dinitha's Hybrid Neural-symbol
 - `ALLOWED_ORIGINS`: Comma-delimited CORS origins (defaults: `http://localhost:3000,http://localhost:5173`)
 - `HOST` and `PORT`: Service bind targets (default `0.0.0.0:8000`)
 - Secrets Policy: API tokens and credentials must be injected strictly via environment variables, never committed to VCS.
+
+> **Path Convention Warning**: All model and artifact path variables must use Linux forward slashes (`/app/models/...`) when deployed to Docker or Modal.
