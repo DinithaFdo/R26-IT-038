@@ -189,3 +189,7 @@ Ensures millisecond-level precision in frontend player alignment.
 - Merges contiguous frame intervals above threshold separated by < 50ms.
 - Assigns candidate severity score based on mean rollout density.
 
+### Noise Floor Filter
+- Subtracts baseline ambient noise attention profile.
+- Prevents silent audio gaps from triggering false positive attention regions.
+
