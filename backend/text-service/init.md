@@ -64,3 +64,4 @@ Zero-duplication architecture sharing PyTorch weights across modules.
 - Lifespan Management: Loads transformer weights once in app.py lifespan context manager.
 - VRAM Efficiency: Avoids loading duplicate weights for both classification and XAI.
 - Inference Optimization: Sets model.eval() to disable dropout layers during attribution.
+- Gradient Scoping: Dynamically enables gradient tracking only inside Captum attribution scope.
