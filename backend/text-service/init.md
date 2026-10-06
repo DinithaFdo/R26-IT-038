@@ -102,3 +102,4 @@ Profiling execution latency across extraction, filtering, and LLM translation.
 Specifications for visualizing token saliency on web dashboards.
 - Color Scale: Uses dynamic RGBA background interpolation: rgba(239, 68, 68, score).
 - Interactive Tooltip: Displays raw score, normalized score, and POS tag on token hover.
+- Audit Card: Renders 3-sentence summary in a dedicated callout card with confidence badge.
