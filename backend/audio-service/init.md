@@ -454,3 +454,6 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 ### Response Caching
 - `Cache-Control: private, max-age=3600` for completed explanation reports.
 
+### Service Health Check
+- `GET /ready` verifies XGBoost surrogate model loaded and PyTorch hook manager active.
+
