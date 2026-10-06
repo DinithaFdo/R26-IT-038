@@ -89,3 +89,6 @@ The sanitizer returns `{clean_text, attacks_detected, attack_report, original_le
 ## 6. Semantic Branch (DeBERTa-v3-large)
 ### 6.1 Model Architecture
 The semantic classification branch utilizes `DeBERTa-v3-large` fine-tuned under the Model 2 'domainfix' setup for cross-domain text authenticity detection.
+
+### 6.2 Model Loading Strategy
+`model_loader.load_models()` handles eager loading of `AutoModelForSequenceClassification` and `AutoTokenizer` into memory during application startup.
