@@ -204,3 +204,4 @@ The text service provides an integrated bridge to Dinitha's Hybrid Neural-symbol
 2. Primary classification execution with `include_highlights=False`
 3. HNIF gradient-attention attribution extraction
 4. Linguistic noise filtering and LLM explanation generation
+- `include_highlights=False` avoids an unnecessary forward pass during audit queries since HNIF generates deep token heatmaps.
