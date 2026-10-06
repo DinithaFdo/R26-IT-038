@@ -65,3 +65,4 @@ Exceptions encountered during downstream prediction are caught and re-raised as 
 - `processing_time_ms`: End-to-end execution latency in milliseconds for performance telemetry.
 - `signal_analysis`: Detailed diagnostics object holding stylometric signals, CSS score, and SHAP feature contributions.
 - `final_label`: Resolved multi-class categorization (`"AI-Generated"`, `"Human-Written"`, or `"Mixed"`).
+- `leans_toward`: Directional indication (`"AI-Generated"` | `"Human-Written"`) populated when `final_label` evaluates to `Mixed`.
