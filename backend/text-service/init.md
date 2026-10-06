@@ -27,3 +27,4 @@ Applies linguistic and part-of-speech filtering to eliminate non-causal grammati
 - POS Filter (PUNCT): Marks punctuation tokens (commas, periods, quotation marks) as noise.
 - POS Filter (CCONJ): Filters coordinating conjunctions (and, but, or) to prevent spurious importance.
 - POS Filter (DET): Masks definite and indefinite articles (the, a, an) as non-causal tokens.
+- POS Filter (ADP): Filters prepositions and adpositions (in, to, for, with).
