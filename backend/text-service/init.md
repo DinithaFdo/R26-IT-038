@@ -252,3 +252,7 @@ python -m uvicorn app:app --reload --port 8000
 ### 12.5 Serverless Modal Deployment (`modal_app.py`)
 - Deployed on NVIDIA L4 GPU with persistent volume `ai-models` mounted at `/app/models`
 - Configured with `scaledown_window=180` and `timeout=600` for cost-efficient cold-start management
+
+## 13. Operational Notes & Known Constraints
+- **Scikit-learn Version Pin**: `scikit-learn==1.6.1` is strictly pinned to prevent deserialization errors with pickled calibrator artifacts.
+- **Cache Strategy**: The in-memory audit cache should be migrated to Redis in multi-worker production environments.
