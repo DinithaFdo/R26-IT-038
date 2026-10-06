@@ -395,3 +395,7 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 - Academic research license compliance for ASVspoof & FakeSound2.
 - No commercial redistribution of raw audio samples.
 
+### Cross-Dataset Generalization
+- Surrogate trained on ASVspoof 2019 evaluated directly on In-the-Wild dataset.
+- Measures feature attribution shift across out-of-domain samples.
+
