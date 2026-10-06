@@ -168,3 +168,8 @@ CSS-v2 measures epistemic disagreement between the semantic branch (DeBERTa) and
 
 ### 8.5 Directional Fields
 - `deberta_direction` and `xgboost_direction` expose whether each respective branch favors `"AI"` or `"Human"`.
+
+### 8.6 Final Label Resolution
+`_get_final_label(label, conflict_level)` resolves the final classification:
+- If `conflict_level == "HIGH"`: `final_label = "Mixed"`, with `leans_toward = label`.
+- Otherwise: `final_label = label`, and `leans_toward = None`.
