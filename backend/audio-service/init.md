@@ -133,3 +133,9 @@ R_l = A_hat_l * R_{l-1}
 ```
 Recursive multiplication over sequence of layers $l=1 \dots L$.
 
+### Identity Matrix Integration
+```
+A_hat_l = 0.5 * A_l + 0.5 * I
+```
+Accounts for residual connections by adding identity matrix $I$.
+
