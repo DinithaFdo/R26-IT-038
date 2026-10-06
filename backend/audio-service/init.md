@@ -315,3 +315,9 @@ Measures prediction degradation when top explanation segments $\\Omega_l^k$ are 
 3. **Acoustic Breakdown:** Top SHAP features with physical descriptions.
 4. **Audit Metrics:** IoU and AOPC quantitative scores.
 
+### Explanation Confidence Index (ECI)
+```
+ECI = 0.5 * IoU_score + 0.5 * Normalized_AOPC
+```
+Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
+
