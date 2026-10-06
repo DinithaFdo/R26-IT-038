@@ -47,3 +47,6 @@ POST /classify {text}
 
 ### 3.5 Interactive Documentation
 - `GET /docs`: Auto-generated OpenAPI (Swagger UI) providing schema validation and interactive request debugging.
+
+### 3.6 Error Handling Strategy
+Exceptions encountered during downstream prediction are caught and re-raised as `HTTPException(status_code=500, detail=str(exc))` to preserve stack-trace diagnostics in logging.
