@@ -62,3 +62,9 @@ ESVAS is a non-invasive analytical explainability layer for deepfake voice detec
 - Privacy preserved: No PII stored; transient audio lifecycle enforced.
 
 
+## 2. Phase 1 — Feature & Attention Extraction
+
+### PyTorch Forward Hooks
+- Registered via `module.register_forward_hook(hook_fn)`.
+- Captures intermediate branch hidden states and attention matrices.
+
