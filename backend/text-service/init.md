@@ -79,3 +79,4 @@ The sanitization layer cleans input strings prior to classification across ten s
 - **Stage 7 (Structural Redaction)**: `_remove_structural_patterns` cleans markdown artifacts, Reddit quote syntax, and conversational headers.
 - **Stage 8 (Punctuation Normalization)**: `_normalize_quotes_and_dashes` standardizes curly smart quotes, em-dashes, and en-dashes to standard ASCII delimiters.
 - **Stage 9 (Repeated Punctuation)**: `_normalize_repeated_punctuation` condenses multi-exclamations (`!!!!`) and multi-periods (`....`) to bounded representations.
+- **Stage 10 (Whitespace Normalization)**: `_normalize_whitespace` compresses horizontal tabs and spaces, limits consecutive newlines to two, and strips outer whitespace.
