@@ -88,3 +88,7 @@ ESVAS is a non-invasive analytical explainability layer for deepfake voice detec
 - Evaluates acoustic signal purity in dB.
 - Highlights high-frequency spectral phase distortion.
 
+### REAPER GCI Irregularity
+- Epoch-based Glottal Closure Instant detection.
+- Measures interval jitter between consecutive vocal fold closures.
+
