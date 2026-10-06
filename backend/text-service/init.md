@@ -40,3 +40,4 @@ Translates raw attribution tensors into human-readable forensic reports.
 - Top-K Token Selection: Extracts the top-5 highest-scoring non-noise tokens to construct the prompt.
 - System Prompt: Instructs the model to act as a forensic AI interpretability auditor.
 - Anti-Hallucination: Strictly constrains generated explanations to provided salient tokens.
+- Report Length Constraint: Enforces a concise 3-sentence summary targeting non-technical stakeholders.
