@@ -130,3 +130,4 @@ Requires four coordinated serialized artifacts:
 ### 7.4 Feature Set (28 Active Features)
 The stylometric feature extractor computes 28 active linguistic features from text inputs.
 - `ppl_mean` and `ppl_std` are fixed to 0.0 at inference time to avoid the computational overhead of running causal language model perplexity loops.
+- **Standardized Type-Token Ratio (STTR)**: Computed using a sliding window of 50 tokens with a step size of 10 (`_compute_sttr`).
