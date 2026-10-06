@@ -469,3 +469,6 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 ### Unit Test: PyTorch Hooks
 - `test_hook_buffer_retention()`: Verifies hook attaches and captures tensors without modifying forward output values.
 
+### Integration Test: Attention Rollout
+- `test_attention_rollout_dimensions()`: Asserts ARS output length matches input frame sequence count.
+
