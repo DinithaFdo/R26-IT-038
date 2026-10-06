@@ -193,3 +193,7 @@ SHAP `TreeExplainer` computes local feature importances for XGBoost stylometric 
 ### 9.3 Display Name Translation
 - Raw feature keys are mapped into user-friendly strings via `_SHAP_DISPLAY_NAMES` (e.g., `avg_dep_depth` → 'Sentence Complexity / Depth').
 - SHAP values operate in log-odds margins; positive values signal AI-like stylistic tendencies, while negative values indicate human traits.
+
+## 10. XAI Service Integration
+### 10.1 Module Bridge
+The text service provides an integrated bridge to Dinitha's Hybrid Neural-symbolic Interpretability Framework (HNIF).
