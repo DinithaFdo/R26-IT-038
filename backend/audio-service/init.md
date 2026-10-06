@@ -92,3 +92,7 @@ ESVAS is a non-invasive analytical explainability layer for deepfake voice detec
 - Epoch-based Glottal Closure Instant detection.
 - Measures interval jitter between consecutive vocal fold closures.
 
+### Memory Buffer Management
+- Tensors stored in process-isolated thread-local storage.
+- Automatically purged after Phase 2 & 3 completion.
+
