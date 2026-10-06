@@ -82,3 +82,5 @@ Validates input bounds and protects against adversarial payload processing.
 - Character Sanitization: Strips zero-width spaces and malicious unicode bypass sequences.
 - Rate Limiting: Safeguards compute-intensive interpretability queries with sliding window limits.
 - Error Masking: Wraps internal exceptions in safe client-facing error structures.
+## 11. Testing & Verification Suite
+Comprehensive unit and integration test strategies for interpretability.
