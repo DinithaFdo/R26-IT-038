@@ -101,3 +101,4 @@ Profiling execution latency across extraction, filtering, and LLM translation.
 ## 13. Frontend UI Integration
 Specifications for visualizing token saliency on web dashboards.
 - Color Scale: Uses dynamic RGBA background interpolation: rgba(239, 68, 68, score).
+- Interactive Tooltip: Displays raw score, normalized score, and POS tag on token hover.
