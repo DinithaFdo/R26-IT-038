@@ -68,3 +68,4 @@ Zero-duplication architecture sharing PyTorch weights across modules.
 - Hardware Adaptability: Detects CUDA availability and seamlessly defaults to CPU execution.
 ## 9. Containerization & Docker Deployment
 Containerized deployment separating code artifacts from heavy binary model weights.
+- Volume Mount Strategy: Mounts external ./models directory directly into container at /app/models.
