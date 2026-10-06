@@ -460,3 +460,7 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 ### OpenAPI Schema Specs
 - Full OpenAPI 3.0 component schemas added for `ExplanationResponse` model.
 
+### API Contract Summary
+- Decoupled, asynchronous, secure, owner-scoped REST endpoints.
+
+
