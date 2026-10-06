@@ -85,3 +85,7 @@ The sanitization layer cleans input strings prior to classification across ten s
 The sanitizer returns `{clean_text, attacks_detected, attack_report, original_length, clean_length}` which is passed down to logging and response schemas.
 
 > **Security Boundary Notice**: The sanitization layer mitigates known heuristic and visual spoofing attacks; it does not offer cryptographic robustness against arbitrary adversarial perturbations.
+
+## 6. Semantic Branch (DeBERTa-v3-large)
+### 6.1 Model Architecture
+The semantic classification branch utilizes `DeBERTa-v3-large` fine-tuned under the Model 2 'domainfix' setup for cross-domain text authenticity detection.
