@@ -228,3 +228,7 @@ Ensures millisecond-level precision in frontend player alignment.
 - Formats global feature impact & feature value intensity (high/low).
 - Serves summary view across evaluation datasets.
 
+### Waterfall Plot Schema
+- Base value (expected model output) $E[f(x)]$.
+- Stepwise contribution of top 10 acoustic features to final logit.
+
