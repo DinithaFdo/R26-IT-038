@@ -240,3 +240,8 @@ Ensures millisecond-level precision in frontend player alignment.
 - Strict validation of input dataframe column names and order against `v4_column_order.json`.
 - Raises `ValueError` on column mismatch.
 
+### Acoustic Property Categories
+- **Spectral:** LFCC coefficients, spectral slope, tilt.
+- **Prosodic:** F0 trajectory, duration, energy contours.
+- **Glottal:** GCI jitter, shimmer, HNR, glottal pulse shape.
+
