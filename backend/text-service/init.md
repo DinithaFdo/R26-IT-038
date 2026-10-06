@@ -192,3 +192,4 @@ SHAP `TreeExplainer` computes local feature importances for XGBoost stylometric 
 
 ### 9.3 Display Name Translation
 - Raw feature keys are mapped into user-friendly strings via `_SHAP_DISPLAY_NAMES` (e.g., `avg_dep_depth` → 'Sentence Complexity / Depth').
+- SHAP values operate in log-odds margins; positive values signal AI-like stylistic tendencies, while negative values indicate human traits.
