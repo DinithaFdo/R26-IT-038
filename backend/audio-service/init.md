@@ -100,3 +100,8 @@ ESVAS is a non-invasive analytical explainability layer for deepfake voice detec
 - Intercepts self-attention weights from Transformer/Conformer encoder blocks.
 - Preserves multi-head tensor shapes: `[batch, heads, seq_len, seq_len]`.
 
+### Windowing Parameters
+- Window Size: 20 ms (320 samples at 16 kHz)
+- Hop Length: 10 ms (160 samples at 16 kHz)
+- Window Function: Hann window
+
