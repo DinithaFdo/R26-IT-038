@@ -80,3 +80,7 @@ ESVAS is a non-invasive analytical explainability layer for deepfake voice detec
 - Period-to-period variability of fundamental frequency.
 - Quantifies subtle vocal cord perturbation anomalies.
 
+### Shimmer Analysis
+- Frame-to-frame amplitude variation coefficient.
+- Measures glottal flow dynamics stability.
+
