@@ -207,3 +207,7 @@ Ensures millisecond-level precision in frontend player alignment.
 - Trained to mimic primary classifier decisions on physical acoustic features.
 - Model version: `v4_semantic_xgboost`.
 
+### SHAP TreeExplainer Integration
+- Fast exact SHAP calculation for tree ensembles.
+- Computes Shapley values for each extracted acoustic feature.
+
