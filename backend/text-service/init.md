@@ -31,3 +31,4 @@ Applies linguistic and part-of-speech filtering to eliminate non-causal grammati
 - POS Filter (SPACE): Identifies and suppresses newline and space tokens from heatmap consideration.
 - POS Filter (PART): Eliminates grammatical particles (e.g., possessive markers, negative particles).
 - Score Suppression: Sets normalized_score = 0.0 and is_noise = True for all filtered tokens.
+- Subword Merging: Strips subword artifacts (e.g. ## or byte-pair markers) before linguistic analysis.
