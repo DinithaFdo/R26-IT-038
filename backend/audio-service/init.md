@@ -161,3 +161,7 @@ timestamp_seconds = frame_index * hop_length_samples / sample_rate
 ```
 Ensures millisecond-level precision in frontend player alignment.
 
+### Edge-Smoothing Filter
+- 1D Gaussian filter ($\\sigma=1.5$) applied to ARS density vector.
+- Removes single-frame noise spikes and smooths region transitions.
+
