@@ -337,3 +337,7 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 - Steps $L = 5, 10, 15, 20$ frames perturbed iteratively.
 - Step size: 20ms per iteration.
 
+### Ground-Truth Comparison
+- Compares predicted ARS anomaly regions against FakeSound2 segment ground truth annotations.
+- Measures precision, recall, and frame-level F1 score.
+
