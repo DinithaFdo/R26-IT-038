@@ -33,3 +33,5 @@ Applies linguistic and part-of-speech filtering to eliminate non-causal grammati
 - Score Suppression: Sets normalized_score = 0.0 and is_noise = True for all filtered tokens.
 - Subword Merging: Strips subword artifacts (e.g. ## or byte-pair markers) before linguistic analysis.
 - Semantic Saliency: Preserves content words (NOUN, VERB, ADJ, ADV) to isolate genuine causal triggers.
+## 5. Agentic LLM Translation Layer (llm_translator.py)
+Translates raw attribution tensors into human-readable forensic reports.
