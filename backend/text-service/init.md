@@ -104,3 +104,5 @@ Specifications for visualizing token saliency on web dashboards.
 - Interactive Tooltip: Displays raw score, normalized score, and POS tag on token hover.
 - Audit Card: Renders 3-sentence summary in a dedicated callout card with confidence badge.
 - Accessibility: Implements accessible high-contrast text styling over saturated token backgrounds.
+## 14. Future Improvements & Roadmap
+Extending interpretability framework to multi-modal audio and image tasks.
