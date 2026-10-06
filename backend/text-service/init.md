@@ -184,3 +184,4 @@ CSS-v2 measures epistemic disagreement between the semantic branch (DeBERTa) and
 ## 9. Stylometric SHAP Explanations
 ### 9.1 TreeExplainer Integration
 SHAP `TreeExplainer` computes local feature importances for XGBoost stylometric predictions.
+- Explainer instances are loaded lazily upon first inference to optimize initial container boot time.
