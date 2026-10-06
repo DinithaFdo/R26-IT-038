@@ -19,3 +19,9 @@ The text classification backend service provides high-throughput, adversarially 
 
 ### 1.3 Application Lifespan and Routing
 The service is instantiated via `app.py`, which configures FastAPI lifespan handlers to load heavy neural network models into memory during startup and mount the `/classify` and `/xai` sub-routers.
+
+## 2. Request Processing Pipeline
+```
+POST /classify {text}
+  │
+  ├── [1] Sanitization Layer: Cleans text across 10 adversarial evasion categories
