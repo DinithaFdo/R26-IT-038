@@ -289,3 +289,9 @@ Ensures millisecond-level precision in frontend player alignment.
 ### Cross-Modal Consistency (IoU)
 - Computes Intersection over Union (IoU) between ARS high-attention regions and temporal windows of top SHAP acoustic features.
 
+### Consistency Rule
+```
+IoU(ARS_anomalies, SHAP_feature_windows) > 0.75 => Consistent (Status: Verified)
+```
+Flagged as highly trustworthy dual-view explanation.
+
