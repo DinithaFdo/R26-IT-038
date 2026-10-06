@@ -173,3 +173,7 @@ Ensures millisecond-level precision in frontend player alignment.
 - 6.0s windows with 1.0s overlap.
 - Cosine taper applied at window boundaries prior to stitching ARS segments.
 
+### PartialSpoof Calibration
+- Calibrated using PartialSpoof v1.2 DEV set.
+- Fixed threshold JSON: `partialspoof_v1_2_dev_attention_threshold.json`.
+
