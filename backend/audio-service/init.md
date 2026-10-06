@@ -333,3 +333,7 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 - JSON: Full telemetry and raw arrays.
 - HTML/PDF: Formatted report with embedded vector charts.
 
+### AOPC Step Sizes
+- Steps $L = 5, 10, 15, 20$ frames perturbed iteratively.
+- Step size: 20ms per iteration.
+
