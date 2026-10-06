@@ -94,3 +94,4 @@ Profiling execution latency across extraction, filtering, and LLM translation.
 - Inference Latency: Raw classification forward pass takes ~25ms on GPU.
 - Extraction Latency: Captum 50-step path integral takes ~180ms.
 - spaCy Filtering Latency: Token POS tagging and masking executes in ~8ms.
+- LLM Translation Latency: Remote Gemini API call consumes ~450ms.
