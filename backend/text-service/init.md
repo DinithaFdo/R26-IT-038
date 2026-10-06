@@ -159,3 +159,4 @@ CSS-v2 measures epistemic disagreement between the semantic branch (DeBERTa) and
 ### 8.3 Threshold Categorization
 - **MODERATE Conflict**: Triggered when $C > 0.30$, indicating emerging divergence between semantic and stylometric features.
 - **HIGH Conflict**: Triggered when $C > 0.60$, indicating diametrically opposing branch predictions.
+- **Conflict Levels**: Mapped to `LOW` ($C \le 0.30$), `MODERATE` ($0.30 < C \le 0.60$), and `HIGH` ($C > 0.60$).
