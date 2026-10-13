@@ -80,9 +80,9 @@ uses Python 3.12, installs FFmpeg/ffprobe, runs as a non-root `multiscope`
 user, and exposes `/health` as the container health check.
 
 Copy `.env.example` to `.env` if you want local interpolation values before
-starting Compose. The compose file does not pass `.env` wholesale into the
-container, which avoids accidentally echoing Cloudinary, Clerk, or MongoDB
-secrets during `docker-compose config`. Do not commit `.env`; it is ignored by
+starting Compose. Compose loads `.env` through `env_file` and overrides selected values for the
+container network. Its resolved configuration can contain secrets; do not share
+unredacted `docker compose config` output. Do not commit `.env`; it is ignored by
 the Docker build context.
 
 ```bash
@@ -145,47 +145,6 @@ System dependencies:
   `soundfile`, deployment images must include libsndfile or use a wheel that
   bundles the required native library.
 
-## Repository Layout
-
-The authoritative repository should be the parent repository:
-
-```text
-deepfake-voice-classification-system/.git
-```
-
-The nested backend repository:
-
-```text
-deepfake-voice-classification-system/backend/.git
-```
-
-is a migration artifact. Keeping both active makes status, ignores, CI paths,
-and commits ambiguous. Do not delete Git metadata until the backend history has
-been backed up and reviewed.
-
-Safe migration plan:
-
-```bash
-cd ..
-git -C backend status --short
-git -C backend branch --show-current
-git -C backend log --oneline --decorate -n 20
-tar -czf backend-git-backup-$(date +%Y%m%d-%H%M%S).tgz backend/.git
-git status --short
-```
-
-After confirming the backup and reviewing any backend-only commits that must be
-preserved, remove only the nested metadata directory:
-
-```bash
-rm -rf backend/.git
-git status --short
-```
-
-Then stage the backend files from the parent repository and make the parent
-repository the only commit source. The virtual environment remains ignored by
-both repository configurations and must not be committed.
-
 ## Prediction Job Execution
 
 The current MVP creates a queued prediction record, then executes it inline
@@ -244,222 +203,83 @@ The stored prediction statuses already support the worker flow:
 
 ## Model Integration Runtime
 
-Each branch runs in one of three modes — `real`, `dummy`, or `disabled`. The
-factory path is:
+The runtime supports four canonical branches:
 
-```text
-Settings
-  -> app.models.factory.ModelFactory
-  -> app.models.registry.ModelRegistry
-  -> app.services.voice_service.VoiceService
-```
+| Internal branch | Public model name | Implementation |
+| --- | --- | --- |
+| `lfcc_cnn_tcn` | `cnn_acoustic` | LFCC CNN/TCN |
+| `aasist` | `aasist` | AASIST-Light V2 |
+| `ssl_sequence` | `ssl_wavlm_xlsr` | XLS-R with a Mamba head |
+| `glottal` | `glottal_features` | Selected acoustic/glottal features with a trained classifier |
 
-Canonical internal branch names are `lfcc_cnn_tcn`, `aasist`, `ssl_sequence`,
-and `glottal`. Existing public model names such as `cnn_acoustic`,
-`ssl_wavlm_xlsr`, and `glottal_features` are preserved in API responses for
-backward compatibility.
+Each branch supports `real`, `dummy`, or `disabled` mode. `Settings` feeds
+`app.models.factory.ModelFactory`, `app.models.registry.ModelRegistry`, and
+`app.services.voice_service.VoiceService`. Enabled modes and required branches
+come from configuration; do not infer them from the presence of source files.
+Dummy scores are placeholders and cannot support research claims.
 
-### Current stage: three real branches
+Real inference requires the `models` extra; real Glottal inference also requires
+`glottal`. Install `xai` for real semantic explanations. Trained checkpoints and
+supporting artifacts must be supplied separately from the Python packages.
 
-The CNN acoustic, AASIST-Light, and SSL (XLS-R + Mamba) branches load trained
-checkpoints and run real inference. Glottal has no trained artifact and is
-`disabled`: it executes nothing, returns `BranchStatus.skipped`, and is
-excluded from fusion. `disabled` is distinct from `failed` — the former is a
-configured absence, the latter a branch that should have worked.
+Checkpoint paths resolve relative to `MODEL_ROOT_DIR`. The settings default is
+`../model_artifacts`, relative to `audio-service`, which resolves to
+`backend/model_artifacts`. If artifacts are inside `audio-service/model_artifacts`,
+set `MODEL_ROOT_DIR=model_artifacts`. `app/models` contains Python implementations,
+not trained checkpoints. Use the checkpoint filenames configured in `.env.example`
+or explicitly configure the matching artifacts for your deployment.
 
-Real mode requires the `models` extra (`pip install ".[models]"`, which brings
-PyTorch and, for SSL, `transformers`) plus a valid checkpoint under
-`MODEL_ROOT_DIR` with a supported extension (`.pt`, `.pth`, `.ckpt`, `.onnx`,
-`.safetensors`). CNN/AASIST checkpoints load once at startup, are moved to the
-resolved device, and run under `torch.inference_mode()` with `strict=True` +
-`weights_only=True` loading; an architecture mismatch fails loudly rather than
-being masked by `strict=False`, which would leave layers randomly initialised.
+The SSL loader uses a pretrained XLS-R backbone through `transformers` plus the
+trained Mamba head. It supports a cached backbone with
+`SSL_XLSR_LOCAL_FILES_ONLY=true`. Its pure-PyTorch selective scan avoids requiring
+the CUDA-only `mamba-ssm` package. The current waveform frontend uses a six-second,
+16 kHz center-crop/pad input with zero-mean/peak normalization.
 
-`MODEL_ROOT_DIR` defaults to `../model_artifacts`, the repository-root
-model-artifact directory (for example,
-`../model_artifacts/xlsr_mamba_asvspoof2019_best.pt` when
-running from `backend/`). `app/models` contains Python model implementations,
-not checkpoint files.
+Model loading can be configured for startup or lazy execution. Invalid required
+checkpoints can fail startup; do not treat a Uvicorn reloader message as proof
+that the application is ready. Wait for `Application startup complete.` and
+inspect `/ready` and `/api/v1/voice/models/health`.
 
-**SSL is not listed in `REQUIRED_MODEL_BRANCHES`.** It contributes to fusion
-like any other branch when it succeeds, but a missing checkpoint, a missing
-`transformers` install, a Hugging Face Hub outage on first startup, or an
-inference error only excludes that one branch from that one prediction — it
-can never fail the whole request. This is deliberate: SSL's extra runtime
-dependency (network access on first load, ~1.2 GB download) makes it more
-likely to be unavailable in some deployments than CNN/AASIST, and the
-non-negotiable architectural rule is that a single branch's absence must
-never take down prediction.
+Fusion supports the frozen detector contract, the constrained four-branch V3
+artifacts, and configured legacy fallback. The selected path depends on supplied
+artifacts and settings. Contributing branches, weights, threshold, fallback, and
+research blockers are exposed in the fusion result. Supply the matching fusion
+artifacts rather than assuming a fixed branch count or equal weights.
 
-#### SSL (XLS-R + Mamba) branch specifics
+Preprocessing and class-mapping verification flags are separate from runtime
+availability. A loaded real model may still report `research_ready: false` or
+an unverified-result warning. Enable verification flags only after validating
+the corresponding trained artifact and preprocessing pipeline. Production and
+research settings enforce additional verification requirements.
 
-The deployment artifact
-(`model_artifacts/xlsr_mamba_asvspoof2019_best.pt`, ~4.5 MB) is
-**not** a self-contained checkpoint. It is a metadata package:
+Device selection supports CPU, CUDA, MPS, and automatic selection, with explicit
+CPU fallback settings. Inference timeouts and bounded thread execution do not
+forcibly terminate an underlying model operation.
 
-```text
-architecture              "XLSRMambaClassifier"
-xlsr_model_name           "facebook/wav2vec2-large-xlsr-53"  (fetched via Hugging Face Hub, cached under ~/.cache/huggingface)
-xlsr_frozen                True
-xlsr_hidden_size           1024
-mamba_dim                  256
-num_classes                 2
-label_mapping               {"bonafide": 0, "spoof": 1}
-trainable_model_state       state dict for projection + 2x Mamba blocks + norm + classifier ONLY
-best_epoch / best_dev_eer / final_eval_metrics   research metadata, never used as runtime thresholds
-```
+## Voice XAI
 
-`app/models/real/ssl_sequence_inference.py` loads the pretrained backbone by
-name via `transformers.AutoModel.from_pretrained(...)`, freezes it
-(`requires_grad_(False)`, `.eval()`), reconstructs the trainable head via
-`app/models/architectures/xlsr_mamba.py`, and restores
-`trainable_model_state` with an explicit strict check (every artifact key
-must exist in the reconstructed module with a matching shape; every key that
-`load_state_dict` leaves "missing" must be a frozen `xlsr.*` backbone
-parameter, never part of the trainable head) — the same "loud failure over
-silent partial load" policy CNN/AASIST use, adapted for a partial state dict.
+Voice XAI runs downstream of a persisted classifier result. An explanation failure
+does not change a completed prediction into a failed prediction.
 
-**Why the Mamba blocks are a pure-PyTorch reimplementation, not the
-`mamba-ssm` package:** `mamba-ssm` and its `causal-conv1d` dependency ship
-CUDA-only build backends. On a non-CUDA target (confirmed on Apple Silicon
-macOS: `pip install --no-build-isolation --no-deps mamba-ssm` crashes at the
-metadata-generation step because its `setup.py` unconditionally probes
-`torch.version.cuda`, which is `None`) they cannot install at all. The
-checkpoint's `trainable_model_state` key names (`in_proj`, `conv1d`,
-`x_proj`, `dt_proj`, `out_proj`, `A_log`, `D`) are exactly `mamba_ssm`'s own
-parameter names, confirming the *architecture* — `xlsr_mamba.py` reimplements
-the same published selective-scan recurrence in plain PyTorch (the same
-reference/"slow path" formula `mamba_ssm` itself ships to validate its fused
-CUDA kernel against) rather than the fused kernel. Verified against the real
-artifact: every one of its 28 `trainable_model_state` tensors loads onto the
-reconstructed module with `strict=True`-equivalent shape/key checking and
-zero unexpected/dropped keys (see
-`tests/test_ssl_sequence_integration.py::test_reconstructed_architecture_state_dict_matches_real_artifact_exactly`).
-On an Apple Silicon CPU, one forward pass (XLS-R backbone + both Mamba
-blocks) measured ~6–8 s.
+For real explanations, enable `XAI_ENABLED=true`, set `XAI_MODE=real`, and supply
+the semantic paths specified by `XAI_SEMANTIC_*` in `.env.example`. Relative XAI
+artifact paths resolve from `audio-service`, independently of `MODEL_ROOT_DIR`.
+The semantic service checks artifact hashes and compatibility against its
+manifest, including the 148-feature column order, model, threshold, training
+metadata, and imputer. Missing or incompatible semantic artifacts can fail
+startup. These artifacts are not installed by pip.
 
-Preprocessing (`app/models/preprocessing/ssl_waveform.py`) is a dedicated
-front end — a peer of the CNN/AASIST front ends, not a fork of either — for
-the training-documented contract: 16 kHz mono (shared with CNN/AASIST, no
-resampling divergence), crop/pad to exactly 96,000 samples (6 s), a same-length
-attention mask so padding never dilutes the pooled representation, and
-zero-mean/unit-variance normalisation over the real (non-padded) samples only,
-matching `Wav2Vec2FeatureExtractor(do_normalize=True)`'s convention.
+Temporal explanations consume reduced evidence from the real XLS-R classifier
+pass. Six-second windows with overlapping attention evidence are combined using
+cosine weighting and the configured PartialSpoof calibration. Attention regions
+are model-focus evidence, not ground-truth manipulated-audio labels. Optional
+AI narrative settings require their own provider configuration.
 
-### Verification gate
-
-The CNN/AASIST checkpoints shipped without a training notebook, feature
-configuration, or recorded label map, and both networks accept any input
-shape — so a wrong feature pipeline produces confident, wrong answers instead
-of an error. SSL is different in kind: its artifact documents its own
-preprocessing and label map, so there is nothing to reverse-engineer — but its
-Mamba blocks run through a from-scratch pure-PyTorch reimplementation (see
-above) that has not yet been cross-checked on this runtime against the
-documented ASVspoof2019 LA evaluation (EER 0.0568). Both situations reduce to
-the same policy: explicit settings, gated by explicit attestations, default
-false.
-
-```env
-CNN_PREPROCESSING_VERIFIED=false
-CNN_CLASS_MAPPING_VERIFIED=false
-AASIST_PREPROCESSING_VERIFIED=false
-AASIST_CLASS_MAPPING_VERIFIED=false
-SSL_PREPROCESSING_VERIFIED=false
-SSL_CLASS_MAPPING_VERIFIED=false
-```
-
-Until **both** flags are true for a branch, it still runs and returns real
-model output, but `research_result` is false, fusion reports
-`unverified_branch_contributed`, and the application refuses to start in
-`production`/`research`. For SSL specifically, flip these only after
-re-running the documented ASVspoof2019 LA evaluation against this pure-PyTorch
-scan and confirming the reported EER. See
-`MULTI_SCOPE_CNN_AASIST_Real_Model_Integration_Report.md` for how the CNN/AASIST
-defaults were derived.
-
-Fusion additionally reports `system_stage` and `research_blockers`. A result is
-research eligible only when no placeholder contributed, every contributing
-branch is attested, and the full designed branch set participated — so a
-two-branch result can never be presented as four-branch performance.
-
-Device policy: `MODEL_DEVICE_POLICY` supports `cpu`, `cuda`, `mps`, and `auto`
-(CUDA, then MPS, then CPU). PyTorch is imported for capability detection only
-when a real branch is enabled. **CPU is the default deliberately** — both models
-are small enough that MPS kernel-launch overhead dominates; AASIST-Light
-measured ~30 ms on CPU versus ~192 ms on MPS. CUDA fallback is explicit via
-`MODEL_ALLOW_CPU_FALLBACK`.
-
-Model lifecycle supports load-once semantics, `startup` or `lazy` loading,
-safe unload on FastAPI/MCP shutdown, branch-level health, and bounded
-per-branch inference timeout. The current isolation level is thread/task-level:
-a timed-out blocking adapter may continue internally until its worker returns.
-True crash/OOM isolation still requires process-level workers later.
-
-Fusion is runtime-configured with `FUSION_METHOD`,
-`FUSION_DECISION_THRESHOLD`, `FUSION_MIN_SUCCESSFUL_BRANCHES`,
-`FUSION_WEIGHT_*`, `FUSION_REQUIRED_BRANCHES`, and `FUSION_CONFIG_VERSION`.
-These defaults are development-safe infrastructure defaults; they are not
-research-calibrated weights.
-
-### Running an SSL smoke test
-
-Hermetic tests (architecture reconstruction against the real artifact,
-preprocessing, loader failure handling, fusion contribution/isolation) run in
-the default `pytest` invocation whenever
-`model_artifacts/xlsr_mamba_asvspoof2019_best.pt`
-is present:
-
-```bash
-pytest tests/test_ssl_sequence_integration.py -q
-```
-
-The one true end-to-end test (real Hugging Face backbone download + real
-forward pass) is marked `integration` + `network` like the Mongo/Cloudinary
-tests, and needs the `models` extra installed:
-
-```bash
-pip install ".[models]"
-pytest tests/test_ssl_sequence_integration.py -m "integration and network" -q
-```
-
-For a full-stack check, set `SSL_MODEL_MODE=real` and `SSL_MODEL_PATH=xlsr_mamba_asvspoof2019_best.pt`
-(already the defaults in `.env.example`), start the app, and confirm
-`GET /ready` reports `components.models.branches[].branch_name == "ssl_sequence"`
-with `mode: "real"`, `is_loaded: true`, `ready: true`.
-
-## Voice XAI attention localisation
-
-The temporal XAI component uses the real XLS-R + Mamba branch. It requests
-eager XLS-R attention from the trained
-classifier, computes residual attention-rollout density for each six-second
-window, combines overlapping windows with cosine edge weighting, and applies
-the fixed PartialSpoof v1.2 DEV threshold in
-`app/voice_xai/temporal/calibrations/partialspoof_v1_2_dev_attention_threshold.json`.
-The resulting regions are candidate evidence, never a ground-truth fake-audio
-percentage.
-
-For the real temporal path, configure:
-
-```env
-XAI_ENABLED=true
-XAI_MODE=real
-MODEL_ROOT_DIR=../model_artifacts
-SSL_MODEL_MODE=real
-SSL_MODEL_PATH=xlsr_mamba_asvspoof2019_best.pt
-```
-
-`XAI_MODE=real` loads the checked-in v4 semantic XGBoost model together with
-its hash-verified column-order, threshold, and training-metadata artifacts.
-The semantic extraction reproduces the notebook's 148-feature recipe. A
-completed run remains research-ineligible until the classifier verification
-attestations and the required model evaluation policy are available. Submit a new prediction
-after enabling XAI; the service retains that request's decoded audio only long
-enough for its post-persistence XAI worker. A later manual retry cannot recover
-the raw attention input from the persisted prediction alone.
-
-Swagger exposes the owner-scoped lifecycle under
-`/api/v1/me/predictions/{prediction_id}/explanation`, including the temporal
-result and private visualization artifact endpoint.
+Owner-scoped endpoints live under
+`/api/v1/me/predictions/{prediction_id}/explanation`. Private artifact downloads
+verify ownership and integrity. See the [Voice XAI module guide](app/voice_xai/README.md)
+and [classifier-to-XAI contract](app/voice_xai/CLASSIFIER_XAI_CONTRACT.md) for the
+current handoff, lifecycle, and evidence boundaries.
 
 ## Cloudinary Storage Consistency
 
@@ -514,3 +334,8 @@ The MCP process has its own startup and shutdown lifecycle. Startup requires
 and creates one shared tool context containing reusable repositories, storage,
 model registry, voice service, job runner, and concurrency semaphore. Shutdown
 closes MongoDB and reusable prediction-runner resources.
+
+## Documentation
+
+See [Swagger testing guide](docs/setup/swagger-real-world-testing.md) for manual
+API checks. The module guide and contract above describe the current XAI runtime.

@@ -12,8 +12,8 @@ below is still unmet, so evaluation still returns ``eligible=False``); it
 exists so future changes flip individual, named, documented requirements
 instead of loosening one combined expression. Every criterion must be met;
 an unmet criterion fails the decision closed, never open. See
-``CLASSIFIER_XAI_CONTRACT.md`` and ``VOICE_XAI_INTEGRATION_AUDIT_2026-08-08.md``
-for the evidence behind each requirement below.
+``app/voice_xai/CLASSIFIER_XAI_CONTRACT.md`` for the classifier/XAI boundary
+and the criteria below for the current eligibility requirements.
 """
 
 from __future__ import annotations

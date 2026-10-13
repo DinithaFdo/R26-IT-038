@@ -41,7 +41,8 @@ branch contract.
 - `probabilities.bonafide` always means the classifier score/probability for the
   bonafide class.
 - Branch statuses are `success`, `failed`, and `skipped`.
-- Model modes are `dummy` and `real`.
+- Model modes are `dummy`, `real`, and `disabled`. A disabled branch runs no
+  inference and returns a skipped result.
 - Dummy outputs are development placeholders and are never research results.
 - Mode-specific details belong in metadata and do not change the stable result
   shape.
@@ -59,6 +60,8 @@ The XAI orchestration boundary is `ClassifierInferenceBundle`, containing:
 - `source_type`
 - classifier-level `VoicePredictionResponse`
 - an optional Phase 1 `ExtractionBundle`
+- optional ephemeral `ProcessedAudio` for post-persistence explanation work;
+  it is not serialized into prediction or explanation documents
 - optional reduced XLS-R temporal evidence created in the classifier worker;
   clips longer than the trained 6-second input use the calibrated overlapping
   window pipeline

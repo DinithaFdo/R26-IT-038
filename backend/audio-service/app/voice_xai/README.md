@@ -39,8 +39,8 @@ voice_xai/
   artifacts/            private, hash-verified evidence artifact storage
 ```
 
-Research notebooks are intentionally outside the runtime package at
-`backend/notebooks/voice_xai/research/`.
+Research notebooks and trained artifacts are separate from the runtime Python
+package; their availability depends on the local checkout and configuration.
 
 ## Current request and response flow
 
