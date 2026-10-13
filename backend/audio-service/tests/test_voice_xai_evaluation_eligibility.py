@@ -42,9 +42,9 @@ def _temporal(*, eligible: bool) -> TemporalExplanation:
         development_placeholder=not eligible,
         research_eligible=eligible,
         attention_score_peak=0.9,
-        threshold_percentile=80.0,
-        regions=[],
-        combined_region_duration_seconds=0.0,
+        attention_threshold=0.8,
+        high_attention_regions=[],
+        high_attention_combined_duration_seconds=0.0,
     )
 
 
@@ -53,7 +53,7 @@ def _semantic(*, eligible: bool) -> SemanticExplanation:
         status=ComponentStatus.completed,
         target_type=SemanticTargetType.independent_acoustic_evidence_model,
         model_version="v1",
-        feature_schema_version="esvas-acoustic-28-v1",
+        feature_schema_version="fixture-features-v1",
         extractor_version="v1",
         output_space="probability",
         development_placeholder=not eligible,

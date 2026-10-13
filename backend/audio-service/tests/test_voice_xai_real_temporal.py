@@ -32,7 +32,6 @@ def _calibration(
     path,
     *,
     threshold: float = 1.1,
-    smoothing_seconds: float = 0.08,
     minimum_region_duration_seconds: float = 0.04,
     merge_gap_seconds: float = 0.1,
 ) -> None:
@@ -47,12 +46,9 @@ def _calibration(
                     "max_window_seconds": 6.0,
                     "window_stride_seconds": 3.0,
                     "global_hop_seconds": 0.02,
-                    "smoothing_seconds": smoothing_seconds,
                     "minimum_region_duration_seconds": minimum_region_duration_seconds,
                     "merge_gap_seconds": merge_gap_seconds,
-                    "local_probability_aggregation": "cosine_weighted_overlap_mean",
                 },
-                "model_artifact": {"sha256": "expected-hash"},
             }
         ),
         encoding="utf-8",
@@ -66,35 +62,50 @@ def test_locked_calibration_rejects_pipeline_drift(tmp_path) -> None:
         load_fixed_density_threshold(path, expected={"target_sample_rate": 8000.0})
 
 
-def test_locked_calibration_rejects_model_hash_drift(tmp_path) -> None:
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("mode", "per_clip", "global_density"),
+        ("status", "uncalibrated", "locked PartialSpoof"),
+        ("value", float("nan"), "finite threshold"),
+        ("pipeline", None, "pipeline metadata"),
+    ],
+)
+def test_locked_calibration_rejects_invalid_artifact(
+    tmp_path, field, value, message
+) -> None:
     path = tmp_path / "threshold.json"
     _calibration(path)
 
-    with pytest.raises(TemporalCalibrationError, match="loaded temporal model"):
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload[field] = value
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(TemporalCalibrationError, match=message):
         load_fixed_density_threshold(
             path,
             expected={"target_sample_rate": 16000.0},
-            expected_model_sha256="different-hash",
         )
 
 
-def test_locked_calibration_accepts_matching_model_hash(tmp_path) -> None:
+def test_locked_calibration_accepts_matching_pipeline(tmp_path) -> None:
     path = tmp_path / "threshold.json"
     _calibration(path)
 
-    threshold, _ = load_fixed_density_threshold(
+    threshold, metadata = load_fixed_density_threshold(
         path,
         expected={"target_sample_rate": 16000.0},
-        expected_model_sha256="expected-hash",
     )
 
     assert threshold == pytest.approx(1.1)
+    assert metadata["pipeline"]["target_sample_rate"] == 16000
 
 
-def test_real_temporal_service_uses_fixed_density_and_spoof_context(tmp_path) -> None:
+def test_real_temporal_service_returns_label_neutral_high_attention(tmp_path) -> None:
     path = tmp_path / "threshold.json"
     _calibration(path)
     app_settings = Settings(
+        _env_file=None,
         xai_temporal_threshold_config_path=str(path),
         model_root_dir=str(tmp_path / "models"),
     )
@@ -116,18 +127,25 @@ def test_real_temporal_service_uses_fixed_density_and_spoof_context(tmp_path) ->
 
     assert result.development_placeholder is False
     assert result.explanation.attention_threshold == pytest.approx(1.1)
-    assert result.explanation.regions
-    assert result.explanation.regions_label == "candidate_spoof_evidence_regions"
-    assert result.explanation.candidate_region_count == len(result.explanation.regions)
-    assert result.explanation.regions[0].local_spoof_probability == pytest.approx(0.8)
-    assert result.explanation.regions[0].local_bonafide_probability == pytest.approx(0.2)
-    assert result.visualization.title.startswith("XLS-R original-forward")
+    assert result.explanation.high_attention_regions
+    assert result.explanation.score_kind == "high_attention"
+    assert result.explanation.high_attention_region_count == len(
+        result.explanation.high_attention_regions
+    )
+    assert set(result.explanation.high_attention_regions[0].model_dump()) == {
+        "region_id",
+        "start_seconds",
+        "end_seconds",
+        "attention_score",
+    }
+    assert result.visualization.title.startswith("XLS-R 6-second windowed")
+    assert result.visualization.evaluation_threshold == pytest.approx(1.1)
 
 
 def test_temporal_peak_below_threshold_has_zero_regions(tmp_path) -> None:
     path = tmp_path / "threshold.json"
-    _calibration(path, threshold=1.5, smoothing_seconds=0.0)
-    result = _service(tmp_path, path, smoothing_ms=0.0).analyze(
+    _calibration(path, threshold=1.5)
+    result = _service(tmp_path, path).analyze(
         _inference(
             "below-threshold",
             temporal_evidence=(
@@ -137,14 +155,14 @@ def test_temporal_peak_below_threshold_has_zero_regions(tmp_path) -> None:
     )
 
     assert result.explanation.attention_score_peak < result.explanation.attention_threshold
-    assert result.explanation.threshold_crossing_count == 0
-    assert result.explanation.regions == []
+    assert not result.visualization.evaluation_high_attention_mask.any()
+    assert result.explanation.high_attention_regions == []
 
 
 def test_temporal_one_peak_above_threshold_has_region(tmp_path) -> None:
     path = tmp_path / "threshold.json"
-    _calibration(path, threshold=1.0, smoothing_seconds=0.0)
-    result = _service(tmp_path, path, smoothing_ms=0.0).analyze(
+    _calibration(path, threshold=1.0)
+    result = _service(tmp_path, path).analyze(
         _inference(
             "one-peak",
             temporal_evidence=(
@@ -154,14 +172,14 @@ def test_temporal_one_peak_above_threshold_has_region(tmp_path) -> None:
     )
 
     assert result.explanation.attention_score_peak >= result.explanation.attention_threshold
-    assert result.explanation.threshold_crossing_count > 0
-    assert len(result.explanation.regions) == 1
+    assert result.visualization.evaluation_high_attention_mask.any()
+    assert len(result.explanation.high_attention_regions) == 1
 
 
 def test_temporal_contiguous_points_merge_into_one_interval(tmp_path) -> None:
     path = tmp_path / "threshold.json"
-    _calibration(path, threshold=1.0, smoothing_seconds=0.0)
-    result = _service(tmp_path, path, smoothing_ms=0.0).analyze(
+    _calibration(path, threshold=1.0)
+    result = _service(tmp_path, path).analyze(
         _inference(
             "contiguous",
             temporal_evidence=(
@@ -170,15 +188,16 @@ def test_temporal_contiguous_points_merge_into_one_interval(tmp_path) -> None:
         )
     )
 
-    assert result.explanation.raw_region_count == 1
-    assert len(result.explanation.regions) == 1
-    assert result.explanation.regions[0].duration_seconds >= 0.04
+    assert result.explanation.high_attention_region_count == 1
+    assert len(result.explanation.high_attention_regions) == 1
+    region = result.explanation.high_attention_regions[0]
+    assert region.end_seconds - region.start_seconds >= 0.04
 
 
 def test_temporal_separated_peaks_create_multiple_regions(tmp_path) -> None:
     path = tmp_path / "threshold.json"
-    _calibration(path, threshold=1.0, smoothing_seconds=0.0, merge_gap_seconds=0.01)
-    result = _service(tmp_path, path, smoothing_ms=0.0, merge_gap=0.01).analyze(
+    _calibration(path, threshold=1.0, merge_gap_seconds=0.01)
+    result = _service(tmp_path, path, merge_gap=0.01).analyze(
         _inference(
             "separated",
             temporal_evidence=(
@@ -187,8 +206,8 @@ def test_temporal_separated_peaks_create_multiple_regions(tmp_path) -> None:
         )
     )
 
-    assert result.explanation.raw_region_count == 2
-    assert len(result.explanation.regions) == 2
+    assert result.explanation.high_attention_region_count == 2
+    assert len(result.explanation.high_attention_regions) == 2
 
 
 def test_temporal_minimum_duration_filters_short_crossing(tmp_path) -> None:
@@ -196,10 +215,9 @@ def test_temporal_minimum_duration_filters_short_crossing(tmp_path) -> None:
     _calibration(
         path,
         threshold=1.0,
-        smoothing_seconds=0.0,
         minimum_region_duration_seconds=0.08,
     )
-    result = _service(tmp_path, path, smoothing_ms=0.0, minimum=0.08).analyze(
+    result = _service(tmp_path, path, minimum=0.08).analyze(
         _inference(
             "short-crossing",
             temporal_evidence=(
@@ -208,16 +226,15 @@ def test_temporal_minimum_duration_filters_short_crossing(tmp_path) -> None:
         )
     )
 
-    assert result.explanation.threshold_crossing_count > 0
-    assert result.explanation.raw_region_count > 0
-    assert result.explanation.regions == []
-    assert result.explanation.post_filter_region_count == 0
+    assert result.visualization.evaluation_high_attention_mask.any()
+    assert result.explanation.high_attention_regions == []
+    assert result.explanation.high_attention_region_count == 0
 
 
 def test_temporal_invalid_nan_or_inf_values_are_rejected(tmp_path) -> None:
     path = tmp_path / "threshold.json"
-    _calibration(path, threshold=1.0, smoothing_seconds=0.0)
-    service = _service(tmp_path, path, smoothing_ms=0.0)
+    _calibration(path, threshold=1.0)
+    service = _service(tmp_path, path)
 
     with pytest.raises(TemporalAttentionError) as error:
         service.analyze(
@@ -234,8 +251,8 @@ def test_temporal_invalid_nan_or_inf_values_are_rejected(tmp_path) -> None:
 
 def test_temporal_cropped_input_duration_maps_regions_to_classifier_span(tmp_path) -> None:
     path = tmp_path / "threshold.json"
-    _calibration(path, threshold=1.0, smoothing_seconds=0.0)
-    result = _service(tmp_path, path, smoothing_ms=0.0).analyze(
+    _calibration(path, threshold=1.0)
+    result = _service(tmp_path, path).analyze(
         _inference(
             "cropped-span",
             temporal_evidence=(
@@ -245,45 +262,49 @@ def test_temporal_cropped_input_duration_maps_regions_to_classifier_span(tmp_pat
     )
 
     assert result.visualization.time_seconds[-1] < 6.0
-    assert len(result.explanation.regions) == 1
-    region = result.explanation.regions[0]
+    assert len(result.explanation.high_attention_regions) == 1
+    region = result.explanation.high_attention_regions[0]
     assert 0.0 <= region.start_seconds < region.end_seconds <= 6.0
 
 
-def test_real_temporal_service_uses_configured_smoothing(tmp_path) -> None:
-    unsmoothed_path = tmp_path / "threshold-unsmoothed.json"
-    smoothed_path = tmp_path / "threshold-smoothed.json"
-    _calibration(unsmoothed_path, threshold=1.05, smoothing_seconds=0.0)
-    _calibration(smoothed_path, threshold=1.05, smoothing_seconds=0.08)
+def test_display_quantile_changes_visualization_without_changing_evaluation(
+    tmp_path,
+) -> None:
+    path = tmp_path / "threshold.json"
+    _calibration(path, threshold=1.05)
     inference = _inference(
-        "smoothing-request",
+        "visualization-request",
         temporal_evidence=(
-            TemporalAttentionWindowInput(
-                start_seconds=0.0,
-                end_seconds=2.0,
-                token_times_seconds=np.array([0.25, 0.75, 1.25, 1.75]),
-                attention_density=np.array([0.8, 1.8, 0.8, 0.8]),
-                spoof_probability=0.8,
-            ),
+            _window(0.0, 2.0, [0.25, 0.75, 1.25, 1.75], [0.8, 1.8, 0.8, 0.8]),
         ),
     )
-    unsmoothed = XLSRTemporalAttentionService(
-        app_settings=Settings(
-            xai_temporal_threshold_config_path=str(unsmoothed_path),
-            model_root_dir=str(tmp_path / "models"),
-            xai_temporal_smoothing_ms=0.0,
-        )
-    ).analyze(inference)
-    smoothed = XLSRTemporalAttentionService(
-        app_settings=Settings(
-            xai_temporal_threshold_config_path=str(smoothed_path),
-            model_root_dir=str(tmp_path / "models"),
-            xai_temporal_smoothing_ms=80.0,
-        )
-    ).analyze(inference)
-
-    assert smoothed.explanation.attention_score_peak < (
-        unsmoothed.explanation.attention_score_peak
+    results = [
+        XLSRTemporalAttentionService(
+            app_settings=Settings(
+                _env_file=None,
+                xai_temporal_threshold_config_path=str(path),
+                xai_temporal_visualization_quantile=quantile,
+            )
+        ).analyze(inference)
+        for quantile in (0.50, 0.99)
+    ]
+    broad, narrow = results
+    assert broad.visualization.threshold < narrow.visualization.threshold
+    assert np.count_nonzero(broad.visualization.high_attention_mask) > (
+        np.count_nonzero(narrow.visualization.high_attention_mask)
+    )
+    assert broad.explanation.attention_threshold == (
+        narrow.explanation.attention_threshold
+    )
+    assert broad.explanation.high_attention_regions == (
+        narrow.explanation.high_attention_regions
+    )
+    np.testing.assert_array_equal(
+        broad.visualization.evaluation_high_attention_mask,
+        narrow.visualization.evaluation_high_attention_mask,
+    )
+    np.testing.assert_allclose(
+        broad.visualization.attention_scores, narrow.visualization.attention_scores
     )
 
 
@@ -291,6 +312,7 @@ def test_real_temporal_service_requires_original_forward_evidence(tmp_path) -> N
     path = tmp_path / "threshold.json"
     _calibration(path)
     app_settings = Settings(
+        _env_file=None,
         xai_temporal_threshold_config_path=str(path),
         model_root_dir=str(tmp_path / "models"),
     )
@@ -386,15 +408,14 @@ def _service(
     tmp_path,
     calibration_path,
     *,
-    smoothing_ms: float,
     minimum: float = 0.04,
     merge_gap: float = 0.1,
 ) -> XLSRTemporalAttentionService:
     return XLSRTemporalAttentionService(
         app_settings=Settings(
+            _env_file=None,
             xai_temporal_threshold_config_path=str(calibration_path),
             model_root_dir=str(tmp_path / "models"),
-            xai_temporal_smoothing_ms=smoothing_ms,
             xai_temporal_minimum_region_duration_seconds=minimum,
             xai_temporal_merge_gap_seconds=merge_gap,
         )

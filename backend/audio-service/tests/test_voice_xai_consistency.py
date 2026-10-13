@@ -61,7 +61,7 @@ def _temporal() -> TemporalExplanation:
     )
 
 
-def test_iou_uses_only_the_three_top_ranked_shap_windows() -> None:
+def test_iou_uses_only_the_three_top_ranked_shap_windows(fidelity_artifact_path) -> None:
     quality = quality_for_analysis(
         _temporal(),
         _semantic([
@@ -85,7 +85,9 @@ def test_iou_is_not_computed_without_three_timestamped_top_shap_windows() -> Non
     assert quality.temporal_semantic_iou.status.value == "not_computed"
 
 
-def test_quality_attaches_fidelity_for_the_validated_surrogate() -> None:
+def test_quality_attaches_fidelity_for_the_validated_surrogate(
+    fidelity_artifact_path,
+) -> None:
     quality = quality_for_analysis(
         _temporal(),
         _semantic(
@@ -94,11 +96,11 @@ def test_quality_attaches_fidelity_for_the_validated_surrogate() -> None:
                 _contribution(2, 2.0, 3.0),
                 _contribution(3, 4.0, 5.0),
             ],
-            model_version="xgboost-surrogate-v4-2026-08-19",
+            model_version="fixture-surrogate-v1",
         ),
     )
 
     assert quality.surrogate_fidelity_r2 is not None
     assert quality.surrogate_fidelity_r2.status.value == "available"
-    assert quality.surrogate_fidelity_r2.value == pytest.approx(0.6342774342328266)
+    assert quality.surrogate_fidelity_r2.value == pytest.approx(0.75)
     assert quality.surrogate_fidelity_r2.scope == "offline_validation"

@@ -196,7 +196,7 @@ def _temporal() -> TemporalExplanation:
     return TemporalExplanation(
         status=ComponentStatus.completed,
         method_version="attention-rollout-v1",
-        regions=[
+        high_attention_regions=[
             TemporalRegion(
                 region_id=1,
                 start_seconds=0.2,

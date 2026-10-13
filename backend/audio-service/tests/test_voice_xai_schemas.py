@@ -153,9 +153,9 @@ def test_complete_xai_response_has_versioned_independent_status() -> None:
         quality=ExplanationQuality(
             surrogate_fidelity_r2=MetricEvidence(
                 status=MetricStatus.available,
-                value=0.6342774342328266,
+                value=0.75,
                 scope="offline_validation",
-                dataset_version="ASVspoof2019_LA",
+                dataset_version="fixture_dataset",
             ),
             temporal_semantic_iou=MetricEvidence(
                 status=MetricStatus.not_computed,
@@ -180,10 +180,10 @@ def test_complete_xai_response_has_versioned_independent_status() -> None:
     assert payload["quality"] == {
         "surrogate_fidelity_r2": {
             "status": "available",
-            "value": pytest.approx(0.6342774342328266),
+            "value": pytest.approx(0.75),
             "scope": "offline_validation",
             "reason": None,
-            "dataset_version": "ASVspoof2019_LA",
+            "dataset_version": "fixture_dataset",
         },
         "temporal_semantic_iou": {
             "status": "not_computed",

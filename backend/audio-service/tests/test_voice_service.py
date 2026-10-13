@@ -24,6 +24,7 @@ from app.schemas.prediction import (
     ProbabilityScores,
 )
 from app.services.voice_service import ModelRegistry, VoiceService
+from app.utils.fusion import FusionEngine
 from app.voice_xai.temporal.contracts import TemporalAttentionWindowInput
 
 
@@ -423,6 +424,7 @@ def test_service_adds_reproducible_prediction_provenance_for_stereo_48khz(
     )
     service = VoiceService(
         model_registry=make_registry(),
+        fusion_engine=FusionEngine(method="weighted_average"),
         preprocess_fn=lambda _metadata: make_stereo_48khz_processed_audio(),
     )
 
@@ -444,10 +446,8 @@ def test_service_adds_reproducible_prediction_provenance_for_stereo_48khz(
     assert preprocessing.mono_conversion_applied is True
     assert preprocessing.normalisation_applied is True
     assert preprocessing.ffmpeg_version == "ffmpeg version 6.1-test"
-    # The frozen research-detector contract (model_artifacts/fusion/final_detector_v1.json)
-    # governs fusion_method regardless of dummy/real branch mode -- see
-    # FusionEngine.from_settings.
-    assert response.provenance.fusion.fusion_method == "simple_average"
+    assert response.provenance.fusion.fusion_method == "weighted_average"
+    assert response.provenance.fusion.fusion_method == response.fusion.method
     assert response.provenance.fusion.effective_weights == response.fusion.branch_weights
     assert all(model.mode == ModelMode.dummy for model in response.provenance.models)
     assert all(model.research_result is False for model in response.provenance.models)

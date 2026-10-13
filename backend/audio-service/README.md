@@ -59,7 +59,7 @@ python --version
 
 python -m pip install --upgrade pip
 
-pip install -c requirements.lock ".[dev]"
+python -m pip install -c requirements.lock ".[dev]"
 
 python run.py
 ```
@@ -75,25 +75,65 @@ pytest -v
 
 ## Docker Development
 
-The backend includes a Docker image for local deployment rehearsal. The image
-uses Python 3.12, installs FFmpeg/ffprobe, runs as a non-root `multiscope`
-user, and exposes `/health` as the container health check.
+The development Docker image uses Python 3.12 and CPU-only PyTorch. It installs
+all model, Glottal, XAI, development-test, and MCP dependencies, plus FFmpeg and
+native build/runtime libraries. It runs as a non-root `multiscope` user. The
+health check uses `/ready` to check prediction readiness, not just API liveness.
 
-Copy `.env.example` to `.env` if you want local interpolation values before
-starting Compose. Compose loads `.env` through `env_file` and overrides selected values for the
+Run these commands from `backend/audio-service`, with Docker Desktop's Linux
+engine running. Create `.env` from `.env.example` only if it does not already
+exist; keep your working model/XAI paths and credentials. Compose loads `.env`
+through `env_file` and overrides selected values for the
 container network. Its resolved configuration can contain secrets; do not share
 unredacted `docker compose config` output. Do not commit `.env`; it is ignored by
 the Docker build context.
 
 ```bash
-cp .env.example .env
+docker compose config --quiet
+docker compose build backend
 docker compose up --build
 ```
 
-The Compose stack starts MongoDB and the backend. For local Compose, the
-default `STORAGE_POLICY=optional` plus `CLOUDINARY_STORAGE_ENABLED=false` allows
-predictions to continue without Cloudinary audio storage. Playback URLs and
-rerun-from-stored-audio are unavailable when audio is not successfully stored.
+The Compose stack starts MongoDB and the backend, with all four real branches
+required and real XAI enabled by default. Source directories are mounted read-only
+and `python run.py` reloads application changes when `DEBUG=true`. Model artifacts
+are mounted read-only from `audio-service/model_artifacts`; the directory must
+exist. Real semantic artifacts must be present under `app/voice_xai/semantic/artifacts`
+and match the configured manifest. Package installation does not create them.
+
+The XLS-R backbone downloads on first use into a persistent `huggingface-cache`
+volume. Internet access and sufficient memory/disk space are required for this
+first run. Set `COMPOSE_SSL_XLSR_LOCAL_FILES_ONLY=true` only after the container's
+cache has been populated; the Windows host cache is not used automatically.
+
+Cloudinary enablement and storage policy inherit your `.env` settings unless
+overridden with `COMPOSE_CLOUDINARY_STORAGE_ENABLED` or `COMPOSE_STORAGE_POLICY`.
+Playback and stored-audio rerun require valid Cloudinary credentials and retained
+audio. Clerk and optional AI narrative settings also come from `.env`. Keep
+`DEV_AUTH_BYPASS` restricted to local development. Real model loading alone does
+not establish research eligibility.
+
+Wait for `Application startup complete.`, then check `http://localhost:8000/ready`
+and `http://localhost:8000/docs`. The health check allows five minutes for initial
+startup; a slow first download can take longer, so inspect the logs:
+
+```bash
+docker compose logs -f backend
+docker compose exec backend python -m pytest -q
+```
+
+To run the optional MCP stdio process against the same database and mounted
+artifacts, after building the image:
+
+```bash
+docker compose --profile mcp run --rm -T mcp
+```
+
+MCP clients must provide valid API-key credentials. This process is separate
+from the HTTP server and does not expose an additional HTTP port.
+
+Stop the development stack with `docker compose down`. Named volumes preserve
+MongoDB records, XAI evidence, and the downloaded backbone across ordinary stops.
 If you need to point Compose at an external MongoDB instance, use
 `COMPOSE_MONGODB_URI` and `COMPOSE_MONGODB_DATABASE` rather than the production
 application variable names. Compose-specific overrides use the `COMPOSE_`
@@ -120,22 +160,24 @@ are missing or unsafe.
 dependencies live in `[project].dependencies`; development, integration-test,
 and MCP adapter dependencies live in `[project.optional-dependencies]`.
 
-`requirements.lock` is an exact constraints file for reproducible Python 3.12
-environments. Do not edit it opportunistically during feature work.
+`requirements.lock` pins the packages listed in it for Python 3.12 environments;
+it is a constraints file, not a complete lock of every optional dependency.
+Do not edit it opportunistically during feature work.
 Refresh it only in a dedicated dependency update task.
 
 Common installs:
 
 ```bash
-pip install -c requirements.lock .
-pip install -c requirements.lock ".[dev]"
-pip install -c requirements.lock ".[integration-test]"
-pip install -c requirements.lock ".[mcp]"
+python -m pip install -c requirements.lock .
+python -m pip install -c requirements.lock ".[dev]"
+python -m pip install -c requirements.lock ".[integration-test]"
+python -m pip install -c requirements.lock ".[mcp]"
 ```
 
-`requirements.txt` is kept only as a compatibility wrapper for tools that still
-expect that filename. New documentation and CI should use `pyproject.toml` plus
-`requirements.lock`.
+Use `pyproject.toml` with `requirements.lock` for local and Docker installs.
+The Docker image installs CPU-only PyTorch from its dedicated index first, then
+the `dev`, `models`, `xai`, `glottal`, and `mcp` groups with these constraints.
+The build checks dependency consistency and runtime imports.
 
 System dependencies:
 
@@ -325,7 +367,7 @@ Run the MCP adapter in a separate process after installing the optional MCP
 dependencies in that environment:
 
 ```bash
-pip install ".[mcp]"
+python -m pip install -c requirements.lock ".[mcp]"
 python -m mcp_server.server
 ```
 

@@ -64,7 +64,7 @@ async def test_windowed_semantic_evidence_and_interval_quality_are_persisted(tmp
     assert response.research_eligible is False
     assert response.provenance.semantic_model_version == response.semantic.model_version
     assert response.provenance.temporal_model_version == response.temporal.model_version
-    assert response.temporal.candidate_region_count == 1
+    assert response.temporal.high_attention_region_count == 1
     assert {artifact.kind for artifact in response.temporal.artifacts} == {
         "attention_visualization",
         "attention_spectrogram",
@@ -435,7 +435,7 @@ async def test_temporal_validation_failure_has_a_safe_specific_error_code(
     )
 
 
-def test_classifier_snapshot_marks_glottal_primary_for_v3_contributor() -> None:
+def test_classifier_snapshot_keeps_glottal_auxiliary_for_learned_fusion() -> None:
     prediction = _prediction_with_glottal(
         fusion_mode="learned_constrained",
         contributing_branches=[
@@ -449,7 +449,7 @@ def test_classifier_snapshot_marks_glottal_primary_for_v3_contributor() -> None:
     snapshot = classifier_snapshot_from_prediction(prediction)
 
     assert snapshot.auxiliary_evidence.glottal_spoof_probability == pytest.approx(0.7)
-    assert snapshot.auxiliary_evidence.used_for_primary_decision is True
+    assert snapshot.auxiliary_evidence.used_for_primary_decision is False
 
 
 def test_classifier_snapshot_marks_glottal_auxiliary_for_legacy_fusion() -> None:
@@ -509,8 +509,12 @@ def test_xai_configuration_hash_is_stable_for_same_settings() -> None:
 
 
 def test_xai_configuration_hash_changes_for_behavioral_setting() -> None:
-    original = Settings(_env_file=None, xai_mode="mock", xai_temporal_smoothing_ms=80)
-    changed = Settings(_env_file=None, xai_mode="mock", xai_temporal_smoothing_ms=120)
+    original = Settings(
+        _env_file=None, xai_mode="mock", xai_temporal_visualization_quantile=0.80
+    )
+    changed = Settings(
+        _env_file=None, xai_mode="mock", xai_temporal_visualization_quantile=0.90
+    )
 
     assert _configuration_hash(original) != _configuration_hash(changed)
 
@@ -546,7 +550,7 @@ class StaticTemporalService:
             research_eligible=False,
             attention_score_peak=1.2,
             attention_threshold=1.1,
-            regions=[
+            high_attention_regions=[
                 TemporalRegion(
                     region_id=1,
                     start_seconds=0.0,

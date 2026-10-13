@@ -93,8 +93,8 @@ async def test_xai_repository_persists_component_and_status_history() -> None:
             status=ComponentStatus.completed,
             method_version="attention-rollout-v1",
             attention_score_peak=0.9,
-            threshold_percentile=80,
-            regions=[
+            attention_threshold=0.8,
+            high_attention_regions=[
                 TemporalRegion(
                     region_id=1,
                     start_seconds=0.2,
@@ -102,7 +102,7 @@ async def test_xai_repository_persists_component_and_status_history() -> None:
                     attention_score=0.9,
                 )
             ],
-            combined_region_duration_seconds=0.3,
+            high_attention_combined_duration_seconds=0.3,
         ),
     )
     await repository.transition_status(explanation_id, ExplanationStatus.partial)
@@ -178,16 +178,18 @@ async def test_xai_repository_returns_latest_owner_prediction_run() -> None:
 
 
 @pytest.mark.anyio
-async def test_xai_repository_reuses_active_prediction_run_idempotently() -> None:
-    database = FakeDatabase("xai_active_idempotency")
+async def test_xai_repository_creates_distinct_runs_for_same_prediction() -> None:
+    database = FakeDatabase("xai_distinct_runs")
     repository = MongoXaiExplanationRepository(database)
 
     first_id = await _create_explanation(repository)
     second_id = await _create_explanation(repository)
 
     documents = database["xai_explanations"].documents
-    assert second_id == first_id
-    assert len(documents) == 1
+    assert second_id != first_id
+    assert len(documents) == 2
+    assert {document["id"] for document in documents} == {first_id, second_id}
+    assert all(document["prediction_id"] == "prediction-123" for document in documents)
 
 
 @pytest.mark.anyio
