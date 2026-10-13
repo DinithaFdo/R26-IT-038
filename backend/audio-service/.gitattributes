@@ -1,0 +1,3 @@
+# Linux entrypoints and hash-verified JSON exports must retain LF line endings.
+docker/*.sh text eol=lf
+app/voice_xai/semantic/artifacts/*.json text eol=lf
