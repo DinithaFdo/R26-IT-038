@@ -1,4 +1,4 @@
-# Exact constraints for clean Python 3.11/3.12 backend environments.
+# Exact constraints for clean Python 3.12 backend environments.
 #
 # pyproject.toml is the canonical dependency declaration. Install with:
 #   python -m pip install -c requirements.lock ".[dev]"

@@ -1,14 +1,41 @@
 # MULTI-SCOPE Backend
 
-The FastAPI backend requires Python 3.11. Python 3.12 is also supported by the
-project metadata, but Python 3.11 is the documented development environment.
+The FastAPI backend requires Python 3.12 (`>=3.12,<3.13`) for development,
+tests, Docker, and real-model/XAI inference. Python 3.11 and 3.13 are not
+supported. The pinned SHAP 0.52.0 XAI dependency requires Python 3.12 or newer.
+
+## Windows / VS Code Setup
+
+Open a PowerShell terminal in VS Code and run from the repository root:
+
+```powershell
+cd backend/audio-service
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python --version
+python -m pip install --upgrade pip
+python -m pip install -c requirements.lock ".[dev]"
+python run.py
+```
+
+For real audio models and XAI, install the optional dependencies before starting:
+
+```powershell
+python -m pip install -c requirements.lock ".[dev,models,xai,glottal]"
+```
+
+Select `.venv/Scripts/python.exe` with **Python: Select Interpreter** in VS Code.
+Existing Python 3.11 environments must be recreated with Python 3.12; installing
+Python 3.12 does not upgrade an existing virtual environment. Configure `.env`
+from `.env.example` and provide the required database, model, and XAI artifacts
+for the enabled features. Installing packages does not download trained artifacts.
 
 ## macOS Setup
 
-Install Python 3.11 first if it is not already available:
+Install Python 3.12 first if it is not already available:
 
 ```bash
-brew install python@3.11
+brew install python@3.12
 brew install ffmpeg
 ```
 
@@ -18,13 +45,13 @@ readiness endpoint reports their availability.
 Create a clean backend environment:
 
 ```bash
-cd backend
+cd backend/audio-service
 
 deactivate 2>/dev/null || true
 
 rm -rf .venv
 
-python3.11 -m venv .venv
+python3.12 -m venv .venv
 
 source .venv/bin/activate
 
@@ -37,8 +64,8 @@ pip install -c requirements.lock ".[dev]"
 python run.py
 ```
 
-Before installing dependencies, `python --version` should report Python 3.11.x.
-Do not reuse a virtual environment created with Python 3.9.
+Before installing dependencies, `python --version` should report Python 3.12.x.
+Do not reuse a virtual environment created with another Python version.
 
 Run the test suite from the activated environment:
 
@@ -49,7 +76,7 @@ pytest -v
 ## Docker Development
 
 The backend includes a Docker image for local deployment rehearsal. The image
-uses Python 3.11, installs FFmpeg/ffprobe, runs as a non-root `multiscope`
+uses Python 3.12, installs FFmpeg/ffprobe, runs as a non-root `multiscope`
 user, and exposes `/health` as the container health check.
 
 Copy `.env.example` to `.env` if you want local interpolation values before
@@ -93,8 +120,8 @@ are missing or unsafe.
 dependencies live in `[project].dependencies`; development, integration-test,
 and MCP adapter dependencies live in `[project.optional-dependencies]`.
 
-`requirements.lock` is an exact constraints file for reproducible Python 3.11
-and 3.12 environments. Do not edit it opportunistically during feature work.
+`requirements.lock` is an exact constraints file for reproducible Python 3.12
+environments. Do not edit it opportunistically during feature work.
 Refresh it only in a dedicated dependency update task.
 
 Common installs:

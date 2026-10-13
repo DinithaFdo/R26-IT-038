@@ -8,12 +8,13 @@ changing authentication, model, storage, or persistence behavior.
 From the repository root:
 
 ```bash
-cd backend
+cd backend/audio-service
 source .venv/bin/activate
 python --version
 ```
 
-Use Python 3.11 or 3.12. The backend runtime guard rejects Python 3.13.
+Use Python 3.12 (`>=3.12,<3.13`). The backend runtime guard rejects Python 3.11
+and 3.13. On Windows PowerShell, activate with `.\.venv\Scripts\Activate.ps1`.
 
 ## 2. Start the backend
 
