@@ -23,8 +23,8 @@ from app.schemas.prediction import (
     VoicePredictionResponse,
 )
 from app.voice_xai.artifacts.service import LocalExplanationArtifactStore
-from app.voice_xai.contracts import ClassifierInferenceBundle
-from app.voice_xai.orchestrator import (
+from app.voice_xai.integration.contracts import ClassifierInferenceBundle
+from app.voice_xai.workflow.orchestrator import (
     VoiceXaiOrchestrator,
     classifier_snapshot_from_prediction,
 )

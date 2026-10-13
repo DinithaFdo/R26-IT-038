@@ -21,7 +21,7 @@ import logging
 from app.schemas.xai import ExplanationError
 from app.voice_xai.persistence.mongodb import XaiPersistenceConsistencyError
 from app.voice_xai.persistence.protocols import XaiExplanationRepository
-from app.voice_xai.status import XaiStatusService
+from app.voice_xai.workflow.status import XaiStatusService
 
 logger = logging.getLogger(__name__)
 

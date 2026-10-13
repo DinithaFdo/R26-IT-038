@@ -17,9 +17,9 @@ from app.schemas.prediction import (
     ProbabilityScores,
     VoicePredictionResponse,
 )
-from app.voice_xai.orchestrator import VoiceXaiOrchestrator
+from app.voice_xai.workflow.orchestrator import VoiceXaiOrchestrator
 from app.voice_xai.persistence.mongodb import MongoXaiExplanationRepository
-from app.voice_xai.status import XaiStatusService
+from app.voice_xai.workflow.status import XaiStatusService
 from app.schemas.xai import (
     ExplanationArtifactReference,
     ExplanationError,

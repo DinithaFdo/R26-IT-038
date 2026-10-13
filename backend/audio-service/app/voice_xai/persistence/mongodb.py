@@ -26,7 +26,7 @@ from app.schemas.xai import (
     SemanticExplanation,
     TemporalExplanation,
 )
-from app.voice_xai.contracts import CLASSIFIER_XAI_CONTRACT_VERSION
+from app.voice_xai.integration.contracts import CLASSIFIER_XAI_CONTRACT_VERSION
 from app.voice_xai.persistence.protocols import ExplanationComponentResult
 
 try:

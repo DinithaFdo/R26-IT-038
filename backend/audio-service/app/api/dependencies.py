@@ -26,8 +26,8 @@ from app.services.voice_service import VoiceService
 from app.voice_xai.jobs.queue import AsynchronousExplanationQueue
 from app.voice_xai.artifacts.protocols import ExplanationArtifactStore
 from app.voice_xai.artifacts.service import LocalExplanationArtifactStore
-from app.voice_xai.orchestrator import VoiceXaiOrchestrator
-from app.voice_xai.replay import StoredAudioReplayService
+from app.voice_xai.workflow.orchestrator import VoiceXaiOrchestrator
+from app.voice_xai.integration.replay import StoredAudioReplayService
 from app.voice_xai.persistence.mongodb import MongoXaiExplanationRepository
 from app.voice_xai.persistence.protocols import XaiExplanationRepository
 

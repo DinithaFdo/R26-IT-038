@@ -35,9 +35,9 @@ from app.services.prediction_persistence_service import (
 )
 from app.services.voice_service import VoiceService
 from app.storage.protocols import AudioStorage
-from app.voice_xai.contracts import ClassifierInferenceBundle
+from app.voice_xai.integration.contracts import ClassifierInferenceBundle
 from app.voice_xai.capture.contracts import ExtractionBundle
-from app.voice_xai.orchestrator import VoiceXaiOrchestrator
+from app.voice_xai.workflow.orchestrator import VoiceXaiOrchestrator
 from app.voice_xai.temporal.contracts import TemporalAttentionWindowInput
 
 logger = logging.getLogger(__name__)

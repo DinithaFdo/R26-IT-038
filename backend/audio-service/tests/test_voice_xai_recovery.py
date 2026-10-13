@@ -4,12 +4,12 @@ import pytest
 
 from app.schemas.common import SourceType
 from app.schemas.xai import ComponentStatus, ExplanationStatus
-from app.voice_xai.orchestrator import classifier_snapshot_from_prediction
+from app.voice_xai.workflow.orchestrator import classifier_snapshot_from_prediction
 from app.voice_xai.persistence.mongodb import (
     MongoXaiExplanationRepository,
     XaiPersistenceConsistencyError,
 )
-from app.voice_xai.recovery import (
+from app.voice_xai.workflow.recovery import (
     STALE_RUN_ERROR_CODE,
     recover_stale_explanations,
 )

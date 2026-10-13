@@ -16,7 +16,7 @@ from app.schemas.xai import (
     TemporalRegion,
 )
 from app.voice_xai.persistence.mongodb import MongoXaiExplanationRepository
-from app.voice_xai.status import (
+from app.voice_xai.workflow.status import (
     XaiExplanationNotFoundError,
     XaiStatusLifecycleError,
     XaiStatusService,

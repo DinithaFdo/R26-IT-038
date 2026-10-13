@@ -32,7 +32,7 @@ from app.schemas.xai import (
     TemporalExplanation,
     XaiExplanationResponse,
 )
-from app.voice_xai.contracts import ClassifierInferenceBundle
+from app.voice_xai.integration.contracts import ClassifierInferenceBundle
 from app.voice_xai.artifacts.protocols import ExplanationArtifactStore, StoredArtifact
 from app.voice_xai.artifacts.service import (
     ArtifactStorageError,
@@ -50,10 +50,16 @@ from app.voice_xai.narrative.service import (
     AlibabaQwenNarrativeService,
     NarrativeGenerationError,
 )
-from app.voice_xai.replay import StoredAudioReplayService, XaiSourceAudioUnavailableError
+from app.voice_xai.integration.replay import (
+    StoredAudioReplayService,
+    XaiSourceAudioUnavailableError,
+)
 from app.voice_xai.evaluation.eligibility import evaluate_research_eligibility
 from app.voice_xai.semantic.service import MockSemanticExplanationService
-from app.voice_xai.status import XaiExplanationNotFoundError, XaiStatusService
+from app.voice_xai.workflow.status import (
+    XaiExplanationNotFoundError,
+    XaiStatusService,
+)
 from app.voice_xai.temporal.contracts import (
     TemporalAttentionError,
     TemporalAttentionWindowInput,

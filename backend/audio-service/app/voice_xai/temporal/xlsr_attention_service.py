@@ -8,7 +8,7 @@ import numpy as np
 
 from app.config.settings import Settings
 from app.schemas.xai import ComponentStatus, TemporalExplanation, TemporalRegion
-from app.voice_xai.contracts import ClassifierInferenceBundle
+from app.voice_xai.integration.contracts import ClassifierInferenceBundle
 from app.voice_xai.temporal.calibration import load_fixed_density_threshold
 from app.voice_xai.temporal.contracts import (
     TemporalAnalysisResult,

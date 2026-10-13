@@ -10,7 +10,7 @@ import numpy as np
 
 from app.ingestion.audio import ProcessedAudio
 from app.schemas.xai import SemanticTargetType
-from app.voice_xai.contracts import ClassifierInferenceBundle
+from app.voice_xai.integration.contracts import ClassifierInferenceBundle
 from app.voice_xai.semantic.features import (
     AcousticFeatureExtractor,
     FEATURE_EXTRACTION_VERSION,

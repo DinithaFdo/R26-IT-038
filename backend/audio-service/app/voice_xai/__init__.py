@@ -16,13 +16,13 @@ from app.voice_xai.capture.torch_hooks import (
     PyTorchExtractionInterface,
 )
 from app.voice_xai.jobs.queue import AsynchronousExplanationQueue
-from app.voice_xai.contracts import (
+from app.voice_xai.integration.contracts import (
     CANONICAL_XAI_BRANCHES,
     CLASSIFIER_XAI_CONTRACT_VERSION,
     PUBLIC_MODEL_NAME_BY_XAI_BRANCH,
     ClassifierInferenceBundle,
 )
-from app.voice_xai.status import (
+from app.voice_xai.workflow.status import (
     XaiExplanationNotFoundError,
     XaiStatusLifecycleError,
     XaiStatusService,

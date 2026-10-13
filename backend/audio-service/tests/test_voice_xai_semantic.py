@@ -9,7 +9,7 @@ from app.schemas.prediction import (
     ProbabilityScores,
     VoicePredictionResponse,
 )
-from app.voice_xai.contracts import ClassifierInferenceBundle
+from app.voice_xai.integration.contracts import ClassifierInferenceBundle
 from app.voice_xai.semantic.features import (
     FEATURE_EXTRACTION_VERSION,
     FEATURE_NAMES,

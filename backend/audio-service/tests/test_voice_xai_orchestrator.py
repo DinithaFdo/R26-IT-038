@@ -24,8 +24,8 @@ from app.schemas.prediction import (
 )
 from app.schemas.xai import ComponentStatus, TemporalExplanation, TemporalRegion
 from app.voice_xai.artifacts.service import LocalExplanationArtifactStore
-from app.voice_xai.contracts import ClassifierInferenceBundle
-from app.voice_xai.orchestrator import (
+from app.voice_xai.integration.contracts import ClassifierInferenceBundle
+from app.voice_xai.workflow.orchestrator import (
     VoiceXaiOrchestrator,
     XaiRetryRequiredError,
     _configuration_hash,

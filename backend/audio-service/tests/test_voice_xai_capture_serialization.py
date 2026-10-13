@@ -15,7 +15,7 @@ from app.voice_xai.capture.contracts import (
     CapturedRepresentation,
     ExtractionBundle,
 )
-from app.voice_xai.orchestrator import VoiceXaiOrchestrator
+from app.voice_xai.workflow.orchestrator import VoiceXaiOrchestrator
 
 
 def test_extraction_bundle_is_encoded_as_binary_npz_with_a_manifest() -> None:

@@ -14,7 +14,7 @@ from app.schemas.prediction import (
     ProbabilityScores,
     VoicePredictionResponse,
 )
-from app.voice_xai.contracts import (
+from app.voice_xai.integration.contracts import (
     CANONICAL_XAI_BRANCHES,
     CLASSIFIER_XAI_CONTRACT_VERSION,
     PUBLIC_MODEL_NAME_BY_XAI_BRANCH,

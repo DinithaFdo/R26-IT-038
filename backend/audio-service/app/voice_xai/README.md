@@ -26,15 +26,21 @@ reach into the model registry or change prediction state.
 
 ```text
 voice_xai/
-  contracts.py          classifier-to-XAI handoff contract
-  orchestrator.py       explanation-run lifecycle and component orchestration
-  status.py             independent XAI status transitions
+  __init__.py           package initialization and public exports
+  integration/
+    contracts.py        classifier-to-XAI handoff contract
+    replay.py           stored source-audio preparation for manual runs/retries
+  workflow/
+    orchestrator.py     explanation-run lifecycle and component orchestration
+    status.py           independent XAI status transitions
+    recovery.py         startup reconciliation of interrupted explanation runs
   capture/              bounded request-scoped PyTorch representation capture
   jobs/                 bounded post-prediction XAI job scheduling
   temporal/             XLS-R temporal attention analysis and visualisation
   semantic/             acoustic feature schema and XGBoost/SHAP explanations
   evaluation/           consistency metrics and research-readiness policy
   report/               deterministic unified forensic report composition
+  narrative/            optional AI narration of the deterministic report
   persistence/          XAI repository contracts and MongoDB implementation
   artifacts/            private, hash-verified evidence artifact storage
 ```

@@ -16,7 +16,7 @@ from app.schemas.prediction import (
     ProbabilityScores,
     VoicePredictionResponse,
 )
-from app.voice_xai.contracts import ClassifierInferenceBundle
+from app.voice_xai.integration.contracts import ClassifierInferenceBundle
 from app.voice_xai.temporal.calibration import (
     TemporalCalibrationError,
     load_fixed_density_threshold,
