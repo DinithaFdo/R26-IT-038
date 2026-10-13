@@ -172,8 +172,12 @@ FROZEN_SCHEMA_FIELDS: dict[str, set[str]] = {
         "status",
         "method_version",
         "attention_score_peak",
+        "threshold_percentile",
         "attention_threshold",
-        "regions",
+        "high_attention_regions",
+        "visualization_threshold_percentile",
+        "visualization_attention_threshold",
+        "visualization_high_attention_regions",
     },
     "ErrorResponse": {"request_id", "error"},
 }

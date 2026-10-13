@@ -1,4 +1,4 @@
-"""Real XLS-R attention-rollout localization using the locked calibration."""
+"""Real XLS-R attention-rollout localization using pure per-clip p90."""
 
 from __future__ import annotations
 
@@ -9,34 +9,24 @@ import numpy as np
 from app.config.settings import Settings
 from app.schemas.xai import ComponentStatus, TemporalExplanation, TemporalRegion
 from app.voice_xai.integration.contracts import ClassifierInferenceBundle
-from app.voice_xai.temporal.calibration import load_fixed_density_threshold
 from app.voice_xai.temporal.contracts import (
     TemporalAnalysisResult,
     TemporalAttentionError,
     TemporalVisualization,
 )
+from app.voice_xai.temporal.threshold import (
+    TEMPORAL_METHOD_VERSION,
+    TEMPORAL_THRESHOLD_PERCENTILE,
+    TEMPORAL_THRESHOLD_QUANTILE,
+    pure_p90_threshold,
+)
+
 
 class XLSRTemporalAttentionService:
     """Aggregate reduced evidence from the original XLS-R prediction pass."""
 
     def __init__(self, *, app_settings: Settings) -> None:
         self._settings = app_settings
-        expected = {
-            "target_sample_rate": float(app_settings.target_sample_rate),
-            "max_window_seconds": 6.0,
-            "window_stride_seconds": app_settings.xai_temporal_window_stride_seconds,
-            "global_hop_seconds": app_settings.xai_temporal_global_hop_seconds,
-            "minimum_region_duration_seconds": (
-                app_settings.xai_temporal_minimum_region_duration_seconds
-            ),
-            "merge_gap_seconds": app_settings.xai_temporal_merge_gap_seconds,
-        }
-        self._threshold, _ = load_fixed_density_threshold(
-            app_settings.resolve_xai_artifact_path(
-                app_settings.xai_temporal_threshold_config_path
-            ),
-            expected=expected,
-        )
 
     def analyze(self, inference: ClassifierInferenceBundle) -> TemporalAnalysisResult:
         if not inference.temporal_evidence:
@@ -93,64 +83,42 @@ class XLSRTemporalAttentionService:
                 "Aggregated XLS-R temporal evidence is invalid.",
                 code="xai_temporal_density_invalid",
             )
-        # Fixed PartialSpoof DEV-calibrated evaluation mask. It remains
-        # independent of the classifier label because attention is label-neutral.
-        evaluation_high_attention_mask = density >= self._threshold
-        evaluation_high_attention_regions = _regions(
+        # One label-neutral rule for both the explanation and its visualization.
+        threshold = pure_p90_threshold(density)
+        high_attention_mask = density >= threshold
+        high_attention_regions = _regions(
             times,
             density,
-            evaluation_high_attention_mask,
+            high_attention_mask,
             duration,
             self._settings.xai_temporal_minimum_region_duration_seconds,
             self._settings.xai_temporal_merge_gap_seconds,
         )
-        visualization_quantile = self._settings.xai_temporal_visualization_quantile
-        visualization_threshold = _visualization_threshold(
-            density,
-            quantile=visualization_quantile,
-            minimum_density=(
-                self._settings.xai_temporal_visualization_minimum_density
-            ),
-        )
-        visualization_high_attention_mask = density >= visualization_threshold
-        visualization_high_attention_regions = _regions(
-            times,
-            density,
-            visualization_high_attention_mask,
-            duration,
-            self._settings.xai_temporal_minimum_region_duration_seconds,
-            self._settings.xai_temporal_merge_gap_seconds,
+        combined_duration = sum(
+            r.end_seconds - r.start_seconds for r in high_attention_regions
         )
         explanation = TemporalExplanation(
             status=ComponentStatus.completed,
-            method_version="xlsr-mamba-windowed-attention-rollout-v3",
+            method_version=TEMPORAL_METHOD_VERSION,
             model_version="xlsr-mamba-asvspoof2019-best",
             development_placeholder=False,
             research_eligible=False,
             attention_score_peak=float(density.max()),
-            threshold_percentile=None,
-            attention_threshold=self._threshold,
-            high_attention_region_count=len(evaluation_high_attention_regions),
-            high_attention_regions=evaluation_high_attention_regions,
-            high_attention_combined_duration_seconds=sum(
-                r.end_seconds - r.start_seconds
-                for r in evaluation_high_attention_regions
-            ),
-            visualization_threshold_percentile=100.0 * visualization_quantile,
-            visualization_attention_threshold=visualization_threshold,
-            visualization_high_attention_region_count=len(
-                visualization_high_attention_regions
-            ),
-            visualization_high_attention_regions=visualization_high_attention_regions,
-            visualization_high_attention_combined_duration_seconds=sum(
-                r.end_seconds - r.start_seconds
-                for r in visualization_high_attention_regions
-            ),
+            threshold_percentile=TEMPORAL_THRESHOLD_PERCENTILE,
+            attention_threshold=threshold,
+            high_attention_region_count=len(high_attention_regions),
+            high_attention_regions=high_attention_regions,
+            high_attention_combined_duration_seconds=combined_duration,
+            # Retain the existing UI fields as aliases of the same p90 result.
+            visualization_threshold_percentile=TEMPORAL_THRESHOLD_PERCENTILE,
+            visualization_attention_threshold=threshold,
+            visualization_high_attention_region_count=len(high_attention_regions),
+            visualization_high_attention_regions=high_attention_regions,
+            visualization_high_attention_combined_duration_seconds=combined_duration,
             warning=(
-                "Evaluation regions use the fixed PartialSpoof DEV-calibrated "
-                "threshold. Visualization regions use a separate per-clip top-"
-                f"{100.0 * (1.0 - visualization_quantile):g}% attention rule. "
-                "Neither region type is a ground-truth fake-audio percentage."
+                "Regions use the pure per-clip 90th percentile of attention density. "
+                "Ties and region postprocessing can produce coverage other than 10%. "
+                "These regions are not a ground-truth fake-audio percentage."
             ),
         )
         return TemporalAnalysisResult(
@@ -158,38 +126,15 @@ class XLSRTemporalAttentionService:
             visualization=TemporalVisualization(
                 time_seconds=times,
                 attention_scores=density,
-                threshold=visualization_threshold,
-                high_attention_mask=visualization_high_attention_mask,
-                evaluation_threshold=self._threshold,
-                evaluation_high_attention_mask=evaluation_high_attention_mask,
-                visualization_quantile=visualization_quantile,
-                title=(
-                    "XLS-R 6-second windowed attention rollout density "
-                    "(per-clip visualization threshold)"
-                ),
+                threshold=threshold,
+                high_attention_mask=high_attention_mask,
+                visualization_quantile=TEMPORAL_THRESHOLD_QUANTILE,
+                title="XLS-R original-forward attention rollout density (pure p90)",
             ),
             development_placeholder=False,
             research_eligible=False,
             warnings=(),
         )
-
-
-def _visualization_threshold(
-    density: np.ndarray,
-    *,
-    quantile: float,
-    minimum_density: float,
-) -> float:
-    """Return the per-clip display threshold without altering evaluation."""
-
-    finite_density = density[np.isfinite(density)]
-    if finite_density.size == 0:
-        raise TemporalAttentionError(
-            "Aggregated XLS-R temporal evidence is invalid.",
-            code="xai_temporal_density_invalid",
-        )
-    percentile_value = float(np.quantile(finite_density, quantile))
-    return float(max(minimum_density, percentile_value))
 
 
 def _regions(

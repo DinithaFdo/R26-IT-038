@@ -202,8 +202,8 @@ class TemporalExplanation(XaiSchemaModel):
     high_attention_combined_duration_seconds: float | None = Field(
         default=None, ge=0.0
     )
-    # The fields above are the fixed PartialSpoof DEV-calibrated evaluation
-    # result. These fields are a separate per-clip display rule for the UI.
+    # Existing UI aliases: new results use the same pure-p90 threshold and
+    # regions as the fields above. Keep old persisted explanations readable.
     visualization_threshold_percentile: float | None = Field(
         default=None, ge=50.0, le=99.0
     )

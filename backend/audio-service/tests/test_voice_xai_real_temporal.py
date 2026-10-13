@@ -1,7 +1,8 @@
-"""Hermetic coverage for the locked XLS-R temporal localisation path."""
+"""Hermetic coverage for pure-p90 original-pass temporal attention."""
 
 from __future__ import annotations
 
+from dataclasses import replace
 import json
 
 import numpy as np
@@ -10,332 +11,223 @@ import pytest
 from app.config.settings import Settings
 from app.schemas.common import BranchStatus, ModelMode, PredictionLabel, SourceType
 from app.schemas.prediction import (
-    AudioMetadata,
-    BranchPrediction,
-    FusionResult,
-    ProbabilityScores,
+    AudioMetadata, BranchPrediction, FusionResult, ProbabilityScores,
     VoicePredictionResponse,
 )
 from app.voice_xai.integration.contracts import ClassifierInferenceBundle
-from app.voice_xai.temporal.calibration import (
-    TemporalCalibrationError,
-    load_fixed_density_threshold,
-)
 from app.voice_xai.temporal.contracts import (
-    TemporalAttentionError,
-    TemporalAttentionWindowInput,
+    TemporalAttentionError, TemporalAttentionWindowInput,
 )
+from app.voice_xai.temporal.spectrogram import mel_spectrogram_payload
+from app.voice_xai.temporal.threshold import pure_p90_threshold
 from app.voice_xai.temporal.xlsr_attention_service import XLSRTemporalAttentionService
 
 
-def _calibration(
-    path,
-    *,
-    threshold: float = 1.1,
-    minimum_region_duration_seconds: float = 0.04,
-    merge_gap_seconds: float = 0.1,
-) -> None:
-    path.write_text(
-        json.dumps(
-            {
-                "mode": "global_density",
-                "value": threshold,
-                "status": "CALIBRATED_ON_PARTIALSPOOF_V1_2_DEV",
-                "pipeline": {
-                    "target_sample_rate": 16000,
-                    "max_window_seconds": 6.0,
-                    "window_stride_seconds": 3.0,
-                    "global_hop_seconds": 0.02,
-                    "minimum_region_duration_seconds": minimum_region_duration_seconds,
-                    "merge_gap_seconds": merge_gap_seconds,
-                },
-            }
-        ),
-        encoding="utf-8",
+def test_p90_works_without_artifacts_and_matches_all_outputs(tmp_path) -> None:
+    scores = np.linspace(0.1, 0.8, 100, dtype=np.float32)
+    inference = _density_inference(scores)
+    prediction_before = inference.prediction.model_dump(mode="json")
+    result = _service(tmp_path).analyze(inference)
+    explanation, visualization = result.explanation, result.visualization
+    expected = float(np.float32(np.quantile(scores, 0.90, method="linear")))
+
+    assert list(tmp_path.iterdir()) == []
+    assert explanation.attention_threshold == expected
+    assert explanation.attention_threshold < 1.0  # No density floor.
+    np.testing.assert_allclose(visualization.attention_scores, scores)
+    np.testing.assert_array_equal(visualization.high_attention_mask, scores >= expected)
+    assert explanation.threshold_percentile == 90.0
+    assert explanation.visualization_threshold_percentile == 90.0
+    assert explanation.visualization_attention_threshold == expected
+    assert visualization.threshold == expected
+    assert visualization.visualization_quantile == 0.90
+    assert explanation.high_attention_regions
+    assert explanation.high_attention_regions == (
+        explanation.visualization_high_attention_regions
     )
-
-
-def test_locked_calibration_rejects_pipeline_drift(tmp_path) -> None:
-    path = tmp_path / "threshold.json"
-    _calibration(path)
-    with pytest.raises(TemporalCalibrationError, match="target_sample_rate"):
-        load_fixed_density_threshold(path, expected={"target_sample_rate": 8000.0})
-
-
-@pytest.mark.parametrize(
-    ("field", "value", "message"),
-    [
-        ("mode", "per_clip", "global_density"),
-        ("status", "uncalibrated", "locked PartialSpoof"),
-        ("value", float("nan"), "finite threshold"),
-        ("pipeline", None, "pipeline metadata"),
-    ],
-)
-def test_locked_calibration_rejects_invalid_artifact(
-    tmp_path, field, value, message
-) -> None:
-    path = tmp_path / "threshold.json"
-    _calibration(path)
-
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    payload[field] = value
-    path.write_text(json.dumps(payload), encoding="utf-8")
-
-    with pytest.raises(TemporalCalibrationError, match=message):
-        load_fixed_density_threshold(
-            path,
-            expected={"target_sample_rate": 16000.0},
-        )
-
-
-def test_locked_calibration_accepts_matching_pipeline(tmp_path) -> None:
-    path = tmp_path / "threshold.json"
-    _calibration(path)
-
-    threshold, metadata = load_fixed_density_threshold(
-        path,
-        expected={"target_sample_rate": 16000.0},
+    assert explanation.high_attention_region_count == (
+        explanation.visualization_high_attention_region_count
     )
-
-    assert threshold == pytest.approx(1.1)
-    assert metadata["pipeline"]["target_sample_rate"] == 16000
-
-
-def test_real_temporal_service_returns_label_neutral_high_attention(tmp_path) -> None:
-    path = tmp_path / "threshold.json"
-    _calibration(path)
-    app_settings = Settings(
-        _env_file=None,
-        xai_temporal_threshold_config_path=str(path),
-        model_root_dir=str(tmp_path / "models"),
+    assert explanation.high_attention_combined_duration_seconds == (
+        explanation.visualization_high_attention_combined_duration_seconds
     )
-    inference = _inference(
-        "real-temporal-request",
-        temporal_evidence=(
-            TemporalAttentionWindowInput(
-                start_seconds=0.0,
-                end_seconds=2.0,
-                token_times_seconds=np.array([0.25, 0.75, 1.25, 1.75]),
-                attention_density=np.array([0.8, 1.2, 1.4, 0.9]),
-                spoof_probability=0.8,
-            ),
-        ),
-    )
-    service = XLSRTemporalAttentionService(app_settings=app_settings)
-
-    result = service.analyze(inference)
-
-    assert result.development_placeholder is False
-    assert result.explanation.attention_threshold == pytest.approx(1.1)
-    assert result.explanation.high_attention_regions
-    assert result.explanation.score_kind == "high_attention"
-    assert result.explanation.high_attention_region_count == len(
-        result.explanation.high_attention_regions
-    )
-    assert set(result.explanation.high_attention_regions[0].model_dump()) == {
-        "region_id",
-        "start_seconds",
-        "end_seconds",
-        "attention_score",
+    assert explanation.development_placeholder is False
+    assert explanation.research_eligible is False
+    assert explanation.method_version.endswith("p90-v4")
+    assert set(explanation.high_attention_regions[0].model_dump()) == {
+        "region_id", "start_seconds", "end_seconds", "attention_score",
     }
-    assert result.visualization.title.startswith("XLS-R 6-second windowed")
-    assert result.visualization.evaluation_threshold == pytest.approx(1.1)
+    artifact = visualization.as_json_dict()
+    assert artifact["threshold"] == expected
+    assert artifact["threshold_role"] == "per_clip_percentile"
+    assert "evaluation_threshold" not in artifact
+    assert "evaluation_high_attention_mask" not in artifact
+    json.dumps(artifact, allow_nan=False)
+    assert inference.prediction.model_dump(mode="json") == prediction_before
 
 
-def test_temporal_peak_below_threshold_has_zero_regions(tmp_path) -> None:
-    path = tmp_path / "threshold.json"
-    _calibration(path, threshold=1.5)
-    result = _service(tmp_path, path).analyze(
-        _inference(
-            "below-threshold",
-            temporal_evidence=(
-                _window(0.0, 1.0, [0.2, 0.4, 0.6, 0.8], [0.4, 0.8, 1.2, 0.7]),
-            ),
-        )
+def test_p90_uses_linear_quantile_and_float32_rounding() -> None:
+    scores = np.array([0.1, 0.2, 0.3, 0.7], dtype=np.float32)
+    assert pure_p90_threshold(scores) == float(np.float32(0.58))
+    assert pure_p90_threshold(scores) != float(scores[-1])  # Not the higher method.
+    assert pure_p90_threshold(scores) == float(np.float32(pure_p90_threshold(scores)))
+
+
+@pytest.mark.parametrize("value", [0.0, 0.4, 1.0, 2.0])
+def test_flat_attention_selects_all_tied_bins_without_floor(tmp_path, value) -> None:
+    result = _service(tmp_path).analyze(
+        _density_inference(np.full(100, value, dtype=np.float32))
     )
-
-    assert result.explanation.attention_score_peak < result.explanation.attention_threshold
-    assert not result.visualization.evaluation_high_attention_mask.any()
-    assert result.explanation.high_attention_regions == []
-
-
-def test_temporal_one_peak_above_threshold_has_region(tmp_path) -> None:
-    path = tmp_path / "threshold.json"
-    _calibration(path, threshold=1.0)
-    result = _service(tmp_path, path).analyze(
-        _inference(
-            "one-peak",
-            temporal_evidence=(
-                _window(0.0, 1.0, [0.2, 0.4, 0.6, 0.8], [0.2, 1.4, 0.3, 0.2]),
-            ),
-        )
-    )
-
-    assert result.explanation.attention_score_peak >= result.explanation.attention_threshold
-    assert result.visualization.evaluation_high_attention_mask.any()
-    assert len(result.explanation.high_attention_regions) == 1
-
-
-def test_temporal_contiguous_points_merge_into_one_interval(tmp_path) -> None:
-    path = tmp_path / "threshold.json"
-    _calibration(path, threshold=1.0)
-    result = _service(tmp_path, path).analyze(
-        _inference(
-            "contiguous",
-            temporal_evidence=(
-                _window(0.0, 1.0, [0.2, 0.4, 0.6, 0.8], [0.2, 1.3, 1.4, 0.2]),
-            ),
-        )
-    )
-
+    assert result.visualization.threshold == float(np.float32(value))
+    assert result.visualization.high_attention_mask.all()
     assert result.explanation.high_attention_region_count == 1
-    assert len(result.explanation.high_attention_regions) == 1
+    assert "coverage other than 10%" in result.explanation.warning
+
+
+def test_cutoff_is_per_clip_and_scale_does_not_change_selection(tmp_path) -> None:
+    scores = np.linspace(0.1, 0.8, 100, dtype=np.float32)
+    low = _service(tmp_path).analyze(_density_inference(scores))
+    high = _service(tmp_path).analyze(_density_inference(scores * 10))
+    assert low.visualization.threshold < 1.0 < high.visualization.threshold
+    assert high.visualization.threshold == pytest.approx(low.visualization.threshold * 10)
+    np.testing.assert_array_equal(
+        low.visualization.high_attention_mask, high.visualization.high_attention_mask
+    )
+
+
+def test_p90_is_applied_after_overlapping_window_aggregation(tmp_path) -> None:
+    scores = np.linspace(0.1, 1.0, 100, dtype=np.float32)
+    first = _density_inference(scores).temporal_evidence[0]
+    second = replace(first, attention_density=scores[::-1].copy())
+    result = _service(tmp_path).analyze(
+        _inference("overlap", temporal_evidence=(first, second))
+    )
+    assert result.visualization.threshold == pure_p90_threshold(
+        result.visualization.attention_scores
+    )
+    assert result.visualization.threshold < pure_p90_threshold(scores)
+    np.testing.assert_allclose(result.visualization.attention_scores, 0.55, atol=1e-7)
+
+
+def test_highlights_do_not_depend_on_classifier_label_or_probability(tmp_path) -> None:
+    scores = np.linspace(0.1, 1.2, 100, dtype=np.float32)
+    inference = _density_inference(scores)
+    service = _service(tmp_path)
+    spoof = service.analyze(inference)
+    probabilities = ProbabilityScores(bonafide=0.99, spoof=0.01)
+    prediction = inference.prediction.model_copy(deep=True)
+    prediction.branches[0].prediction = PredictionLabel.bonafide
+    prediction.branches[0].probabilities = probabilities
+    prediction.fusion.prediction = PredictionLabel.bonafide
+    prediction.fusion.probabilities = probabilities
+    window = replace(inference.temporal_evidence[0], spoof_probability=0.01)
+    bonafide = service.analyze(
+        replace(inference, prediction=prediction, temporal_evidence=(window,))
+    )
+    assert spoof.explanation.high_attention_regions == (
+        bonafide.explanation.high_attention_regions
+    )
+    assert spoof.visualization.threshold == bonafide.visualization.threshold
+    np.testing.assert_array_equal(
+        spoof.visualization.high_attention_mask,
+        bonafide.visualization.high_attention_mask,
+    )
+
+
+def test_region_postprocessing_merges_close_p90_spans(tmp_path) -> None:
+    scores = np.full(40, 0.2, dtype=np.float32)
+    scores[5:8] = scores[10:13] = 1.2
+    result = _service(tmp_path).analyze(_density_inference(scores))
+    assert np.count_nonzero(result.visualization.high_attention_mask) == 6
+    assert result.explanation.high_attention_region_count == 1
     region = result.explanation.high_attention_regions[0]
-    assert region.end_seconds - region.start_seconds >= 0.04
+    assert region.start_seconds == pytest.approx(0.10)
+    assert region.end_seconds == pytest.approx(0.26)
 
 
-def test_temporal_separated_peaks_create_multiple_regions(tmp_path) -> None:
-    path = tmp_path / "threshold.json"
-    _calibration(path, threshold=1.0, merge_gap_seconds=0.01)
-    result = _service(tmp_path, path, merge_gap=0.01).analyze(
-        _inference(
-            "separated",
-            temporal_evidence=(
-                _window(0.0, 1.0, [0.2, 0.4, 0.6, 0.8], [1.4, 0.2, 0.3, 1.5]),
-            ),
-        )
-    )
-
+def test_region_postprocessing_keeps_distant_p90_spans_separate(tmp_path) -> None:
+    scores = np.full(40, 0.2, dtype=np.float32)
+    scores[5:8] = scores[30:33] = 1.2
+    result = _service(tmp_path, merge_gap=0.01).analyze(_density_inference(scores))
     assert result.explanation.high_attention_region_count == 2
-    assert len(result.explanation.high_attention_regions) == 2
 
 
-def test_temporal_minimum_duration_filters_short_crossing(tmp_path) -> None:
-    path = tmp_path / "threshold.json"
-    _calibration(
-        path,
-        threshold=1.0,
-        minimum_region_duration_seconds=0.08,
+def test_minimum_duration_can_remove_p90_selected_bins(tmp_path) -> None:
+    result = _service(tmp_path, minimum=0.20).analyze(
+        _density_inference(np.linspace(0.1, 0.8, 50, dtype=np.float32))
     )
-    result = _service(tmp_path, path, minimum=0.08).analyze(
-        _inference(
-            "short-crossing",
-            temporal_evidence=(
-                _window(0.0, 0.2, [0.01, 0.03, 0.05, 0.07], [0.2, 1.4, 0.2, 0.2]),
-            ),
-        )
-    )
-
-    assert result.visualization.evaluation_high_attention_mask.any()
+    assert result.visualization.high_attention_mask.any()
     assert result.explanation.high_attention_regions == []
     assert result.explanation.high_attention_region_count == 0
 
 
-def test_temporal_invalid_nan_or_inf_values_are_rejected(tmp_path) -> None:
-    path = tmp_path / "threshold.json"
-    _calibration(path, threshold=1.0)
-    service = _service(tmp_path, path)
-
-    with pytest.raises(TemporalAttentionError) as error:
-        service.analyze(
-            _inference(
-                "nan-density",
-                temporal_evidence=(
-                    _window(0.0, 1.0, [0.2, 0.4], [0.8, np.nan]),
-                ),
-            )
-        )
-
-    assert error.value.code == "xai_temporal_window_invalid"
-
-
-def test_temporal_cropped_input_duration_maps_regions_to_classifier_span(tmp_path) -> None:
-    path = tmp_path / "threshold.json"
-    _calibration(path, threshold=1.0)
-    result = _service(tmp_path, path).analyze(
-        _inference(
-            "cropped-span",
-            temporal_evidence=(
-                _window(0.0, 6.0, [0.5, 2.5, 5.5], [0.2, 1.6, 0.2]),
-            ),
-        )
+def test_temporal_regions_remain_within_original_evidence_span(tmp_path) -> None:
+    result = _service(tmp_path).analyze(
+        _inference("cropped-span", temporal_evidence=(
+            _window(0.0, 6.0, [0.5, 2.5, 5.5], [0.2, 1.6, 0.2]),
+        ))
     )
-
     assert result.visualization.time_seconds[-1] < 6.0
     assert len(result.explanation.high_attention_regions) == 1
     region = result.explanation.high_attention_regions[0]
     assert 0.0 <= region.start_seconds < region.end_seconds <= 6.0
 
 
-def test_display_quantile_changes_visualization_without_changing_evaluation(
-    tmp_path,
-) -> None:
-    path = tmp_path / "threshold.json"
-    _calibration(path, threshold=1.05)
-    inference = _inference(
-        "visualization-request",
-        temporal_evidence=(
-            _window(0.0, 2.0, [0.25, 0.75, 1.25, 1.75], [0.8, 1.8, 0.8, 0.8]),
-        ),
+def test_spectrogram_uses_the_same_p90_regions(tmp_path) -> None:
+    from app.ingestion.audio import ProcessedAudio
+
+    result = _service(tmp_path).analyze(
+        _density_inference(np.linspace(0.1, 0.8, 100, dtype=np.float32))
     )
-    results = [
-        XLSRTemporalAttentionService(
-            app_settings=Settings(
-                _env_file=None,
-                xai_temporal_threshold_config_path=str(path),
-                xai_temporal_visualization_quantile=quantile,
-            )
-        ).analyze(inference)
-        for quantile in (0.50, 0.99)
+    audio = ProcessedAudio(
+        waveform=np.sin(np.arange(32000, dtype=np.float32) * 0.05),
+        sample_rate=16000, original_sample_rate=16000, original_channels=1,
+        duration_seconds=2.0, was_resampled=False, was_converted_to_mono=False,
+        normalisation_applied=False, peak_amplitude=1.0, rms_energy=0.7,
+    )
+    payload = mel_spectrogram_payload(
+        audio, result.explanation, result.visualization,
+        n_mels=16, n_fft=128, hop_length=160, max_frames=32,
+    )
+    assert payload["high_attention_regions"] == [
+        region.model_dump(mode="json") for region in result.explanation.high_attention_regions
     ]
-    broad, narrow = results
-    assert broad.visualization.threshold < narrow.visualization.threshold
-    assert np.count_nonzero(broad.visualization.high_attention_mask) > (
-        np.count_nonzero(narrow.visualization.high_attention_mask)
-    )
-    assert broad.explanation.attention_threshold == (
-        narrow.explanation.attention_threshold
-    )
-    assert broad.explanation.high_attention_regions == (
-        narrow.explanation.high_attention_regions
-    )
-    np.testing.assert_array_equal(
-        broad.visualization.evaluation_high_attention_mask,
-        narrow.visualization.evaluation_high_attention_mask,
-    )
-    np.testing.assert_allclose(
-        broad.visualization.attention_scores, narrow.visualization.attention_scores
-    )
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_mutated_nonfinite_evidence_is_rejected(tmp_path, value) -> None:
+    inference = _density_inference(np.linspace(0.1, 0.8, 100, dtype=np.float32))
+    inference.temporal_evidence[0].attention_density[0] = value
+    with pytest.raises(TemporalAttentionError) as error:
+        _service(tmp_path).analyze(inference)
+    assert error.value.code == "xai_temporal_window_invalid"
+
+
+@pytest.mark.parametrize("scores", [[], [np.nan], [np.inf], [[0.1, 0.2]]])
+def test_p90_rejects_invalid_timelines(scores) -> None:
+    with pytest.raises(TemporalAttentionError) as error:
+        pure_p90_threshold(np.array(scores, dtype=np.float32))
+    assert error.value.code == "xai_temporal_density_invalid"
 
 
 def test_real_temporal_service_requires_original_forward_evidence(tmp_path) -> None:
-    path = tmp_path / "threshold.json"
-    _calibration(path)
-    app_settings = Settings(
-        _env_file=None,
-        xai_temporal_threshold_config_path=str(path),
-        model_root_dir=str(tmp_path / "models"),
-    )
-    inference = _inference("missing-temporal-evidence")
-    service = XLSRTemporalAttentionService(app_settings=app_settings)
-
     with pytest.raises(TemporalAttentionError) as error:
-        service.analyze(inference)
-
+        _service(tmp_path).analyze(_inference("missing-evidence"))
     assert error.value.code == "xai_attention_evidence_missing"
 
 
 def test_temporal_evidence_contract_rejects_invalid_window() -> None:
     with pytest.raises(TemporalAttentionError) as error:
-        TemporalAttentionWindowInput(
-            start_seconds=0.0,
-            end_seconds=2.0,
-            token_times_seconds=np.array([0.75, 0.25]),
-            attention_density=np.array([1.2, 1.4]),
-            spoof_probability=0.8,
-        )
-
+        _window(0.0, 2.0, [0.75, 0.25], [1.2, 1.4])
     assert error.value.code == "xai_temporal_window_invalid"
+
+
+def _density_inference(scores):
+    duration = len(scores) * 0.02
+    times = np.arange(0.01, duration, 0.02, dtype=np.float32)
+    return _inference("p90-request", temporal_evidence=(
+        _window(0.0, duration, times, scores),
+    ))
 
 
 def _inference(
@@ -404,18 +296,10 @@ def _window(
     )
 
 
-def _service(
-    tmp_path,
-    calibration_path,
-    *,
-    minimum: float = 0.04,
-    merge_gap: float = 0.1,
-) -> XLSRTemporalAttentionService:
+def _service(tmp_path, *, minimum=0.04, merge_gap=0.1):
     return XLSRTemporalAttentionService(
         app_settings=Settings(
-            _env_file=None,
-            xai_temporal_threshold_config_path=str(calibration_path),
-            model_root_dir=str(tmp_path / "models"),
+            _env_file=None, model_root_dir=str(tmp_path / "models"),
             xai_temporal_minimum_region_duration_seconds=minimum,
             xai_temporal_merge_gap_seconds=merge_gap,
         )

@@ -63,8 +63,8 @@ The XAI orchestration boundary is `ClassifierInferenceBundle`, containing:
 - optional ephemeral `ProcessedAudio` for post-persistence explanation work;
   it is not serialized into prediction or explanation documents
 - optional reduced XLS-R temporal evidence created in the classifier worker;
-  clips longer than the trained 6-second input use the calibrated overlapping
-  window pipeline
+  temporal XAI consumes that original-pass evidence and selects regions using
+  pure per-clip p90 without changing the classifier's crop or prediction policy
 
 When the internal prediction caller explicitly enables capture, the bundle is
 populated from request-scoped PyTorch hooks in the same branch worker that ran

@@ -70,6 +70,12 @@ from app.voice_xai.temporal.serialization import (
     serialize_temporal_evidence,
 )
 from app.voice_xai.temporal.spectrogram import mel_spectrogram_payload
+from app.voice_xai.temporal.threshold import (
+    TEMPORAL_METHOD_VERSION,
+    TEMPORAL_PERCENTILE_METHOD,
+    TEMPORAL_THRESHOLD_MODE,
+    TEMPORAL_THRESHOLD_PERCENTILE,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -198,10 +204,9 @@ class VoiceXaiOrchestrator:
             "narrative_retry_max_attempts": self._settings.xai_narrative_retry_max_attempts,
             "job_timeout_seconds": self._settings.xai_job_timeout_seconds,
             "artifact_retention_seconds": self._settings.xai_artifact_retention_seconds,
-            "temporal_threshold_config_path": self._settings.xai_temporal_threshold_config_path,
-            "temporal_visualization_quantile": (
-                self._settings.xai_temporal_visualization_quantile
-            ),
+            "temporal_threshold_mode": TEMPORAL_THRESHOLD_MODE,
+            "temporal_threshold_percentile": TEMPORAL_THRESHOLD_PERCENTILE,
+            "temporal_percentile_method": TEMPORAL_PERCENTILE_METHOD,
         }
 
     async def trigger_for_prediction(
@@ -1242,9 +1247,10 @@ _CONFIGURATION_HASH_INPUTS = (
     "mode",
     "semantic_window_duration_seconds",
     "semantic_window_overlap_seconds",
-    "temporal_threshold_config_path",
-    "temporal_visualization_quantile",
-    "temporal_visualization_minimum_density",
+    "temporal_method_version",
+    "temporal_threshold_mode",
+    "temporal_threshold_percentile",
+    "temporal_percentile_method",
     "capture_enabled",
     "capture_max_total_elements",
     "spectrogram_n_mels",
@@ -1264,13 +1270,10 @@ def _configuration_hash_payload(settings: Settings) -> dict[str, object]:
         "mode": settings.xai_mode,
         "semantic_window_duration_seconds": settings.xai_semantic_window_duration_seconds,
         "semantic_window_overlap_seconds": settings.xai_semantic_window_overlap_seconds,
-        "temporal_threshold_config_path": settings.xai_temporal_threshold_config_path,
-        "temporal_visualization_quantile": (
-            settings.xai_temporal_visualization_quantile
-        ),
-        "temporal_visualization_minimum_density": (
-            settings.xai_temporal_visualization_minimum_density
-        ),
+        "temporal_method_version": TEMPORAL_METHOD_VERSION,
+        "temporal_threshold_mode": TEMPORAL_THRESHOLD_MODE,
+        "temporal_threshold_percentile": TEMPORAL_THRESHOLD_PERCENTILE,
+        "temporal_percentile_method": TEMPORAL_PERCENTILE_METHOD,
         "capture_enabled": settings.xai_capture_enabled,
         "capture_max_total_elements": settings.xai_capture_max_total_elements,
         "spectrogram_n_mels": settings.xai_spectrogram_n_mels,

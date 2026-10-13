@@ -312,10 +312,14 @@ metadata, and imputer. Missing or incompatible semantic artifacts can fail
 startup. These artifacts are not installed by pip.
 
 Temporal explanations consume reduced evidence from the real XLS-R classifier
-pass. Six-second windows with overlapping attention evidence are combined using
-cosine weighting and the configured PartialSpoof calibration. Attention regions
-are model-focus evidence, not ground-truth manipulated-audio labels. Optional
-AI narrative settings require their own provider configuration.
+pass. Available attention windows are combined using cosine weighting. Regions
+use only the per-clip 90th percentile of the resulting float32 density (linear
+quantile, float32 cutoff, `>=` comparison), with no density floor or threshold
+artifact. The explanation and visualization use the same threshold and regions.
+Ties and region postprocessing can make coverage differ from 10%; flat maps can
+select all bins. Attention regions are model-focus evidence, not ground-truth
+manipulated-audio labels. Optional AI narrative settings require their own
+provider configuration.
 
 Owner-scoped endpoints live under
 `/api/v1/me/predictions/{prediction_id}/explanation`. Private artifact downloads

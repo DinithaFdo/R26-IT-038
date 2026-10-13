@@ -54,7 +54,7 @@ def evaluate_research_eligibility(
     Temporal
       - A temporal component result must exist for this run.
       - ``temporal.research_eligible`` must be True. The real XLS-R temporal
-        service currently reports False until its classifier and calibration
+        service currently reports False until its classifier and temporal
         verification evidence is explicitly attested.
 
     Semantic

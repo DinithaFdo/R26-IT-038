@@ -29,6 +29,8 @@ from app.voice_xai.workflow.orchestrator import (
     VoiceXaiOrchestrator,
     XaiRetryRequiredError,
     _configuration_hash,
+    _configuration_hash_inputs,
+    _configuration_hash_payload,
     classifier_snapshot_from_prediction,
 )
 from app.voice_xai.persistence.mongodb import MongoXaiExplanationRepository
@@ -40,6 +42,44 @@ from app.voice_xai.temporal.contracts import (
     TemporalVisualization,
 )
 from tests.test_mongodb import FakeDatabase
+
+
+@pytest.mark.anyio
+async def test_real_p90_temporal_result_is_persisted_without_calibration(
+    tmp_path: Path,
+) -> None:
+    from app.voice_xai.temporal.xlsr_attention_service import XLSRTemporalAttentionService
+
+    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="mock")
+    repository = MongoXaiExplanationRepository(FakeDatabase("p90_temporal_run"))
+    prediction = _prediction()
+    prediction_before = prediction.model_dump(mode="json")
+    bundle = _bundle(
+        prediction, processed_audio=_audio(2.0), temporal_evidence=_temporal_evidence()
+    )
+    store = LocalExplanationArtifactStore(tmp_path / "private")
+    orchestrator = VoiceXaiOrchestrator(
+        repository=repository,
+        prediction_repository=PredictionLookup(_document(prediction)),
+        queue=PausedQueue(),
+        app_settings=settings,
+        artifact_store=store,
+        temporal_service=XLSRTemporalAttentionService(app_settings=settings),
+        semantic_service=FailingSemanticService(),
+    )
+    explanation_id = await _create(repository, bundle, settings)
+    await orchestrator._run(explanation_id, bundle)
+    response = await orchestrator.get_for_owner(
+        explanation_id=explanation_id, owner_user_id="user-123"
+    )
+    assert response.component_statuses.temporal == ComponentStatus.completed
+    temporal = response.temporal
+    assert temporal.threshold_percentile == 90.0
+    assert temporal.attention_threshold == temporal.visualization_attention_threshold
+    assert temporal.high_attention_regions == temporal.visualization_high_attention_regions
+    assert temporal.method_version.endswith("p90-v4")
+    assert "temporal_threshold_percentile" in response.provenance.configuration_hash_inputs
+    assert prediction.model_dump(mode="json") == prediction_before
 
 
 @pytest.mark.anyio
@@ -508,12 +548,41 @@ def test_xai_configuration_hash_is_stable_for_same_settings() -> None:
     assert _configuration_hash(settings) == _configuration_hash(settings)
 
 
+def test_xai_readiness_and_provenance_describe_only_p90(tmp_path: Path) -> None:
+    from app.voice_xai.temporal.xlsr_attention_service import XLSRTemporalAttentionService
+
+    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="mock")
+    orchestrator = VoiceXaiOrchestrator(
+        repository=MongoXaiExplanationRepository(FakeDatabase("p90_readiness")),
+        prediction_repository=PredictionLookup(_document(_prediction())),
+        queue=PausedQueue(),
+        app_settings=settings,
+        artifact_store=LocalExplanationArtifactStore(tmp_path / "private"),
+        temporal_service=XLSRTemporalAttentionService(app_settings=settings),
+    )
+    readiness = orchestrator.readiness()
+    assert readiness["ready"] is True
+    assert readiness["temporal_threshold_mode"] == "per_clip_percentile"
+    assert readiness["temporal_threshold_percentile"] == 90.0
+    assert readiness["temporal_percentile_method"] == "linear_float32_comparison"
+    payload = _configuration_hash_payload(settings)
+    assert payload["temporal_method_version"].endswith("p90-v4")
+    assert payload["temporal_threshold_percentile"] == 90.0
+    assert set(payload) == set(_configuration_hash_inputs())
+    assert "temporal_threshold_config_path" not in readiness
+    assert "temporal_threshold_config_path" not in payload
+    assert "temporal_visualization_minimum_density" not in payload
+    assert "xai_temporal_threshold_config_path" not in Settings.model_fields
+    assert "xai_temporal_visualization_quantile" not in Settings.model_fields
+    assert "xai_temporal_visualization_minimum_density" not in Settings.model_fields
+
+
 def test_xai_configuration_hash_changes_for_behavioral_setting() -> None:
     original = Settings(
-        _env_file=None, xai_mode="mock", xai_temporal_visualization_quantile=0.80
+        _env_file=None, xai_mode="mock", xai_spectrogram_n_mels=32
     )
     changed = Settings(
-        _env_file=None, xai_mode="mock", xai_temporal_visualization_quantile=0.90
+        _env_file=None, xai_mode="mock", xai_spectrogram_n_mels=64
     )
 
     assert _configuration_hash(original) != _configuration_hash(changed)

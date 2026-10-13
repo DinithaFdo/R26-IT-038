@@ -130,24 +130,13 @@ class Settings(BaseSettings):
     xai_job_timeout_seconds: float = Field(default=600.0, gt=0.0)
     xai_artifact_retention_seconds: int = Field(default=604800, ge=60)
     xai_artifact_root: str = "private_xai_artifacts"
-    xai_temporal_threshold_config_path: str = (
-        "app/voice_xai/temporal/calibrations/partialspoof_v1_2_dev_attention_threshold.json"
-    )
-    # Must match the locked temporal-calibration artifact. This is separate
-    # from the shared-model segmentation settings used by other branches.
+    # Temporal selection is fixed to pure p90 in voice_xai.temporal.threshold.
+    # These timing settings are separate from shared classifier segmentation.
     xai_temporal_window_stride_seconds: float = Field(default=3.0, gt=0.0)
     xai_temporal_global_hop_seconds: float = Field(default=0.02, gt=0.0)
     xai_temporal_smoothing_ms: float = Field(default=80.0, ge=0.0)
     xai_temporal_minimum_region_duration_seconds: float = Field(default=0.04, ge=0.0)
     xai_temporal_merge_gap_seconds: float = Field(default=0.1, ge=0.0)
-    # Display-only selection. It deliberately does not replace the fixed
-    # PartialSpoof DEV-calibrated evaluation threshold.
-    xai_temporal_visualization_quantile: float = Field(
-        default=0.90, ge=0.50, le=0.99
-    )
-    xai_temporal_visualization_minimum_density: float = Field(
-        default=1.0, ge=0.0
-    )
     # Bounded display-only spectrogram generated from the same preprocessed
     # waveform as the classifier. These values do not alter model inference.
     xai_spectrogram_n_mels: int = Field(default=64, ge=16, le=128)

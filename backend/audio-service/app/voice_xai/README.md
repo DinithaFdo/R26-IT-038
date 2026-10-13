@@ -94,7 +94,11 @@ package; their availability depends on the local checkout and configuration.
 ## User-facing temporal evidence
 
 The completed temporal response provides label-neutral `high_attention_regions`
-whenever rollout density passes the calibrated threshold. Each includes exact
+using the pure per-clip 90th percentile of the aggregated rollout density. There
+is no density floor or external threshold artifact. The cutoff is computed with
+linear interpolation, rounded to float32, and compared using `>=`. Explanation
+and visualization fields contain the same result. Ties and postprocessing mean
+coverage is not necessarily 10%; flat maps can select all bins. Each includes exact
 start/end times and its attention score. These regions are model-focus evidence,
 not ground-truth fake-audio percentages.
 
