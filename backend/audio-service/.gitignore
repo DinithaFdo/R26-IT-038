@@ -14,3 +14,5 @@ validation_data/real_world_sanity_set/manifest.csv
 validation_data/real_world_sanity_set/samples/*
 !validation_data/real_world_sanity_set/samples/.gitkeep
 model_artifacts/
+.postman/
+postman/
