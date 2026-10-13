@@ -45,6 +45,7 @@ class TemporalAttentionWindowInput:
             ) from error
         if (
             not np.isfinite(start)
+            or start < 0.0
             or not np.isfinite(end)
             or end <= start
             or not np.isfinite(probability)
@@ -98,12 +99,25 @@ class TemporalVisualization:
     high_attention_mask: NDArray[np.bool_]
     title: str = "XLS-R attention rollout density"
     visualization_quantile: float | None = None
+    # Source-audio bounds of real evidence; scores outside these spans are absent.
+    analyzed_spans: tuple[tuple[float, float], ...] = ()
+    duration_seconds: float | None = None
 
     def as_json_dict(self) -> dict[str, object]:
         return {
             "title": self.title,
             "time_seconds": self.time_seconds.tolist(),
-            "attention_scores": self.attention_scores.tolist(),
+            "attention_scores": [
+                float(score) if np.isfinite(score) else None
+                for score in self.attention_scores
+            ],
+            "attention_available_mask": np.isfinite(self.attention_scores).tolist(),
+            "analyzed_spans": [
+                {"start_seconds": start, "end_seconds": end}
+                for start, end in self.analyzed_spans
+            ],
+            "duration_seconds": self.duration_seconds,
+            "time_reference": "source_audio",
             "threshold": self.threshold,
             "high_attention_mask": self.high_attention_mask.astype(int).tolist(),
             "visualization_quantile": self.visualization_quantile,

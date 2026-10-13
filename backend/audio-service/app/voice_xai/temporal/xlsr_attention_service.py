@@ -43,17 +43,29 @@ class XLSRTemporalAttentionService:
             )
             for window in raw_windows
         )
+        duration = max(
+            duration,
+            (
+                inference.processed_audio.duration_seconds
+                if inference.processed_audio is not None
+                else inference.prediction.audio.duration_seconds
+            ),
+        )
+        windows = [
+            _validated_window(window, index=index, duration=duration)
+            for index, window in enumerate(raw_windows)
+        ]
+        analyzed_spans = _analyzed_spans(windows)
         hop = self._settings.xai_temporal_global_hop_seconds
         times = np.arange(hop / 2.0, duration, hop, dtype=np.float32)
         if not times.size:
             times = np.array([duration / 2.0], dtype=np.float32)
         density_sum = np.zeros_like(times, dtype=np.float64)
         density_weights = np.zeros_like(times, dtype=np.float64)
-        for index, raw_window in enumerate(raw_windows):
-            window = _validated_window(raw_window, index=index, duration=duration)
+        for window in windows:
             start = window["start_seconds"]
             end = window["end_seconds"]
-            inside = (times >= start) & (times <= end)
+            inside = (times >= start) & (times < end)
             if not inside.any():
                 continue
             local_times = window["token_times_seconds"]
@@ -77,23 +89,31 @@ class XLSRTemporalAttentionService:
                 "XLS-R attention windows do not cover the processed audio.",
                 code="xai_temporal_windows_uncovered",
             )
-        density = (density_sum / np.maximum(density_weights, 1e-12)).astype(np.float32)
-        if not np.isfinite(density).all():
+        covered = density_weights > 0.0
+        density = np.full(times.shape, np.nan, dtype=np.float32)
+        density[covered] = (density_sum[covered] / density_weights[covered]).astype(np.float32)
+        if not np.isfinite(density[covered]).all():
             raise TemporalAttentionError(
                 "Aggregated XLS-R temporal evidence is invalid.",
                 code="xai_temporal_density_invalid",
             )
         # One label-neutral rule for both the explanation and its visualization.
-        threshold = pure_p90_threshold(density)
-        high_attention_mask = density >= threshold
-        high_attention_regions = _regions(
-            times,
-            density,
-            high_attention_mask,
-            duration,
-            self._settings.xai_temporal_minimum_region_duration_seconds,
-            self._settings.xai_temporal_merge_gap_seconds,
-        )
+        threshold = pure_p90_threshold(density[covered])
+        high_attention_mask = covered & (density >= threshold)
+        high_attention_regions = []
+        # Process each evidence span separately: merging must not fill unknown gaps.
+        for start, end in analyzed_spans:
+            span_mask = high_attention_mask & (times >= start) & (times < end)
+            regions = _regions(
+                times, density, span_mask, duration,
+                self._settings.xai_temporal_minimum_region_duration_seconds,
+                self._settings.xai_temporal_merge_gap_seconds,
+                span_start=start, span_end=end,
+            )
+            for region in regions:
+                high_attention_regions.append(
+                    region.model_copy(update={"region_id": len(high_attention_regions) + 1})
+                )
         combined_duration = sum(
             r.end_seconds - r.start_seconds for r in high_attention_regions
         )
@@ -103,7 +123,7 @@ class XLSRTemporalAttentionService:
             model_version="xlsr-mamba-asvspoof2019-best",
             development_placeholder=False,
             research_eligible=False,
-            attention_score_peak=float(density.max()),
+            attention_score_peak=float(density[covered].max()),
             threshold_percentile=TEMPORAL_THRESHOLD_PERCENTILE,
             attention_threshold=threshold,
             high_attention_region_count=len(high_attention_regions),
@@ -129,6 +149,8 @@ class XLSRTemporalAttentionService:
                 threshold=threshold,
                 high_attention_mask=high_attention_mask,
                 visualization_quantile=TEMPORAL_THRESHOLD_QUANTILE,
+                analyzed_spans=analyzed_spans,
+                duration_seconds=duration,
                 title="XLS-R original-forward attention rollout density (pure p90)",
             ),
             development_placeholder=False,
@@ -144,6 +166,9 @@ def _regions(
     duration: float,
     minimum: float,
     merge_gap: float,
+    *,
+    span_start: float = 0.0,
+    span_end: float | None = None,
 ) -> list[TemporalRegion]:
     dt = float(np.median(np.diff(times))) if times.size > 1 else duration
     spans: list[list[float]] = []
@@ -155,8 +180,8 @@ def _regions(
             end = index if selected else index - 1
             spans.append(
                 [
-                    max(0.0, float(times[start] - dt / 2)),
-                    min(duration, float(times[end] + dt / 2)),
+                    max(span_start, float(times[start] - dt / 2)),
+                    min(duration if span_end is None else span_end, float(times[end] + dt / 2)),
                 ]
             )
             start = None
@@ -170,7 +195,7 @@ def _regions(
     for start, end in merged:
         if end - start < minimum:
             continue
-        selected = (times >= start) & (times <= end)
+        selected = (times >= start) & (times <= end) & np.isfinite(scores)
         result.append(
             TemporalRegion(
                 region_id=len(result) + 1,
@@ -180,6 +205,20 @@ def _regions(
             )
         )
     return result
+
+
+def _analyzed_spans(windows: list[dict[str, Any]]) -> tuple[tuple[float, float], ...]:
+    """Union actual evidence bounds, retaining gaps with no model evidence."""
+
+    merged: list[list[float]] = []
+    for start, end in sorted(
+        (window["start_seconds"], window["end_seconds"]) for window in windows
+    ):
+        if merged and start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+    return tuple((start, end) for start, end in merged)
 
 
 def _finite_positive(value: Any, *, name: str, code: str) -> float:

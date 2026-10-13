@@ -62,16 +62,25 @@ def mel_spectrogram_payload(
         or attention_times.size == 0
         or attention_times.size != attention_scores.size
         or not np.isfinite(attention_times).all()
-        or not np.isfinite(attention_scores).all()
+        or np.isinf(attention_scores).any()
+        or np.any(np.diff(attention_times) <= 0.0)
     ):
         raise ValueError("Temporal attention visualization is invalid for spectrogram display.")
-    frame_attention = np.interp(
-        frame_times,
-        attention_times,
-        attention_scores,
-        left=float(attention_scores[0]),
-        right=float(attention_scores[-1]),
-    ).astype(np.float32)
+    analyzed_spans = visualization.analyzed_spans or (
+        (float(attention_times[0]), float(attention_times[-1])),
+    )
+    frame_attention = np.full(frame_times.shape, np.nan, dtype=np.float32)
+    for start, end in analyzed_spans:
+        source = (
+            (attention_times >= start) & (attention_times <= end)
+            & np.isfinite(attention_scores)
+        )
+        inside = (frame_times >= start) & (frame_times < end)
+        if source.any():
+            # Endpoint interpolation is allowed only within this analyzed span.
+            frame_attention[inside] = np.interp(
+                frame_times[inside], attention_times[source], attention_scores[source]
+            ).astype(np.float32)
 
     visualization_regions = temporal.visualization_high_attention_regions
     if visualization_regions is None:
@@ -90,11 +99,21 @@ def mel_spectrogram_payload(
         "frame_times_seconds": frame_times.tolist(),
         "mel_frequencies_hz": frequencies_hz.tolist(),
         "log_mel_db": log_mel_db.astype(np.float32).tolist(),
-        "attention_density": frame_attention.tolist(),
+        "attention_density": [
+            float(score) if np.isfinite(score) else None for score in frame_attention
+        ],
+        "attention_available_mask": np.isfinite(frame_attention).tolist(),
+        "analyzed_spans": [
+            {"start_seconds": start, "end_seconds": end}
+            for start, end in analyzed_spans
+        ],
+        "time_reference": "source_audio",
         "attention_score_definition": "xlsr_attention_rollout_density_uniform_baseline_1",
         "attention_overlay_instruction": (
             "Render the continuous attention-density values as a colour-intensity "
-            "overlay across the full mel-frequency axis. This is temporal "
+            "overlay across the full mel-frequency axis only where density is "
+            "non-null. Leave null frames as the normal spectrogram, without "
+            "colour, labels, or zero scores. This is temporal "
             "attention, not frequency-specific attribution."
         ),
         "high_attention_region_count": len(visualization_regions),

@@ -316,10 +316,18 @@ pass. Available attention windows are combined using cosine weighting. Regions
 use only the per-clip 90th percentile of the resulting float32 density (linear
 quantile, float32 cutoff, `>=` comparison), with no density floor or threshold
 artifact. The explanation and visualization use the same threshold and regions.
+Window bounds and displayed regions use source-audio timestamps, including the
+classifier's center-crop offset. P90 uses only bins covered by original-pass
+evidence. Uncovered time-series and spectrogram frames are `null`; the frontend
+leaves the normal spectrogram untouched there and does not bridge curve gaps.
 Ties and region postprocessing can make coverage differ from 10%; flat maps can
-select all bins. Attention regions are model-focus evidence, not ground-truth
+select all covered bins. Attention regions are model-focus evidence, not ground-truth
 manipulated-audio labels. Optional AI narrative settings require their own
 provider configuration.
+
+New private temporal artifacts use `xlsr-temporal-evidence-v3-source-time`.
+Earlier crop-relative artifacts cannot be reused safely because they lack the
+source offset; rerun prediction to obtain new original-pass evidence.
 
 Owner-scoped endpoints live under
 `/api/v1/me/predictions/{prediction_id}/explanation`. Private artifact downloads

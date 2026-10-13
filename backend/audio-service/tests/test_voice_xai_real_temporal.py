@@ -53,7 +53,7 @@ def test_p90_works_without_artifacts_and_matches_all_outputs(tmp_path) -> None:
     )
     assert explanation.development_placeholder is False
     assert explanation.research_eligible is False
-    assert explanation.method_version.endswith("p90-v4")
+    assert explanation.method_version.endswith("p90-v5")
     assert set(explanation.high_attention_regions[0].model_dump()) == {
         "region_id", "start_seconds", "end_seconds", "attention_score",
     }
@@ -192,6 +192,55 @@ def test_spectrogram_uses_the_same_p90_regions(tmp_path) -> None:
     assert payload["high_attention_regions"] == [
         region.model_dump(mode="json") for region in result.explanation.high_attention_regions
     ]
+
+
+def test_source_crop_has_no_zero_scores_or_highlights_outside_evidence(tmp_path) -> None:
+    scores = np.linspace(0.1, 0.8, 300, dtype=np.float32)
+    window = _window(
+        7.0, 13.0, np.arange(0.01, 6.0, 0.02, dtype=np.float32), scores
+    )
+    inference = _inference("source-time", temporal_evidence=(window,))
+    prediction = inference.prediction.model_copy(deep=True)
+    prediction.audio.duration_seconds = 20.0
+    inference = replace(inference, prediction=prediction)
+    result = _service(tmp_path).analyze(inference)
+    plot = result.visualization
+    outside = (plot.time_seconds < 7.0) | (plot.time_seconds >= 13.0)
+    inside = ~outside
+    assert plot.duration_seconds == 20.0
+    assert plot.time_seconds[-1] > 19.9
+    assert plot.analyzed_spans == ((7.0, 13.0),)
+    assert np.isnan(plot.attention_scores[outside]).all()
+    assert not plot.high_attention_mask[outside].any()
+    assert plot.threshold == pure_p90_threshold(plot.attention_scores[inside])
+    assert plot.threshold < 1.0
+    assert result.explanation.high_attention_regions
+    assert all(
+        7.0 <= region.start_seconds < region.end_seconds <= 13.0
+        for region in result.explanation.high_attention_regions
+    )
+    artifact = plot.as_json_dict()
+    assert artifact["time_reference"] == "source_audio"
+    assert all(
+        score is None for score, absent in zip(artifact["attention_scores"], outside)
+        if absent
+    )
+    json.dumps(artifact, allow_nan=False)
+
+
+def test_unknown_gap_is_not_interpolated_or_merged_into_a_region(tmp_path) -> None:
+    result = _service(tmp_path).analyze(
+        _inference("gap", temporal_evidence=(
+            _window(0.0, 0.2, [0.01, 0.19], [1.0, 1.0]),
+            _window(0.24, 0.44, [0.01, 0.19], [1.0, 1.0]),
+        ))
+    )
+    plot = result.visualization
+    assert result.explanation.high_attention_region_count == 2
+    assert plot.analyzed_spans == ((0.0, 0.2), (0.24, 0.44))
+    gap = (plot.time_seconds >= 0.2) & (plot.time_seconds < 0.24)
+    assert np.isnan(plot.attention_scores[gap]).all()
+    assert not plot.high_attention_mask[gap].any()
 
 
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])

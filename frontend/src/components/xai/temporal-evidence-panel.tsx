@@ -29,13 +29,19 @@ import type {
   TemporalExplanation,
 } from "@/types/api";
 
+import {
+  attentionAtTime, attentionSegments, attentionVector, interpolateAttention,
+  type AttentionValue,
+} from "@/lib/xai/attention";
+
 function displayRegionId(regionId: number) {
   return regionId.toString().padStart(2, "0");
 }
 
 type SpectrogramData = {
   matrix: number[][];
-  attention: number[] | null;
+  attention: AttentionValue[] | null;
+  frameTimes: number[] | null;
   visualizationRegions: RenderedTemporalRegion[] | null;
 };
 
@@ -133,8 +139,8 @@ function findMatrix(value: unknown, depth = 0): number[][] | null {
   return null;
 }
 
-function meanColumns(value: unknown): number[] | null {
-  const vector = numericVector(value);
+function meanColumns(value: unknown): AttentionValue[] | null {
+  const vector = attentionVector(value);
   if (vector) return vector;
   const matrix = numberMatrix(value);
   if (!matrix) return null;
@@ -143,7 +149,7 @@ function meanColumns(value: unknown): number[] | null {
   );
 }
 
-function findAttention(value: unknown, depth = 0): number[] | null {
+function findAttention(value: unknown, depth = 0): AttentionValue[] | null {
   if (depth > 5 || !value || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
   for (const key of ATTENTION_KEYS) {
@@ -210,20 +216,14 @@ function parseSpectrogram(value: unknown): SpectrogramData | null {
   const matrix = findMatrix(value);
   if (!matrix) return null;
   const attention = findAttention(value);
+  const record = value as Record<string, unknown>;
+  const frameTimes = numericVector(record.frame_times_seconds);
   const visualizationRegions = visualizationRegionsFromSpectrogram(value);
   if (attention && attention.length === matrix.length && attention.length !== matrix[0].length) {
     const transposed = matrix[0].map((_, column) => matrix.map((row) => row[column]));
-    return { matrix: transposed, attention, visualizationRegions };
+    return { matrix: transposed, attention, frameTimes, visualizationRegions };
   }
-  return { matrix, attention, visualizationRegions };
-}
-
-function interpolateAttention(attention: number[], index: number, width: number) {
-  if (attention.length === 1) return attention[0];
-  const position = (index / Math.max(1, width - 1)) * (attention.length - 1);
-  const lower = Math.floor(position);
-  const upper = Math.min(attention.length - 1, lower + 1);
-  return attention[lower] + (attention[upper] - attention[lower]) * (position - lower);
+  return { matrix, attention, frameTimes, visualizationRegions };
 }
 
 function spectrogramColor(value: number): [number, number, number] {
@@ -244,14 +244,15 @@ function attentionOverlayColor(value: number): [number, number, number] {
   ];
 }
 
-function valueRange(values: Iterable<number>) {
+function valueRange(values: Iterable<AttentionValue>) {
   let minimum = Number.POSITIVE_INFINITY;
   let maximum = Number.NEGATIVE_INFINITY;
   for (const value of values) {
+    if (value === null) continue;
     minimum = Math.min(minimum, value);
     maximum = Math.max(maximum, value);
   }
-  return { minimum, maximum };
+  return Number.isFinite(minimum) ? { minimum, maximum } : { minimum: 0, maximum: 0 };
 }
 
 /**
@@ -352,7 +353,7 @@ function AttentionSpectrogram({
       canvas.style.height = `${height}px`;
       context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
 
-      const { matrix, attention } = state.data;
+      const { matrix, attention, frameTimes } = state.data;
       const { minimum, maximum } = valueRange(matrix.flat());
       const range = maximum - minimum || 1;
       const source = document.createElement("canvas");
@@ -379,7 +380,11 @@ function AttentionSpectrogram({
         const { minimum: attentionMinimum, maximum: attentionMaximum } = valueRange(attention);
         const attentionRange = attentionMaximum - attentionMinimum || 1;
         for (let column = 0; column < width; column += 1) {
-          const score = (interpolateAttention(attention, column, width) - attentionMinimum) / attentionRange;
+          const density = frameTimes?.length === attention.length
+            ? attentionAtTime(attention, frameTimes, (column / Math.max(1, width - 1)) * durationSeconds)
+            : interpolateAttention(attention, column, width);
+          if (density === null) continue;
+          const score = (density - attentionMinimum) / attentionRange;
           const [red, green, blue] = attentionOverlayColor(score);
           context.fillStyle = `rgba(${red}, ${green}, ${blue}, ${0.06 + score * 0.38})`;
           context.fillRect(column, 0, 1, height);
@@ -540,7 +545,7 @@ function RegionTimeAxis({
 
 type AttentionSeriesState =
   | { status: "loading" }
-  | { status: "ready"; values: number[] }
+  | { status: "ready"; values: AttentionValue[]; times: number[] | null }
   | { status: "error"; message: string };
 
 function AttentionLineChart({
@@ -575,9 +580,9 @@ function AttentionLineChart({
       try {
         const blob = await getExplanationArtifact(predictionId, artifactId);
         const parsed = JSON.parse(await blob.text());
-        const values = numericVector(parsed) ?? findAttention(parsed);
+        const values = attentionVector(parsed) ?? findAttention(parsed);
         if (!values) throw new Error("The artifact does not include a supported attention series.");
-        if (!cancelled) setState({ status: "ready", values });
+        if (!cancelled) setState({ status: "ready", values, times: numericVector(parsed.time_seconds) });
       } catch (error) {
         if (!cancelled) {
           setState({
@@ -615,7 +620,7 @@ function AttentionLineChart({
       const padding = ATTENTION_LINE_CHART_PADDING;
       const plotWidth = width - padding.left - padding.right;
       const plotHeight = height - padding.top - padding.bottom;
-      const renderedValues = smoothAttentionForDisplay(state.values);
+      const segments = attentionSegments(state.values, state.times, durationSeconds);
       const rawValueRange = valueRange(state.values);
       // Keep the plot and threshold in the backend's original score domain.
       // Smoothed values are used only to make the drawn curve easier to read.
@@ -682,8 +687,10 @@ function AttentionLineChart({
         context.strokeStyle = "rgba(185, 28, 28, 0.95)";
         context.lineWidth = 1;
         context.beginPath();
-        context.moveTo(padding.left, y);
-        context.lineTo(width - padding.right, y);
+        segments.forEach((segment) => {
+          context.moveTo(padding.left + (segment[0].time / durationSeconds) * plotWidth, y);
+          context.lineTo(padding.left + (segment[segment.length - 1].time / durationSeconds) * plotWidth, y);
+        });
         context.stroke();
         context.setLineDash([]);
         const label = `Threshold ${formatDecimal(threshold)}`;
@@ -697,51 +704,51 @@ function AttentionLineChart({
         context.fillText(label, width - padding.right - labelWidth + 6, Math.max(padding.top + 12, y - 6));
       }
 
-      const toPoint = (value: number, index: number, valueCount: number) => ({
-        x: padding.left + (index / Math.max(1, valueCount - 1)) * plotWidth,
+      const toPoint = (value: number, time: number) => ({
+        x: padding.left + (time / Math.max(durationSeconds, 1e-12)) * plotWidth,
         y: padding.top + plotHeight - ((value - minimum) / range) * plotHeight,
       });
 
-      // Keep the raw density visible so a plotted threshold crossing always
-      // corresponds to the interval-selection data. The smoothed curve remains
-      // as a more readable trend layer above it.
-      context.beginPath();
-      state.values.forEach((value, index) => {
-        const point = toPoint(value, index, state.values.length);
-        if (index === 0) context.moveTo(point.x, point.y);
-        else context.lineTo(point.x, point.y);
-      });
-      context.strokeStyle = "rgba(96, 165, 250, 0.8)";
-      context.lineWidth = 1;
-      context.lineJoin = "round";
-      context.lineCap = "round";
-      context.stroke();
+      // Each evidence span has its own path. Unknown spans get no curve or fill.
+      segments.forEach((segment) => {
+        context.beginPath();
+        segment.forEach(({ value, time }, index) => {
+          const point = toPoint(value, time);
+          if (index === 0) context.moveTo(point.x, point.y);
+          else context.lineTo(point.x, point.y);
+        });
+        context.strokeStyle = "rgba(96, 165, 250, 0.8)";
+        context.lineWidth = 1;
+        context.lineJoin = "round";
+        context.lineCap = "round";
+        context.stroke();
 
-      const first = toPoint(renderedValues[0], 0, renderedValues.length);
-      const last = toPoint(renderedValues[renderedValues.length - 1], renderedValues.length - 1, renderedValues.length);
-      context.beginPath();
-      renderedValues.forEach((value, index) => {
-        const point = toPoint(value, index, renderedValues.length);
-        if (index === 0) context.moveTo(point.x, point.y);
-        else context.lineTo(point.x, point.y);
-      });
-      context.lineTo(last.x, padding.top + plotHeight);
-      context.lineTo(first.x, padding.top + plotHeight);
-      context.closePath();
-      context.fillStyle = "rgba(56, 189, 248, 0.16)";
-      context.fill();
+        const renderedValues = smoothAttentionForDisplay(segment.map((point) => point.value));
+        const start = segment[0].time;
+        const end = segment[segment.length - 1].time;
+        const points = renderedValues.map((value, index) =>
+          toPoint(value, start + (index / Math.max(1, renderedValues.length - 1)) * (end - start)),
+        );
+        context.beginPath();
+        points.forEach((point, index) => {
+          if (index === 0) context.moveTo(point.x, point.y);
+          else context.lineTo(point.x, point.y);
+        });
+        context.lineTo(points[points.length - 1].x, padding.top + plotHeight);
+        context.lineTo(points[0].x, padding.top + plotHeight);
+        context.closePath();
+        context.fillStyle = "rgba(56, 189, 248, 0.16)";
+        context.fill();
 
-      context.beginPath();
-      renderedValues.forEach((value, index) => {
-        const point = toPoint(value, index, renderedValues.length);
-        if (index === 0) context.moveTo(point.x, point.y);
-        else context.lineTo(point.x, point.y);
+        context.beginPath();
+        points.forEach((point, index) => {
+          if (index === 0) context.moveTo(point.x, point.y);
+          else context.lineTo(point.x, point.y);
+        });
+        context.strokeStyle = "#22d3ee";
+        context.lineWidth = 1.5;
+        context.stroke();
       });
-      context.strokeStyle = "#22d3ee";
-      context.lineWidth = 1.5;
-      context.lineJoin = "round";
-      context.lineCap = "round";
-      context.stroke();
     };
 
     draw();

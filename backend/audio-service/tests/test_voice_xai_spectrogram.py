@@ -1,4 +1,5 @@
 import numpy as np
+import json
 
 from app.ingestion.audio import ProcessedAudio
 from app.schemas.xai import ComponentStatus, TemporalExplanation, TemporalRegion
@@ -84,3 +85,41 @@ def test_mel_spectrogram_payload_aligns_density_and_visualization_regions() -> N
         len(row) == len(payload["frame_times_seconds"])
         for row in payload["log_mel_db"]
     )
+
+
+def test_crop_overlay_leaves_the_rest_of_the_full_spectrogram_untouched() -> None:
+    sample_rate = 16000
+    audio = ProcessedAudio(
+        waveform=np.sin(np.arange(sample_rate * 20, dtype=np.float32) * 0.05),
+        sample_rate=sample_rate, original_sample_rate=sample_rate,
+        original_channels=1, duration_seconds=20.0,
+        was_resampled=False, was_converted_to_mono=False,
+        normalisation_applied=False, peak_amplitude=1.0, rms_energy=0.7,
+    )
+    times = np.arange(0.01, 20.0, 0.02, dtype=np.float32)
+    covered = (times >= 7.0) & (times < 13.0)
+    scores = np.full(times.shape, np.nan, dtype=np.float32)
+    scores[covered] = np.linspace(0.4, 1.4, np.count_nonzero(covered))
+    plot = TemporalVisualization(
+        time_seconds=times, attention_scores=scores, threshold=1.3,
+        high_attention_mask=covered & (scores >= 1.3),
+        analyzed_spans=((7.0, 13.0),), duration_seconds=20.0,
+    )
+    temporal = TemporalExplanation(status=ComponentStatus.completed, method_version="fixture")
+    payload = mel_spectrogram_payload(
+        audio, temporal, plot, n_mels=16, n_fft=128, hop_length=160, max_frames=200,
+    )
+    frame_times = np.array(payload["frame_times_seconds"])
+    absent = (frame_times < 7.0) | (frame_times >= 13.0)
+    assert frame_times[0] < 0.1 and frame_times[-1] > 19.9
+    assert len(payload["log_mel_db"][0]) == 200
+    assert all(
+        value is None for value, missing in zip(payload["attention_density"], absent)
+        if missing
+    )
+    assert all(
+        isinstance(value, float)
+        for value, missing in zip(payload["attention_density"], absent) if not missing
+    )
+    np.testing.assert_array_equal(payload["attention_available_mask"], ~absent)
+    json.dumps(payload, allow_nan=False)

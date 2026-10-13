@@ -66,6 +66,12 @@ The XAI orchestration boundary is `ClassifierInferenceBundle`, containing:
   temporal XAI consumes that original-pass evidence and selects regions using
   pure per-clip p90 without changing the classifier's crop or prediction policy
 
+Temporal window start/end bounds use original-audio coordinates; per-token times
+remain local to their window. The classifier worker attaches the center-crop
+offset after inference without changing logits or model input. Private v3 temporal
+artifacts preserve these bounds. Older artifacts with ambiguous crop-relative
+timestamps are rejected rather than displayed at a guessed source position.
+
 When the internal prediction caller explicitly enables capture, the bundle is
 populated from request-scoped PyTorch hooks in the same branch worker that ran
 classifier inference. Hook handles are removed before the worker returns.

@@ -15,7 +15,9 @@ from app.voice_xai.temporal.contracts import (
 TEMPORAL_EVIDENCE_ARTIFACT_CONTENT_TYPE = (
     "application/vnd.voice-xai.temporal-evidence+json"
 )
-TEMPORAL_EVIDENCE_ARTIFACT_VERSION = "xlsr-temporal-evidence-v2"
+# v3 window bounds are in source-audio coordinates. Old crop-relative artifacts
+# cannot be reused safely because they do not identify the crop's source offset.
+TEMPORAL_EVIDENCE_ARTIFACT_VERSION = "xlsr-temporal-evidence-v3-source-time"
 MAX_TEMPORAL_EVIDENCE_ARTIFACT_BYTES = 128 * 1024
 MAX_TEMPORAL_EVIDENCE_WINDOWS = 64
 MAX_TEMPORAL_EVIDENCE_TOKENS_PER_WINDOW = 4_096
@@ -158,7 +160,6 @@ def _window_from_payload(raw: Any) -> TemporalAttentionWindowInput:
         end_seconds=raw["end_seconds"],
         token_times_seconds=np.asarray(raw["token_times_seconds"], dtype=np.float32),
         attention_density=np.asarray(raw["attention_density"], dtype=np.float32),
-        # Version 2 artifacts written before this compatibility restoration
-        # did not retain the worker's probability context.
+        # Probability is metadata only and is not needed for region selection.
         spoof_probability=raw.get("spoof_probability", 0.5),
     )

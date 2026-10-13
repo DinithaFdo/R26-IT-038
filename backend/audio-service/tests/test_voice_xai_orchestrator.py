@@ -77,7 +77,7 @@ async def test_real_p90_temporal_result_is_persisted_without_calibration(
     assert temporal.threshold_percentile == 90.0
     assert temporal.attention_threshold == temporal.visualization_attention_threshold
     assert temporal.high_attention_regions == temporal.visualization_high_attention_regions
-    assert temporal.method_version.endswith("p90-v4")
+    assert temporal.method_version.endswith("p90-v5")
     assert "temporal_threshold_percentile" in response.provenance.configuration_hash_inputs
     assert prediction.model_dump(mode="json") == prediction_before
 
@@ -566,7 +566,7 @@ def test_xai_readiness_and_provenance_describe_only_p90(tmp_path: Path) -> None:
     assert readiness["temporal_threshold_percentile"] == 90.0
     assert readiness["temporal_percentile_method"] == "linear_float32_comparison"
     payload = _configuration_hash_payload(settings)
-    assert payload["temporal_method_version"].endswith("p90-v4")
+    assert payload["temporal_method_version"].endswith("p90-v5")
     assert payload["temporal_threshold_percentile"] == 90.0
     assert set(payload) == set(_configuration_hash_inputs())
     assert "temporal_threshold_config_path" not in readiness

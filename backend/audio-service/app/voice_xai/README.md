@@ -98,7 +98,7 @@ using the pure per-clip 90th percentile of the aggregated rollout density. There
 is no density floor or external threshold artifact. The cutoff is computed with
 linear interpolation, rounded to float32, and compared using `>=`. Explanation
 and visualization fields contain the same result. Ties and postprocessing mean
-coverage is not necessarily 10%; flat maps can select all bins. Each includes exact
+coverage is not necessarily 10%; flat maps can select all covered bins. Each includes exact
 start/end times and its attention score. These regions are model-focus evidence,
 not ground-truth fake-audio percentages.
 
@@ -108,3 +108,10 @@ latter contains a bounded log-mel matrix, frame-aligned continuous attention
 density, and high-attention region markers for a frontend to draw as a heatmap.
 It is derived from the same preprocessed mono waveform
 consumed by the classifier.
+
+Classifier crops retain their offset in the original audio. Both graph artifacts
+use source-audio coordinates and explicit analyzed spans; outside those spans,
+attention values are `null`, not zero or repeated endpoints. The frontend draws
+the full spectrogram normally and adds attention only inside analyzed spans.
+Attention curves and their display smoothing do not connect across unknown gaps.
+The pure-p90 cutoff is calculated only from covered evidence bins.
