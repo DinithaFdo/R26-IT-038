@@ -51,7 +51,6 @@ from app.voice_xai.workflow.replay import (
     XaiSourceAudioUnavailableError,
 )
 from app.voice_xai.evaluation.eligibility import evaluate_research_eligibility
-from app.voice_xai.semantic.service import MockSemanticExplanationService
 from app.voice_xai.workflow.status import (
     XaiExplanationNotFoundError,
     XaiStatusService,
@@ -74,6 +73,10 @@ from app.voice_xai.temporal.threshold import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class SemanticServiceUnavailableError(RuntimeError):
+    """Real semantic inference has not been initialized."""
 
 
 class PredictionLookup(Protocol):
@@ -160,7 +163,7 @@ class VoiceXaiOrchestrator:
             retention_seconds=app_settings.xai_artifact_retention_seconds,
         )
         self._temporal_service = temporal_service
-        self._semantic_service = semantic_service or MockSemanticExplanationService()
+        self._semantic_service = semantic_service
         self._report_composer = report_composer or DeterministicReportComposer()
         self._narrative_service = narrative_service or AlibabaQwenNarrativeService(
             app_settings
@@ -187,9 +190,16 @@ class VoiceXaiOrchestrator:
         return {
             "enabled": self._settings.xai_enabled,
             "mode": self._settings.xai_mode,
-            "ready": self._settings.xai_enabled and self._settings.xai_mode in {"mock", "real"},
+            "ready": (
+                self._settings.xai_enabled
+                and self._settings.xai_mode == "real"
+                and self._semantic_service is not None
+            ),
             "research_ready": semantic_real and temporal_real,
-            "semantic_service": "real" if semantic_real else "mock",
+            "semantic_service": (
+                "real" if semantic_real else
+                "configured" if self._semantic_service is not None else "unavailable"
+            ),
             "temporal_service": "xlsr",
             "narrative_enabled": self._settings.xai_narrative_enabled,
             "narrative_model": (
@@ -786,6 +796,8 @@ class VoiceXaiOrchestrator:
             self._log_component_event(
                 "started", explanation_id, bundle, ExplanationComponent.semantic
             )
+            if self._semantic_service is None:
+                raise SemanticServiceUnavailableError("Real semantic model is not initialized.")
             analyze_windows = getattr(self._semantic_service, "analyze_windows", None)
             if bundle.processed_audio is not None and callable(analyze_windows):
                 semantic_result = analyze_windows(
@@ -808,6 +820,13 @@ class VoiceXaiOrchestrator:
         except XaiJobTimedOutError:
             await self._mark_timeout(status_service, explanation_id, bundle.owner_user_id)
             return
+        except SemanticServiceUnavailableError:
+            await self._fail_if_mutable(
+                status_service, explanation_id, bundle.owner_user_id,
+                ExplanationComponent.semantic,
+                code="semantic_service_unavailable",
+                message="Real semantic model is not initialized.",
+            )
         except Exception:
             logger.exception("Voice XAI semantic analysis failed for %s", explanation_id)
             await self._fail_if_mutable(
@@ -1094,7 +1113,7 @@ class VoiceXaiOrchestrator:
     def _require_enabled(self) -> None:
         if not self._settings.xai_enabled or self._settings.xai_mode == "disabled":
             raise XaiOrchestrationError("Voice XAI is disabled.")
-        if self._settings.xai_mode not in {"mock", "real"}:
+        if self._settings.xai_mode != "real":
             raise XaiOrchestrationError("The configured Voice XAI mode is not available.")
 
 

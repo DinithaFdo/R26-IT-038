@@ -171,7 +171,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 _artifact_cleanup_loop(app, app_settings),
                 name="voice-xai-artifact-cleanup",
             )
-        if app_settings.xai_enabled and app_settings.xai_mode == "real":
+        if (
+            app_settings.xai_enabled
+            and app_settings.xai_mode == "real"
+            and app.state.load_xai_semantic_on_startup
+        ):
             semantic_service = ProductionSemanticExplanationService.load_once(
                 manifest_path=app_settings.resolve_xai_artifact_path(
                     app_settings.xai_semantic_manifest_path
@@ -289,6 +293,8 @@ def create_app(
         mongodb_client_factory=lambda: build_dedicated_async_mongo_client(app_settings),
     )
     temporal_service = XLSRTemporalAttentionService(app_settings=app_settings)
+    # A supplied orchestrator owns its dependencies; the default loads real artifacts.
+    app.state.load_xai_semantic_on_startup = app_dependencies.xai_orchestrator is None
     app.state.xai_orchestrator = app_dependencies.xai_orchestrator or VoiceXaiOrchestrator(
         repository=app.state.xai_repository,
         prediction_repository=app.state.prediction_repository,

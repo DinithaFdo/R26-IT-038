@@ -25,7 +25,7 @@ PrecisionPolicy = Literal["float32", "float16", "bfloat16"]
 LoadStrategy = Literal["startup", "lazy"]
 FusionMethod = Literal["weighted_average", "simple_average", "majority_vote"]
 FusionModeSetting = Literal["convex_4branch_v3", "legacy_3branch"]
-XaiMode = Literal["disabled", "mock", "real"]
+XaiMode = Literal["disabled", "real"]
 
 
 class Settings(BaseSettings):

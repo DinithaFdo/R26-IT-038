@@ -20,7 +20,6 @@ from app.voice_xai.semantic.artifact_loader import (
     SemanticArtifactManifest,
 )
 from app.voice_xai.semantic.service import (
-    MockSemanticExplanationService,
     ProductionSemanticExplanationService,
     XgboostShapEvidenceProvider,
 )
@@ -120,41 +119,6 @@ def test_production_provider_applies_training_median_imputer_before_xgboost(monk
     assert "median_imputed_features=1" in evidence.source
 
 
-def test_mock_service_returns_deterministic_timestamped_windowed_shap() -> None:
-    service = MockSemanticExplanationService(
-        feature_extractor=StubFeatureExtractor(),
-        window_config=SemanticWindowConfig(duration_seconds=1.0, overlap_seconds=0.5)
-    )
-    audio = _processed_audio(2.0)
-
-    first = service.analyze_windows(audio, request_id="request-123")
-    second = service.analyze_windows(audio, request_id="request-123")
-
-    assert first.development_placeholder is True
-    assert [(window.start_seconds, window.end_seconds) for window in first.windows] == [
-        (0.0, 1.0),
-        (0.5, 1.5),
-        (1.0, 2.0),
-    ]
-    assert all(len(window.contributions) == 10 for window in first.windows)
-    assert all(
-        contribution.start_seconds == window.start_seconds
-        and contribution.end_seconds == window.end_seconds
-        for window in first.windows
-        for contribution in window.contributions
-    )
-    assert first.explanation.base_value is None
-    assert first.explanation.predicted_value is None
-    assert first.explanation.clip_summary is None
-    assert all(
-        contribution.start_seconds is not None
-        for contribution in first.explanation.feature_importance
-    )
-    assert first.explanation.model_dump(mode="json") == second.explanation.model_dump(
-        mode="json"
-    )
-
-
 def test_production_service_runs_xgboost_and_shap_for_each_window(monkeypatch) -> None:
     class FakeDMatrix:
         def __init__(self, values, *, feature_names):
@@ -225,6 +189,7 @@ def test_clip_summary_uses_coverage_weights_and_the_trained_threshold() -> None:
             _semantic_window(1.0, 2.0, 0.3),
         ),
         SemanticExplanationConfig(
+            model_version="test-model-v1",
             output_space="raw_margin",
             decision_threshold=0.3,
         ),

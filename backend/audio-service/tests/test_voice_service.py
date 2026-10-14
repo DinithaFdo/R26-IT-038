@@ -271,7 +271,7 @@ def test_real_ssl_temporal_evidence_is_created_during_prediction(tmp_path) -> No
     ssl_model = OriginalPassTemporalSslModel()
     service = make_service(
         model_registry=ModelRegistry(models=[ssl_model]),
-        app_settings=Settings(_env_file=None,xai_enabled=True, xai_mode="mock"),
+        app_settings=Settings(_env_file=None,xai_enabled=True, xai_mode="real"),
     )
 
     execution = service.predict_from_validated_upload_with_processed_audio(

@@ -32,7 +32,7 @@ from app.voice_xai.report.service import (
 def _settings(**overrides) -> Settings:
     values = {
         "xai_enabled": True,
-        "xai_mode": "mock",
+        "xai_mode": "real",
         "xai_narrative_enabled": True,
         "xai_narrative_api_key": "test-model-studio-key",
         "xai_narrative_base_url": (

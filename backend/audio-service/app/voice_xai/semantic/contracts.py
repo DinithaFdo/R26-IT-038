@@ -1,4 +1,4 @@
-"""Private contracts for mock semantic explanation generation."""
+"""Private contracts for artifact-backed semantic explanation generation."""
 
 from __future__ import annotations
 
@@ -18,15 +18,14 @@ class SemanticExplanationError(ValueError):
 
 @dataclass(frozen=True)
 class SemanticExplanationConfig:
-    method_version: str = "mock-xgboost-shap-v4"
-    model_version: str = "fixture-acoustic-evidence-model-v1"
+    model_version: str
+    method_version: str = "xgboost-tree-shap-v4"
     feature_schema_version: str = "xgboost-surrogate-v4-148"
     output_space: str = "raw_margin"
     decision_threshold: float | None = None
     top_k: int = 10
     target_type: SemanticTargetType = SemanticTargetType.independent_acoustic_evidence_model
     contribution_warning: str | None = (
-        "Development placeholder with deterministic fixture SHAP values. "
         "Whole-clip feature contributions do not localize evidence in time."
     )
     reference_summaries: dict[str, str] = field(default_factory=dict)
@@ -83,12 +82,9 @@ class SemanticEvidence:
 @dataclass(frozen=True)
 class SemanticAnalysisResult:
     explanation: SemanticExplanation
-    development_placeholder: bool = True
+    development_placeholder: bool = False
     research_eligible: bool = False
-    warnings: tuple[str, ...] = (
-        "Development placeholder generated from deterministic fixture SHAP values.",
-        "Whole-clip semantic values have no timestamp-level localization.",
-    )
+    warnings: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if self.development_placeholder and self.research_eligible:
@@ -103,7 +99,7 @@ class SemanticWindowAnalysisResult:
 
     explanation: SemanticExplanation
     windows: tuple[SemanticWindow, ...]
-    development_placeholder: bool = True
+    development_placeholder: bool = False
     research_eligible: bool = False
 
     def __post_init__(self) -> None:

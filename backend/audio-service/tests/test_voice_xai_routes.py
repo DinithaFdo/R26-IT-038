@@ -28,6 +28,7 @@ from app.schemas.xai import (
 from app.voice_xai.artifacts.service import LocalExplanationArtifactStore
 from app.voice_xai.artifacts.service import ArtifactStorageError
 from tests.test_mongodb import FakeDatabase
+from tests.xai_support import StaticSemanticService
 
 
 class PausedQueue:
@@ -98,7 +99,7 @@ def test_owner_scoped_xai_routes_hide_another_users_prediction() -> None:
     prediction_document = _prediction_document()
     repository = MongoXaiExplanationRepository(FakeDatabase("xai_routes"))
     queue = PausedQueue()
-    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="mock")
+    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="real")
     orchestrator = VoiceXaiOrchestrator(
         repository=repository,
         prediction_repository=PredictionRepository(prediction_document),
@@ -107,6 +108,7 @@ def test_owner_scoped_xai_routes_hide_another_users_prediction() -> None:
         temporal_service=object(),
         replay_service=ReplayService(),
         artifact_store=FailingArtifactStore(),
+        semantic_service=StaticSemanticService(),
     )
 
     async def no_connect(_settings):
@@ -219,7 +221,7 @@ def test_narrative_route_is_owner_scoped_and_preserves_normal_report(tmp_path: P
     settings = Settings(
         _env_file=None,
         xai_enabled=True,
-        xai_mode="mock",
+        xai_mode="real",
         xai_narrative_enabled=True,
         xai_narrative_api_key="test-key",
         xai_narrative_base_url=(
@@ -235,6 +237,7 @@ def test_narrative_route_is_owner_scoped_and_preserves_normal_report(tmp_path: P
         replay_service=ReplayService(),
         artifact_store=LocalExplanationArtifactStore(tmp_path / "private"),
         narrative_service=StaticNarrativeService(),
+        semantic_service=StaticSemanticService(),
     )
 
     async def no_connect(_settings):
@@ -303,7 +306,7 @@ def test_xai_trigger_rate_limit_is_per_user_not_per_prediction_id() -> None:
     settings = Settings(
         _env_file=None,
         xai_enabled=True,
-        xai_mode="mock",
+        xai_mode="real",
         xai_trigger_rate_limit_requests=2,
         xai_trigger_rate_limit_window_seconds=60,
     )
@@ -314,6 +317,7 @@ def test_xai_trigger_rate_limit_is_per_user_not_per_prediction_id() -> None:
         app_settings=settings,
         temporal_service=object(),
         replay_service=ReplayService(),
+        semantic_service=StaticSemanticService(),
     )
 
     async def no_connect(_settings):

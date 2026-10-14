@@ -43,6 +43,37 @@ from app.voice_xai.temporal.contracts import (
     TemporalVisualization,
 )
 from tests.test_mongodb import FakeDatabase
+from tests.xai_support import StaticSemanticService
+
+
+@pytest.mark.anyio
+async def test_missing_real_semantic_service_fails_without_synthetic_fallback(tmp_path: Path) -> None:
+    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="real")
+    repository = MongoXaiExplanationRepository(FakeDatabase("missing_semantic_service"))
+    prediction = _prediction()
+    bundle = _bundle(prediction, processed_audio=_audio(2.0))
+    orchestrator = VoiceXaiOrchestrator(
+        repository=repository,
+        prediction_repository=PredictionLookup(_document(prediction)),
+        queue=PausedQueue(),
+        app_settings=settings,
+        artifact_store=LocalExplanationArtifactStore(tmp_path / "private"),
+        temporal_service=StaticTemporalService(),
+    )
+    assert orchestrator.readiness()["ready"] is False
+    assert orchestrator.readiness()["semantic_service"] == "unavailable"
+    explanation_id = await _create(repository, bundle, settings)
+
+    await orchestrator._run(explanation_id, bundle)
+
+    response = await orchestrator.get_for_owner(
+        explanation_id=explanation_id, owner_user_id="user-123"
+    )
+    assert response.semantic is None
+    assert response.component_statuses.semantic == ComponentStatus.failed
+    assert response.component_errors.semantic.code == "semantic_service_unavailable"
+    assert response.component_statuses.temporal == ComponentStatus.completed
+    assert response.component_statuses.report == ComponentStatus.completed
 
 
 @pytest.mark.anyio
@@ -51,7 +82,7 @@ async def test_real_p90_temporal_result_is_persisted_without_calibration(
 ) -> None:
     from app.voice_xai.temporal.xlsr_attention_service import XLSRTemporalAttentionService
 
-    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="mock")
+    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="real")
     repository = MongoXaiExplanationRepository(FakeDatabase("p90_temporal_run"))
     prediction = _prediction()
     prediction.branches.append(BranchPrediction(
@@ -108,7 +139,7 @@ async def test_real_p90_temporal_result_is_persisted_without_calibration(
 
 @pytest.mark.anyio
 async def test_windowed_semantic_evidence_and_interval_quality_are_persisted(tmp_path: Path) -> None:
-    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="mock")
+    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="real")
     repository = MongoXaiExplanationRepository(FakeDatabase("xai_windowed_run"))
     prediction = _prediction()
     bundle = _bundle(prediction, processed_audio=_audio(2.0))
@@ -142,7 +173,7 @@ async def test_narrative_is_optional_and_cannot_change_deterministic_report(
     settings = Settings(
         _env_file=None,
         xai_enabled=True,
-        xai_mode="mock",
+        xai_mode="real",
         xai_narrative_enabled=True,
         xai_narrative_api_key="test-key",
         xai_narrative_base_url=(
@@ -161,6 +192,7 @@ async def test_narrative_is_optional_and_cannot_change_deterministic_report(
         artifact_store=LocalExplanationArtifactStore(tmp_path / "private"),
         temporal_service=StaticTemporalService(),
         narrative_service=narrative_service,
+        semantic_service=StaticSemanticService(),
     )
     explanation_id = await _create(repository, bundle, settings)
 
@@ -183,7 +215,7 @@ async def test_narrative_failure_preserves_completed_deterministic_report(tmp_pa
     settings = Settings(
         _env_file=None,
         xai_enabled=True,
-        xai_mode="mock",
+        xai_mode="real",
         xai_narrative_enabled=True,
         xai_narrative_api_key="test-key",
         xai_narrative_base_url=(
@@ -201,6 +233,7 @@ async def test_narrative_failure_preserves_completed_deterministic_report(tmp_pa
         artifact_store=LocalExplanationArtifactStore(tmp_path / "private"),
         temporal_service=StaticTemporalService(),
         narrative_service=FailingNarrativeService(),
+        semantic_service=StaticSemanticService(),
     )
     explanation_id = await _create(repository, bundle, settings)
 
@@ -219,7 +252,7 @@ async def test_narrative_failure_preserves_completed_deterministic_report(tmp_pa
 
 @pytest.mark.anyio
 async def test_queue_full_is_recorded_and_retry_creates_a_new_run(tmp_path: Path) -> None:
-    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="mock")
+    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="real")
     repository = MongoXaiExplanationRepository(FakeDatabase("xai_queue_full"))
     prediction = _prediction()
     bundle = _bundle(prediction)
@@ -232,6 +265,7 @@ async def test_queue_full_is_recorded_and_retry_creates_a_new_run(tmp_path: Path
         artifact_store=LocalExplanationArtifactStore(tmp_path / "private"),
         temporal_service=StaticTemporalService(),
         replay_service=ReplayService(),
+        semantic_service=StaticSemanticService(),
     )
 
     blocked = await orchestrator.enqueue(bundle)
@@ -249,7 +283,7 @@ async def test_queue_full_is_recorded_and_retry_creates_a_new_run(tmp_path: Path
 
 @pytest.mark.anyio
 async def test_failed_trigger_requires_retry_and_retry_replays_source_audio(tmp_path: Path) -> None:
-    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="mock")
+    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="real")
     repository = MongoXaiExplanationRepository(FakeDatabase("xai_retry_lifecycle"))
     prediction = _prediction()
     bundle = _bundle(prediction)
@@ -262,6 +296,7 @@ async def test_failed_trigger_requires_retry_and_retry_replays_source_audio(tmp_
         artifact_store=LocalExplanationArtifactStore(tmp_path / "private"),
         temporal_service=StaticTemporalService(),
         replay_service=replay,
+        semantic_service=StaticSemanticService(),
     )
     explanation_id = await _create(repository, bundle, settings)
     await orchestrator._status.fail_run(
@@ -286,7 +321,7 @@ async def test_failed_trigger_requires_retry_and_retry_replays_source_audio(tmp_
 async def test_compact_temporal_evidence_is_private_and_reused_by_manual_retry(
     tmp_path: Path,
 ) -> None:
-    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="mock")
+    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="real")
     repository = MongoXaiExplanationRepository(FakeDatabase("xai_temporal_retry"))
     prediction = _prediction()
     queue = CapturingQueue()
@@ -300,6 +335,7 @@ async def test_compact_temporal_evidence_is_private_and_reused_by_manual_retry(
         artifact_store=store,
         temporal_service=StaticTemporalService(),
         replay_service=replay,
+        semantic_service=StaticSemanticService(),
     )
 
     initial = await orchestrator.enqueue(
@@ -341,7 +377,7 @@ async def test_timeout_and_component_errors_are_sanitized(tmp_path: Path) -> Non
     settings = Settings(
         _env_file=None,
         xai_enabled=True,
-        xai_mode="mock",
+        xai_mode="real",
         xai_job_timeout_seconds=0.001,
     )
     repository = MongoXaiExplanationRepository(FakeDatabase("xai_timeout"))
@@ -354,6 +390,7 @@ async def test_timeout_and_component_errors_are_sanitized(tmp_path: Path) -> Non
         app_settings=settings,
         artifact_store=LocalExplanationArtifactStore(tmp_path / "private"),
         temporal_service=SlowTemporalService(),
+        semantic_service=StaticSemanticService(),
     )
     explanation_id = await _create(repository, bundle, settings)
 
@@ -369,7 +406,7 @@ async def test_timeout_and_component_errors_are_sanitized(tmp_path: Path) -> Non
 
 @pytest.mark.anyio
 async def test_timeout_preserves_a_completed_component(tmp_path: Path) -> None:
-    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="mock")
+    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="real")
     repository = MongoXaiExplanationRepository(FakeDatabase("xai_timeout_completed"))
     prediction = _prediction()
     bundle = _bundle(prediction)
@@ -413,7 +450,7 @@ async def test_unexpected_failure_outside_component_handlers_reaches_terminal_st
     status with a safe, logged error instead.
     """
 
-    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="mock")
+    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="real")
     repository = RaisingUpdateRunEvidenceRepository(
         MongoXaiExplanationRepository(FakeDatabase("xai_unexpected_failure"))
     )
@@ -426,6 +463,7 @@ async def test_unexpected_failure_outside_component_handlers_reaches_terminal_st
         app_settings=settings,
         artifact_store=LocalExplanationArtifactStore(tmp_path / "private"),
         temporal_service=StaticTemporalService(),
+        semantic_service=StaticSemanticService(),
     )
     explanation_id = await _create(repository, bundle, settings)
 
@@ -444,7 +482,7 @@ async def test_unexpected_failure_outside_component_handlers_reaches_terminal_st
 
 @pytest.mark.anyio
 async def test_internal_semantic_paths_and_stack_details_do_not_reach_response(tmp_path: Path) -> None:
-    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="mock")
+    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="real")
     repository = MongoXaiExplanationRepository(FakeDatabase("xai_sanitized_error"))
     prediction = _prediction()
     bundle = _bundle(prediction)
@@ -473,7 +511,7 @@ async def test_internal_semantic_paths_and_stack_details_do_not_reach_response(t
 async def test_temporal_validation_failure_has_a_safe_specific_error_code(
     tmp_path: Path,
 ) -> None:
-    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="mock")
+    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="real")
     repository = MongoXaiExplanationRepository(FakeDatabase("xai_temporal_error"))
     prediction = _prediction()
     bundle = _bundle(prediction)
@@ -484,6 +522,7 @@ async def test_temporal_validation_failure_has_a_safe_specific_error_code(
         app_settings=settings,
         artifact_store=LocalExplanationArtifactStore(tmp_path / "private"),
         temporal_service=FailingTemporalService(),
+        semantic_service=StaticSemanticService(),
     )
     explanation_id = await _create(repository, bundle, settings)
 
@@ -567,7 +606,7 @@ def test_classifier_snapshot_represents_disabled_glottal_without_primary_use() -
 
 
 def test_xai_configuration_hash_is_stable_for_same_settings() -> None:
-    settings = Settings(_env_file=None, xai_mode="mock")
+    settings = Settings(_env_file=None, xai_mode="real")
 
     assert _configuration_hash(settings) == _configuration_hash(settings)
 
@@ -575,7 +614,7 @@ def test_xai_configuration_hash_is_stable_for_same_settings() -> None:
 def test_xai_readiness_and_provenance_describe_only_p90(tmp_path: Path) -> None:
     from app.voice_xai.temporal.xlsr_attention_service import XLSRTemporalAttentionService
 
-    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="mock")
+    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="real")
     orchestrator = VoiceXaiOrchestrator(
         repository=MongoXaiExplanationRepository(FakeDatabase("p90_readiness")),
         prediction_repository=PredictionLookup(_document(_prediction())),
@@ -583,6 +622,7 @@ def test_xai_readiness_and_provenance_describe_only_p90(tmp_path: Path) -> None:
         app_settings=settings,
         artifact_store=LocalExplanationArtifactStore(tmp_path / "private"),
         temporal_service=XLSRTemporalAttentionService(app_settings=settings),
+        semantic_service=StaticSemanticService(),
     )
     readiness = orchestrator.readiness()
     assert readiness["ready"] is True
@@ -603,10 +643,10 @@ def test_xai_readiness_and_provenance_describe_only_p90(tmp_path: Path) -> None:
 
 def test_xai_configuration_hash_changes_for_behavioral_setting() -> None:
     original = Settings(
-        _env_file=None, xai_mode="mock", xai_spectrogram_n_mels=32
+        _env_file=None, xai_mode="real", xai_spectrogram_n_mels=32
     )
     changed = Settings(
-        _env_file=None, xai_mode="mock", xai_spectrogram_n_mels=64
+        _env_file=None, xai_mode="real", xai_spectrogram_n_mels=64
     )
 
     assert _configuration_hash(original) != _configuration_hash(changed)
@@ -620,12 +660,12 @@ def test_xai_configuration_hash_ignores_filesystem_relocation(tmp_path: Path) ->
     second.write_text('{"same": true}', encoding="utf-8")
     original = Settings(
         _env_file=None,
-        xai_mode="mock",
+        xai_mode="real",
         xai_semantic_manifest_path=str(first),
     )
     relocated = Settings(
         _env_file=None,
-        xai_mode="mock",
+        xai_mode="real",
         xai_semantic_manifest_path=str(second),
     )
 
@@ -775,6 +815,7 @@ def _orchestrator(repository, settings, tmp_path):
         artifact_store=LocalExplanationArtifactStore(tmp_path / "private"),
         temporal_service=StaticTemporalService(),
         replay_service=ReplayService(),
+        semantic_service=StaticSemanticService(),
     )
 
 

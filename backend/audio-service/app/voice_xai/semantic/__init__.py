@@ -8,7 +8,6 @@ from app.voice_xai.semantic.features import (
 )
 
 from app.voice_xai.semantic.service import (
-    MockSemanticExplanationService,
     ProductionSemanticExplanationService,
 )
 
@@ -17,6 +16,5 @@ __all__ = [
     "AcousticFeatureExtractor",
     "FeatureExtractionConfig",
     "FeatureExtractionResult",
-    "MockSemanticExplanationService",
     "ProductionSemanticExplanationService",
 ]

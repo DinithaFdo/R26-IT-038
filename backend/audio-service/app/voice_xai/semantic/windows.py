@@ -206,13 +206,3 @@ def _seconds_to_samples(seconds: float, sample_rate: int) -> int:
             "Semantic window configuration resolves to zero samples."
         )
     return samples
-
-
-def unavailable_window_reason() -> str:
-    """Prevent clip-level values from being misrepresented as local evidence."""
-
-    return (
-        "No timestamp-level localization is available because sliding-window "
-        "acoustic extraction and per-window SHAP results are absent; "
-        "temporal-semantic IoU must remain not computed."
-    )

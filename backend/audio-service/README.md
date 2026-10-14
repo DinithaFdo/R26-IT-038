@@ -311,6 +311,11 @@ manifest, including the 148-feature column order, model, threshold, training
 metadata, and imputer. Missing or incompatible semantic artifacts can fail
 startup. These artifacts are not installed by pip.
 
+`XAI_MODE` supports only `disabled` and `real`. There is no mock semantic
+pipeline or generated SHAP fallback. A semantic service that has not been
+initialized is reported as unavailable; a run records `semantic_service_unavailable`
+without replacing real evidence with synthetic values.
+
 Temporal explanations consume reduced evidence from the real XLS-R classifier
 pass. Available attention windows are combined using cosine weighting. Regions
 use only the per-clip 90th percentile of the resulting float32 density (linear

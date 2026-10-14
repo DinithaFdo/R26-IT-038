@@ -6,6 +6,11 @@ from pydantic import ValidationError
 from app.config.settings import Settings
 
 
+def test_settings_reject_removed_mock_xai_mode() -> None:
+    with pytest.raises(ValidationError, match="xai_mode"):
+        Settings(_env_file=None, xai_enabled=True, xai_mode="mock")
+
+
 def test_settings_defaults_are_safe_for_development() -> None:
     settings = Settings(_env_file=None)
 

@@ -1,8 +1,7 @@
-"""Mock Phase 3 service: fixture features and SHAP values -> ranked evidence."""
+"""Artifact-backed XGBoost and SHAP semantic explanation service."""
 
 from __future__ import annotations
 
-from hashlib import sha256
 from pathlib import Path
 from typing import Protocol
 
@@ -13,8 +12,6 @@ from app.schemas.xai import SemanticTargetType
 from app.voice_xai.integration.contracts import ClassifierInferenceBundle
 from app.voice_xai.semantic.features import (
     AcousticFeatureExtractor,
-    FEATURE_EXTRACTION_VERSION,
-    FEATURE_NAMES,
     FeatureExtractionResult,
 )
 from app.voice_xai.semantic.contracts import (
@@ -38,12 +35,11 @@ from app.voice_xai.semantic.windows import (
     SemanticWindow,
     SemanticWindowConfig,
     extract_semantic_feature_windows,
-    unavailable_window_reason,
 )
 
 
 class SemanticEvidenceProvider(Protocol):
-    """Private seam shared by the fixture and XGBoost TreeExplainer providers."""
+    """Interface for ordered feature evidence and XGBoost SHAP values."""
 
     def extract(self, inference: ClassifierInferenceBundle) -> SemanticEvidence:
         """Return ordered per-clip feature and attribution values."""
@@ -55,82 +51,6 @@ class SemanticEvidenceProvider(Protocol):
         evidence_key: str,
     ) -> SemanticEvidence:
         """Return ordered feature and attribution values for one audio window."""
-
-
-class FixtureSemanticEvidenceProvider:
-    """Create deterministic mock SHAP evidence without loading XGBoost or SHAP."""
-
-    def extract(self, inference: ClassifierInferenceBundle) -> SemanticEvidence:
-        features = inference.acoustic_features
-        if features is not None:
-            return self.extract_features(features, evidence_key=inference.request_id)
-        return _fixture_semantic_evidence(
-            feature_names=FEATURE_NAMES,
-            values=_fixture_feature_values(inference.request_id),
-            extractor_version=FEATURE_EXTRACTION_VERSION,
-            evidence_key=inference.request_id,
-            source="fixture_acoustic_features_and_fixture_shap",
-        )
-
-    def extract_features(
-        self,
-        features: FeatureExtractionResult,
-        *,
-        evidence_key: str,
-    ) -> SemanticEvidence:
-        return _fixture_semantic_evidence(
-            feature_names=features.feature_names,
-            values=features.values,
-            extractor_version=features.extractor_version,
-            evidence_key=evidence_key,
-            source="acoustic_features_with_fixture_shap",
-        )
-
-
-class MockSemanticExplanationService:
-    """Development-only Phase 3 service behind the classifier-to-XAI contract."""
-
-    def __init__(
-        self,
-        provider: SemanticEvidenceProvider | None = None,
-        config: SemanticExplanationConfig | None = None,
-        feature_extractor: AcousticFeatureExtractor | None = None,
-        window_config: SemanticWindowConfig | None = None,
-    ) -> None:
-        self._provider = provider or FixtureSemanticEvidenceProvider()
-        self._config = config or SemanticExplanationConfig()
-        self._feature_extractor = feature_extractor or AcousticFeatureExtractor()
-        self._window_config = window_config or SemanticWindowConfig()
-
-    def analyze(self, inference: ClassifierInferenceBundle) -> SemanticAnalysisResult:
-        evidence = self._provider.extract(inference)
-        explanation = build_semantic_explanation(evidence, self._config)
-        return SemanticAnalysisResult(
-            explanation=explanation.model_copy(
-                update={"development_placeholder": True, "research_eligible": False}
-            ),
-            warnings=(
-                "Development placeholder generated from deterministic fixture SHAP values.",
-                unavailable_window_reason(),
-            ),
-        )
-
-    def analyze_windows(
-        self,
-        audio: ProcessedAudio,
-        *,
-        request_id: str,
-    ) -> SemanticWindowAnalysisResult:
-        return _analyze_windows(
-            audio=audio,
-            request_id=request_id,
-            provider=self._provider,
-            config=self._config,
-            feature_extractor=self._feature_extractor,
-            window_config=self._window_config,
-            development_placeholder=True,
-            research_eligible=False,
-        )
 
 
 class XgboostShapEvidenceProvider:
@@ -314,54 +234,6 @@ class ProductionSemanticExplanationService:
             development_placeholder=False,
             research_eligible=False,
         )
-
-
-def _fixture_feature_values(request_id: str) -> np.ndarray:
-    """Stable non-production values covering the v4 notebook contract."""
-
-    seed = int.from_bytes(
-        sha256(f"features:{request_id}".encode("utf-8")).digest()[:8],
-        byteorder="big",
-        signed=False,
-    )
-    generator = np.random.default_rng(seed)
-    values = generator.normal(0.0, 1.0, len(FEATURE_NAMES)).astype(np.float32)
-    values[0] = abs(values[0]) / 100.0
-    values[1] = abs(values[1]) / 100.0
-    values[2] = abs(values[2]) * 10.0
-    values[-5] = abs(values[-5]) * 100.0
-    return values
-
-
-def _fixture_semantic_evidence(
-    *,
-    feature_names: tuple[str, ...],
-    values: np.ndarray,
-    extractor_version: str,
-    evidence_key: str,
-    source: str,
-) -> SemanticEvidence:
-    seed = int.from_bytes(
-        sha256(evidence_key.encode("utf-8")).digest()[:8],
-        byteorder="big",
-        signed=False,
-    )
-    generator = np.random.default_rng(seed)
-    shap_values = generator.normal(0.0, 0.15, len(FEATURE_NAMES)).astype(np.float32)
-    # Ensure the mock includes evidence in both directions for UI coverage.
-    shap_values[0] = abs(shap_values[0]) + 0.1
-    shap_values[1] = -abs(shap_values[1]) - 0.1
-    base_value = float(generator.normal(0.0, 0.1))
-    predicted_value = float(base_value + shap_values.sum())
-    return SemanticEvidence(
-        feature_names=feature_names,
-        feature_values=np.asarray(values, dtype=np.float32),
-        shap_values=shap_values,
-        base_value=base_value,
-        predicted_value=predicted_value,
-        extractor_version=extractor_version,
-        source=source,
-    )
 
 
 def _analyze_windows(

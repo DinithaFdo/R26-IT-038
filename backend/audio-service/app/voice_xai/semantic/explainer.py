@@ -87,7 +87,7 @@ def build_semantic_contributions(
                 unit=label.unit,
                 reference_summary=config.reference_summaries.get(
                     feature_name,
-                    "Reference distribution is unavailable in mock mode.",
+                    "Reference distribution is unavailable for this feature.",
                 ),
                 shap_value=shap_value,
                 direction=(
