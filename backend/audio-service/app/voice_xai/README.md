@@ -82,7 +82,8 @@ loads validated model exports from the configured fixed model directory.
    score; the clip probability is clipped to [0,1].
    All 165 contributions are clip-level, without semantic windows. Quality
    reads this model's optional fidelity metadata; evaluation eligibility remains
-   fail-closed. See `docs/semantic-pipeline.md` for model replacement.
+   fail-closed. Replace matching model exports in the configured directory and
+   restart to load a retrained model.
 9. The report service composes the combined report. Safe metadata goes to the
    `xai_explanations` repository; visual artefacts are stored only
    in the private artifact store.

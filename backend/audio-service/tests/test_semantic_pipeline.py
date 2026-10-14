@@ -180,3 +180,35 @@ def test_original_source_is_retained_after_upload_cleanup(monkeypatch, tmp_path)
 def test_no_normalised_waveform_fallback():
     with pytest.raises(ValueError, match="original source audio"):
         AcousticFeatureExtractor().extract_processed_audio(SimpleNamespace(source_audio_bytes=None))
+
+
+def test_disvoice_loader_and_instance_remain_cached(monkeypatch, tmp_path):
+    events = []
+    class Glottal:
+        def __init__(self):
+            events.append("instance")
+    module = SimpleNamespace(Glottal=Glottal)
+    spec = SimpleNamespace(loader=SimpleNamespace(exec_module=lambda _: events.append("execute")))
+    def find_spec(name):
+        assert name == "disvoice"
+        return SimpleNamespace(origin=str(tmp_path / "disvoice" / "__init__.py"))
+    def module_spec(name, path):
+        assert name == "_semantic_disvoice_glottal"
+        assert path == tmp_path / "disvoice" / "glottal" / "glottal.py"
+        return spec
+    monkeypatch.setattr(recipe, "importlib", SimpleNamespace(util=SimpleNamespace(
+        find_spec=find_spec, spec_from_file_location=module_spec,
+        module_from_spec=lambda _: module,
+    )))
+    monkeypatch.setattr(recipe, "apply_disvoice_compatibility_patches", lambda: events.append("compatibility"))
+    monkeypatch.setattr(recipe, "patch_disvoice_gci_numpy2_bug", lambda: events.append("gci"))
+    recipe.load_glottal_class.cache_clear()
+    recipe._get_glottal_extractor.cache_clear()
+    try:
+        first = recipe._get_glottal_extractor()
+        assert recipe._get_glottal_extractor() is first
+        assert recipe.load_glottal_class() is Glottal
+        assert events == ["compatibility", "execute", "gci", "instance"]
+    finally:
+        recipe._get_glottal_extractor.cache_clear()
+        recipe.load_glottal_class.cache_clear()

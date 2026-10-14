@@ -1,13 +1,19 @@
 """Build the semantic API response from raw regression and Tree SHAP evidence.
 
 Rank all 165 signed feature contributions, clip the score for the probability
-summary, and attach the active model's decision threshold and fidelity metadata.
+summary, format display labels, and attach the model's threshold and fidelity metadata.
 """
 import numpy as np
 from app.schemas.common import PredictionLabel
 from app.schemas.xai import ComponentStatus, MetricEvidence, MetricStatus, SemanticClipSummary, SemanticExplanation, SemanticFeatureContribution, SemanticTargetType, ShapDirection
 from app.voice_xai.semantic.schema import FEATURE_NAMES, FEATURE_EXTRACTION_VERSION, FEATURE_SCHEMA_VERSION
-from app.voice_xai.semantic.feature_labels import label_for_feature
+
+
+def label_for_feature(name: str) -> str:
+    if name not in FEATURE_NAMES:
+        raise ValueError(f"Unknown semantic feature: {name}")
+    return name.replace("_", " ").capitalize()
+
 
 def build_semantic_explanation(evidence, artifacts):
     probability = float(np.clip(evidence.predicted_value, 0, 1))

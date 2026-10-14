@@ -2,9 +2,11 @@
 
 Decode and clean the full clip once, then use that same waveform for all 148
 base measurements and 20 selected Glottal measurements. Merge these groups into
-165 unique model inputs while retaining shared base values.
+165 unique model inputs while retaining shared base values. Load and cache the
+DisVoice Glottal implementation with its required compatibility patches.
 """
 from pathlib import Path
+import importlib.util
 import os
 import re
 import tempfile
@@ -17,11 +19,31 @@ from scipy.fft import dct, rfft, irfft
 from scipy.signal import get_window
 from scipy.stats import linregress
 from functools import lru_cache
-from .runtime import load_glottal_class
+from app.models.real.glottal_compat import (
+    apply_disvoice_compatibility_patches,
+    patch_disvoice_gci_numpy2_bug,
+)
 from .schema import FEATURE_NAMES, PREPROCESSING_CONTRACT, SELECTED20
 TARGET_SR = 16000
 
 
+@lru_cache(maxsize=1)
+def load_glottal_class():
+    """Load the installed Glottal module without unrelated package extractors."""
+    apply_disvoice_compatibility_patches()
+    package = importlib.util.find_spec("disvoice")
+    if package is None or package.origin is None:
+        raise ImportError("Install the xai extra for DisVoice feature extraction.")
+    # Package __init__ imports unrelated TensorFlow extractors. Execute the
+    # real installed Glottal module directly; its calculations are unchanged.
+    source = Path(package.origin).parent / "glottal/glottal.py"
+    spec = importlib.util.spec_from_file_location("_semantic_disvoice_glottal", source)
+    if spec is None or spec.loader is None:
+        raise ImportError("DisVoice Glottal implementation is unavailable.")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    patch_disvoice_gci_numpy2_bug()
+    return module.Glottal
 
 
 def safe_float(v, default=np.nan):
@@ -348,13 +370,3 @@ def extract_feature_mapping(y, sr=TARGET_SR):
             combined[name] = value
     return {name: float(combined[name]) if np.isfinite(combined[name]) else np.nan
             for name in FEATURE_NAMES}
-
-
-def extract_surrogate_165_features(audio_path, expected_feature_columns=None):
-    """Extract one ordered DataFrame for training and standalone inference."""
-    import pandas as pd
-    columns = FEATURE_NAMES if expected_feature_columns is None else tuple(expected_feature_columns)
-    if columns != FEATURE_NAMES:
-        raise ValueError('Expected the exact semantic model 165-feature order.')
-    y, sr = load_audio_path(Path(audio_path))
-    return pd.DataFrame([extract_feature_mapping(y, sr)], columns=columns)

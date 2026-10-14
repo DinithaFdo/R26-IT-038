@@ -222,7 +222,7 @@ Ensures millisecond-level precision in frontend player alignment.
 - Full-clip XGBRegressor approximates the four-branch teacher spoof probability.
 - Tree SHAP explains raw regression output; reported probability is clipped to [0,1].
 - Stop the backend, replace matching model/imputer/feature-column/metadata files in `XAI_SEMANTIC_MODEL_DIR`, then restart.
-- Current model R² comes from its training metadata; see `docs/semantic-pipeline.md`.
+- Current model R² comes from its training metadata.
 
 ### Feature Importance Ranking
 - Top-N features ranked by absolute SHAP value $|\\phi_i|$.
