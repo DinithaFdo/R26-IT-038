@@ -75,7 +75,7 @@ def test_production_provider_uses_ordered_features_and_raw_margin(monkeypatch) -
         extractor_version=FEATURE_EXTRACTION_VERSION,
     )
     inference = SimpleNamespace(
-        extraction=SimpleNamespace(acoustic_features=features),
+        acoustic_features=features,
     )
 
     evidence = provider.extract(inference)
@@ -114,7 +114,7 @@ def test_production_provider_applies_training_median_imputer_before_xgboost(monk
     ))
     features = SimpleNamespace(feature_names=FEATURE_NAMES, values=np.asarray([np.nan, *range(1, len(FEATURE_NAMES))], dtype=np.float32), extractor_version=FEATURE_EXTRACTION_VERSION)
 
-    evidence = provider.extract(SimpleNamespace(extraction=SimpleNamespace(acoustic_features=features)))
+    evidence = provider.extract(SimpleNamespace(acoustic_features=features))
 
     assert evidence.feature_values[0] == 123.0
     assert "median_imputed_features=1" in evidence.source

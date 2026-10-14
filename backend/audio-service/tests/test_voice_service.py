@@ -94,51 +94,6 @@ class FakeVoiceModel(BaseVoiceModel):
         )
 
 
-class HookableRealCnnModel(BaseVoiceModel):
-    """Small real-mode stand-in that exercises the production CNN hook plan."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        torch = pytest.importorskip("torch")
-        from app.models.architectures.cnn_v2 import build_cnn_v2_net
-
-        self._torch = torch
-        self._module = build_cnn_v2_net()
-        self._module.eval()
-
-    @property
-    def model_name(self) -> str:
-        return "cnn_acoustic"
-
-    @property
-    def display_name(self) -> str:
-        return "CNN Acoustic Features"
-
-    @property
-    def mode(self) -> ModelMode:
-        return ModelMode.real
-
-    def _load_impl(self) -> None:
-        return None
-
-    def xai_capture_root(self):
-        self.load()
-        return self._module
-
-    def predict(self, processed_audio) -> BranchPrediction:
-        with self._torch.inference_mode():
-            self._module(self._torch.zeros(1, 1, 120, 401))
-        return BranchPrediction(
-            model_name=self.model_name,
-            display_name=self.display_name,
-            status=BranchStatus.success,
-            mode=self.mode,
-            prediction=PredictionLabel.bonafide,
-            confidence=0.8,
-            probabilities=ProbabilityScores(bonafide=0.8, spoof=0.2),
-            processing_time_ms=1.0,
-            metadata={"research_result": False},
-        )
 
 
 class OriginalPassTemporalSslModel(BaseVoiceModel):
@@ -310,26 +265,6 @@ def test_service_all_dummy_branches_succeed(tmp_path) -> None:
     assert response.total_processing_time_ms >= 0.0
 
 
-def test_opt_in_capture_runs_in_the_classifier_worker_and_leaves_no_hooks(tmp_path) -> None:
-    real_cnn = HookableRealCnnModel()
-    dummy_models = make_registry().models[1:]
-    service = make_service(model_registry=ModelRegistry(models=[real_cnn, *dummy_models]))
-
-    execution = service.predict_from_validated_upload_with_processed_audio(
-        make_upload_metadata(tmp_path),
-        capture_extraction=True,
-    )
-
-    assert execution.extraction is not None
-    captures = execution.extraction.branches["lfcc_cnn_tcn"]
-    assert len(captures) == 3
-    assert all(capture.status == "captured" for capture in captures.values())
-    assert execution.extraction.metadata["capture_requested"] is True
-    assert execution.extraction.metadata["capture_enabled"] is True
-    assert all(
-        not submodule._forward_hooks
-        for _name, submodule in real_cnn._module.named_modules()
-    )
 
 
 def test_real_ssl_temporal_evidence_is_created_during_prediction(tmp_path) -> None:

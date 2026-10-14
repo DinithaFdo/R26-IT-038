@@ -621,7 +621,7 @@ async def test_completed_prediction_automatically_enqueues_xai(
     assert response.status.value == "completed"
     assert xai.bundle is not None
     assert xai.bundle.prediction_id == "prediction-1"
-    assert xai.bundle.extraction is None
+    assert xai.bundle.acoustic_features is None
 
 
 @pytest.mark.anyio
@@ -635,8 +635,7 @@ async def test_automatic_xai_handoff_reuses_the_same_processed_audio(
     (the real ``VoiceService`` does), the automatic post-persistence XAI
     handoff must receive the exact same ``ProcessedAudio`` instance used for
     classifier inference -- not None, and not a second decode -- while
-    ``extraction`` still correctly stays None until real model capture is
-    wired, and request IDs still match across prediction/bundle.
+    request IDs still match across prediction/bundle.
     """
 
     class RecordingXaiOrchestrator:
@@ -688,7 +687,7 @@ async def test_automatic_xai_handoff_reuses_the_same_processed_audio(
 
     assert response.status.value == "completed"
     assert xai.bundle is not None
-    assert xai.bundle.extraction is None
+    assert xai.bundle.acoustic_features is None
     assert xai.bundle.processed_audio is FakeVoiceServiceWithProcessedAudio.PROCESSED_AUDIO
     assert xai.bundle.temporal_evidence is FakeVoiceServiceWithProcessedAudio.TEMPORAL_EVIDENCE
     assert xai.bundle.request_id == xai.bundle.prediction.request_id == "request-xai-handoff"

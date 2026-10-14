@@ -27,7 +27,6 @@ from app.services.prediction_persistence_service import (
 from app.services.prediction_job_runner import PredictionJobRunner
 from app.services.voice_service import VoiceService
 from app.storage.protocols import AudioStorage
-from app.voice_xai.capture.contracts import ExtractionBundle
 from app.voice_xai.integration.contracts import ClassifierInferenceBundle
 from app.voice_xai.workflow.orchestrator import VoiceXaiOrchestrator
 from app.voice_xai.temporal.contracts import TemporalAttentionWindowInput
@@ -174,7 +173,6 @@ class PredictionRerunService:
             (
                 prediction,
                 processed_audio,
-                extraction,
                 temporal_evidence,
             ) = await self._job_runner.run_blocking(
                 lambda: _predict_without_upload_cleanup(
@@ -182,9 +180,6 @@ class PredictionRerunService:
                     upload_metadata=upload_metadata,
                     request_id=request_id,
                     storage_metadata=storage_metadata,
-                    capture_extraction=(
-                        self._settings.xai_enabled and self._settings.xai_capture_enabled
-                    ),
                 )
             )
             await self._persistence.save_result(
@@ -215,7 +210,6 @@ class PredictionRerunService:
                     source_type=_source_type(parent),
                     prediction=prediction,
                     processed_audio=processed_audio,
-                    extraction=extraction,
                     temporal_evidence=temporal_evidence,
                 )
 
@@ -245,7 +239,6 @@ class PredictionRerunService:
         source_type: SourceType,
         prediction: VoicePredictionResponse,
         processed_audio: ProcessedAudio | None,
-        extraction: ExtractionBundle | None,
         temporal_evidence: tuple[TemporalAttentionWindowInput, ...] | None,
     ) -> None:
         """Start optional XAI after persistence without changing the rerun result."""
@@ -264,7 +257,6 @@ class PredictionRerunService:
                     # evidence produced by this rerun. The orchestrator owns
                     # the async XAI work and never accesses the model registry.
                     processed_audio=processed_audio,
-                    extraction=extraction,
                     temporal_evidence=temporal_evidence,
                 )
             )
@@ -330,11 +322,9 @@ def _predict_without_upload_cleanup(
     upload_metadata: AudioUploadMetadata,
     request_id: str,
     storage_metadata: AudioStorageMetadata,
-    capture_extraction: bool = False,
 ) -> tuple[
     VoicePredictionResponse,
     ProcessedAudio | None,
-    ExtractionBundle | None,
     tuple[TemporalAttentionWindowInput, ...] | None,
 ]:
     """Run rerun inference and preserve the evidence needed by optional XAI."""
@@ -346,13 +336,10 @@ def _predict_without_upload_cleanup(
         kwargs = {"request_id": request_id, "storage_metadata": storage_metadata}
         if "cleanup_upload" in inspect.signature(with_audio).parameters:
             kwargs["cleanup_upload"] = False
-        if "capture_extraction" in inspect.signature(with_audio).parameters:
-            kwargs["capture_extraction"] = capture_extraction
         result = with_audio(upload_metadata, **kwargs)
         return (
             result.prediction,
             result.processed_audio,
-            getattr(result, "extraction", None),
             getattr(result, "temporal_evidence", None),
         )
 
@@ -363,7 +350,7 @@ def _predict_without_upload_cleanup(
     }
     if "cleanup_upload" in inspect.signature(predict).parameters:
         kwargs["cleanup_upload"] = False
-    return predict(upload_metadata, **kwargs), None, None, None
+    return predict(upload_metadata, **kwargs), None, None
 
 
 def _require_successful_storage(

@@ -12,13 +12,13 @@ from app.models.runtime import (
 )
 from app.schemas.common import SourceType
 from app.schemas.prediction import VoicePredictionResponse
-from app.voice_xai.capture.contracts import ExtractionBundle
+from app.voice_xai.semantic.features import FeatureExtractionResult
 from app.voice_xai.temporal.contracts import TemporalAttentionWindowInput
 
 if TYPE_CHECKING:
     from app.ingestion.audio import ProcessedAudio
 
-CLASSIFIER_XAI_CONTRACT_VERSION = "classifier-xai-v1"
+CLASSIFIER_XAI_CONTRACT_VERSION = "classifier-xai-v2"
 
 CANONICAL_XAI_BRANCHES: tuple[CanonicalBranchName, ...] = CANONICAL_BRANCH_ORDER
 PUBLIC_MODEL_NAME_BY_XAI_BRANCH: dict[CanonicalBranchName, str] = dict(
@@ -35,7 +35,8 @@ class ClassifierInferenceBundle:
     owner_user_id: str
     source_type: SourceType
     prediction: VoicePredictionResponse
-    extraction: ExtractionBundle | None = None
+    # Optional named acoustic features for whole-clip semantic analysis.
+    acoustic_features: FeatureExtractionResult | None = None
     # Generated inside the original XLS-R classifier forward pass. It is a
     # reduced, private representation, never a raw attention tensor artifact.
     temporal_evidence: tuple[TemporalAttentionWindowInput, ...] | None = None
@@ -56,12 +57,4 @@ class ClassifierInferenceBundle:
         if self.prediction.request_id != self.request_id:
             raise ValueError(
                 "Classifier prediction request_id must match the handoff bundle."
-            )
-        extraction_request_mismatch = (
-            self.extraction is not None
-            and self.extraction.request_id != self.request_id
-        )
-        if extraction_request_mismatch:
-            raise ValueError(
-                "Extraction bundle request_id must match the handoff bundle."
             )

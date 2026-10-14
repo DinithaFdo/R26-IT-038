@@ -164,12 +164,6 @@ class Settings(BaseSettings):
     xai_semantic_shap_background_path: str = ""
     xai_semantic_window_duration_seconds: float = Field(default=1.0, gt=0.0)
     xai_semantic_window_overlap_seconds: float = Field(default=0.5, ge=0.0)
-    # Intermediate-tensor capture is opt-in even when XAI itself is enabled.
-    # Hooks necessarily run in the classifier worker, so keeping this false by
-    # default preserves the normal prediction latency profile.
-    xai_capture_enabled: bool = False
-    xai_capture_max_total_elements: int = Field(default=1_000_000, ge=1)
-
     # Optional post-processing only: this client receives compact validated
     # XAI evidence, never raw audio or classifier inputs. It is disabled by
     # default so normal prediction and deterministic-report behaviour stays

@@ -1,6 +1,11 @@
 # Classifier-to-XAI Contract
 
-Contract version: `classifier-xai-v1`
+Contract version: `classifier-xai-v2`
+
+Version 2 removes the intermediate-layer capture bundle. Optional named
+`acoustic_features` are passed directly for whole-clip semantic analysis; the
+preprocessed audio and reduced XLS-R temporal evidence retain their meanings.
+Previously persisted version-1 explanation provenance remains readable.
 
 This document freezes the boundary between the MULTI-SCOPE classifier and the
 Voice XAI component. Changes to the fields or meanings marked as frozen require
@@ -10,7 +15,7 @@ an explicit contract-version change and coordinated classifier/XAI review.
 
 - The classifier owns audio preprocessing, branch model loading and inference,
   score-level fusion, classifier provenance, and the classifier result.
-- Voice XAI owns capture plans, extracted representations, temporal and semantic
+- Voice XAI owns acoustic feature extraction, temporal and semantic
   explanations, explanation-quality evidence, explanation artifacts, and the
   combined report.
 - Voice XAI consumes classifier-level contracts. It must not import concrete
@@ -59,7 +64,7 @@ The XAI orchestration boundary is `ClassifierInferenceBundle`, containing:
 - `owner_user_id`
 - `source_type`
 - classifier-level `VoicePredictionResponse`
-- an optional Phase 1 `ExtractionBundle`
+- optional named semantic `FeatureExtractionResult` in `acoustic_features`
 - optional ephemeral `ProcessedAudio` for post-persistence explanation work;
   it is not serialized into prediction or explanation documents
 - optional reduced XLS-R temporal evidence created in the classifier worker;
@@ -72,16 +77,7 @@ offset after inference without changing logits or model input. Private v3 tempor
 artifacts preserve these bounds. Older artifacts with ambiguous crop-relative
 timestamps are rejected rather than displayed at a guessed source position.
 
-When the internal prediction caller explicitly enables capture, the bundle is
-populated from request-scoped PyTorch hooks in the same branch worker that ran
-classifier inference. Hook handles are removed before the worker returns.
-Captured tensors remain bounded by the configured total-element budget and are
-serialized by the asynchronous XAI worker as a private NPZ artifact only after
-the classifier result has been persisted. They are never part of a public
-prediction or explanation JSON payload.
-
-Reduced XLS-R temporal evidence is separate from the generic tensor-capture
-bundle. It contains only the compact time-aligned density needed by temporal
+Reduced XLS-R temporal evidence contains only the compact time-aligned density needed by temporal
 XAI; raw per-head attention matrices are reduced and discarded in the same
 classifier worker that created the XLS-R branch prediction. The asynchronous
 XAI worker must consume this evidence and must not rerun XLS-R.
@@ -94,8 +90,8 @@ rerunning XLS-R; if it is expired, missing, or fails integrity validation,
 temporal analysis is unavailable while other XAI components may still run.
 
 The bundle is internal and must not expose raw tensors through a public API.
-Large tensor artifacts must be stored separately and referenced by private,
-authorized artifact metadata.
+Existing intermediate-representation artifact references remain readable for
+historical explanations; new predictions do not create such artifacts.
 
 ## Additive XAI contract
 

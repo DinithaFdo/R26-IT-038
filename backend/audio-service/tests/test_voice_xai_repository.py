@@ -18,6 +18,7 @@ from app.voice_xai.persistence.mongodb import (
     MongoXaiExplanationRepository,
     XaiPersistenceConsistencyError,
 )
+from app.voice_xai.integration.contracts import CLASSIFIER_XAI_CONTRACT_VERSION
 from tests.test_mongodb import FakeDatabase
 
 
@@ -60,7 +61,7 @@ async def test_xai_repository_creates_versioned_owner_scoped_record() -> None:
         "lfcc_cnn_tcn"
     )
     assert document["provenance"]["classifier_contract_version"] == (
-        "classifier-xai-v1"
+        CLASSIFIER_XAI_CONTRACT_VERSION
     )
     assert document["created_at"].tzinfo is not None
     assert document["updated_at"].tzinfo is not None

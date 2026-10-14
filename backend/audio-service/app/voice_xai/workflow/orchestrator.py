@@ -38,10 +38,6 @@ from app.voice_xai.artifacts.service import (
     ArtifactStorageError,
     LocalExplanationArtifactStore,
 )
-from app.voice_xai.capture.serialization import (
-    EXTRACTION_ARTIFACT_CONTENT_TYPE,
-    serialize_extraction_bundle,
-)
 from app.voice_xai.jobs.queue import AsynchronousExplanationQueue
 from app.voice_xai.persistence.protocols import XaiExplanationRepository
 from app.voice_xai.evaluation.consistency import quality_for_analysis
@@ -298,8 +294,8 @@ class VoiceXaiOrchestrator:
                 pipeline_version=self._settings.xai_pipeline_version,
                 classifier_contract_version=bundle.contract_version,
                 feature_extractor_version=(
-                    bundle.extraction.acoustic_features.extractor_version
-                    if bundle.extraction and bundle.extraction.acoustic_features
+                    bundle.acoustic_features.extractor_version
+                    if bundle.acoustic_features is not None
                     else None
                 ),
                 configuration_hash=_configuration_hash(self._settings),
@@ -713,12 +709,6 @@ class VoiceXaiOrchestrator:
         await status_service.start_run(
             explanation_id=explanation_id, owner_user_id=bundle.owner_user_id
         )
-        if bundle.extraction is not None and bundle.extraction.branches:
-            await self._store_extraction_artifact(
-                repository=repository,
-                explanation_id=explanation_id,
-                bundle=bundle,
-            )
         try:
             await status_service.start_component(
                 explanation_id=explanation_id,
@@ -1013,40 +1003,6 @@ class VoiceXaiOrchestrator:
             return self._worker_repository_factory()
         return self._repository
 
-    async def _store_extraction_artifact(
-        self,
-        *,
-        repository: XaiExplanationRepository,
-        explanation_id: str,
-        bundle: ClassifierInferenceBundle,
-    ) -> None:
-        """Persist bounded capture bytes only from the background XAI worker.
-
-        The classifier has already completed and its result has already been
-        persisted when this runs. A storage or serialization error is recorded
-        internally and must not alter either the classifier response or the
-        rest of the explanation pipeline.
-        """
-
-        extraction = bundle.extraction
-        if extraction is None or not extraction.branches:
-            return
-        try:
-            reference = self._artifact_store.store_bytes(
-                explanation_id=explanation_id,
-                content=serialize_extraction_bundle(extraction),
-                kind="intermediate_representations",
-                content_type=EXTRACTION_ARTIFACT_CONTENT_TYPE,
-            )
-            await repository.append_artifact(explanation_id, reference)
-        except Exception:  # noqa: BLE001 - artifact evidence is best-effort
-            logger.exception(
-                "voice_xai_extraction_artifact_store_failed",
-                extra={
-                    "explanation_id": explanation_id,
-                    "request_id": bundle.request_id,
-                },
-            )
 
     def _status_service_for_run(self) -> XaiStatusService:
         return XaiStatusService(self._worker_repository())
@@ -1251,8 +1207,6 @@ _CONFIGURATION_HASH_INPUTS = (
     "temporal_threshold_mode",
     "temporal_threshold_percentile",
     "temporal_percentile_method",
-    "capture_enabled",
-    "capture_max_total_elements",
     "spectrogram_n_mels",
     "spectrogram_n_fft",
     "spectrogram_hop_length",
@@ -1274,8 +1228,6 @@ def _configuration_hash_payload(settings: Settings) -> dict[str, object]:
         "temporal_threshold_mode": TEMPORAL_THRESHOLD_MODE,
         "temporal_threshold_percentile": TEMPORAL_THRESHOLD_PERCENTILE,
         "temporal_percentile_method": TEMPORAL_PERCENTILE_METHOD,
-        "capture_enabled": settings.xai_capture_enabled,
-        "capture_max_total_elements": settings.xai_capture_max_total_elements,
         "spectrogram_n_mels": settings.xai_spectrogram_n_mels,
         "spectrogram_n_fft": settings.xai_spectrogram_n_fft,
         "spectrogram_hop_length": settings.xai_spectrogram_hop_length,
@@ -1299,8 +1251,8 @@ def _completed_provenance(
             semantic.extractor_version
             if semantic is not None
             else (
-                bundle.extraction.acoustic_features.extractor_version
-                if bundle.extraction and bundle.extraction.acoustic_features
+                bundle.acoustic_features.extractor_version
+                if bundle.acoustic_features is not None
                 else None
             )
         ),

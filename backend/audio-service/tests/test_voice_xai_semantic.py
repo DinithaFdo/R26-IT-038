@@ -15,7 +15,6 @@ from app.voice_xai.semantic.features import (
     FEATURE_NAMES,
     FeatureExtractionResult,
 )
-from app.voice_xai.capture.contracts import ExtractionBundle
 from app.voice_xai.semantic.artifact_loader import (
     SemanticArtifactCompatibilityError,
     SemanticArtifactManifest,
@@ -111,19 +110,15 @@ def _inference(
         ),
         total_processing_time_ms=1.0,
     )
-    extraction = None
+    acoustic_features = None
     if feature_values is not None:
-        extraction = ExtractionBundle(
-            request_id=request_id,
-            branches={},
-            acoustic_features=FeatureExtractionResult(
-                feature_names=FEATURE_NAMES,
-                values=feature_values,
-                sample_rate=16000,
-                duration_seconds=2.0,
-                extractor_version=FEATURE_EXTRACTION_VERSION,
-                metadata={},
-            ),
+        acoustic_features = FeatureExtractionResult(
+            feature_names=FEATURE_NAMES,
+            values=feature_values,
+            sample_rate=16000,
+            duration_seconds=2.0,
+            extractor_version=FEATURE_EXTRACTION_VERSION,
+            metadata={},
         )
     return ClassifierInferenceBundle(
         prediction_id="prediction-123",
@@ -131,5 +126,5 @@ def _inference(
         owner_user_id="user-123",
         source_type=SourceType.dashboard_upload,
         prediction=prediction,
-        extraction=extraction,
+        acoustic_features=acoustic_features,
     )

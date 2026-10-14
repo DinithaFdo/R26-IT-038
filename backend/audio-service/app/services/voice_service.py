@@ -30,8 +30,6 @@ from app.schemas.provenance import (
     PreprocessingProvenance,
 )
 from app.utils.fusion import ConstrainedFourBranchFusion, FusionEngine
-from app.voice_xai.capture.contracts import ExtractionBundle
-from app.voice_xai.capture.session import PyTorchExtractionInterface
 from app.voice_xai.temporal.contracts import TemporalAttentionWindowInput
 
 logger = logging.getLogger(__name__)
@@ -76,7 +74,6 @@ class PredictionExecutionResult:
 
     prediction: VoicePredictionResponse
     processed_audio: ProcessedAudio
-    extraction: ExtractionBundle | None = None
     temporal_evidence: tuple[TemporalAttentionWindowInput, ...] | None = None
 
 
@@ -155,7 +152,6 @@ class VoiceService:
         request_id: str | None = None,
         storage_metadata: AudioStorageMetadata | None = None,
         cleanup_upload: bool = True,
-        capture_extraction: bool = False,
     ) -> PredictionExecutionResult:
         """Same behaviour as :meth:`predict_from_validated_upload`, plus the
         exact ``ProcessedAudio`` instance used for classifier inference.
@@ -170,7 +166,6 @@ class VoiceService:
             request_id=request_id,
             storage_metadata=storage_metadata,
             cleanup_upload=cleanup_upload,
-            capture_extraction=capture_extraction,
         )
 
     def _predict_from_validated_upload(
@@ -180,16 +175,10 @@ class VoiceService:
         request_id: str | None = None,
         storage_metadata: AudioStorageMetadata | None = None,
         cleanup_upload: bool = True,
-        capture_extraction: bool = False,
     ) -> PredictionExecutionResult:
         request_id = request_id or str(uuid4())
         start_time = perf_counter()
-        captured_branches: dict = {}
         temporal_evidence: tuple[TemporalAttentionWindowInput, ...] | None = None
-        capture_metadata: dict[str, object] = {
-            "capture_requested": capture_extraction,
-            "capture_enabled": False,
-        }
 
         logger.info(
             "Voice prediction request started.",
@@ -228,18 +217,6 @@ class VoiceService:
                     and model.mode == ModelMode.real
                     and model.branch_name == "ssl_sequence"
                 )
-                capture_handler = (
-                    (
-                        lambda captured_model, audio, captured_request_id: self._capture_branch(
-                            captured_model,
-                            audio,
-                            captured_request_id,
-                            capture_temporal_evidence=capture_temporal_evidence,
-                        )
-                    )
-                    if capture_extraction
-                    else None
-                )
                 with stage_timer(
                     branch_stage,
                     timings=timings,
@@ -250,22 +227,11 @@ class VoiceService:
                 ):
                     (
                         branch_prediction,
-                        branch_captures,
-                        branch_capture_metadata,
                         branch_temporal_evidence,
                     ) = _predict_branch_with_timeout(
                         model,
                         processed_audio,
-                        request_id=request_id,
-                        capture=capture_handler,
                         capture_temporal_evidence=capture_temporal_evidence,
-                    )
-                if branch_captures:
-                    captured_branches.update(branch_captures)
-                if branch_capture_metadata is not None:
-                    capture_metadata["capture_enabled"] = True
-                    capture_metadata.setdefault("branches", {})[model.branch_name] = (
-                        branch_capture_metadata
                     )
                 if branch_temporal_evidence:
                     temporal_evidence = branch_temporal_evidence
@@ -330,15 +296,6 @@ class VoiceService:
             return PredictionExecutionResult(
                 prediction=prediction,
                 processed_audio=processed_audio,
-                extraction=(
-                    ExtractionBundle(
-                        request_id=request_id,
-                        branches=captured_branches,
-                        metadata=capture_metadata,
-                    )
-                    if captured_branches
-                    else None
-                ),
                 temporal_evidence=temporal_evidence,
             )
         finally:
@@ -364,79 +321,7 @@ class VoiceService:
     def unload_models(self) -> None:
         self._model_registry.unload_all()
 
-    def _capture_branch(
-        self,
-        model: BaseVoiceModel,
-        processed_audio: ProcessedAudio,
-        request_id: str,
-        *,
-        capture_temporal_evidence: bool,
-    ) -> tuple[
-        BranchPrediction,
-        dict,
-        dict[str, object] | None,
-        tuple[TemporalAttentionWindowInput, ...] | None,
-    ]:
-        """Capture one real branch inside its existing inference worker.
 
-        ``ContextVar`` state does not cross a ``ThreadPoolExecutor`` boundary,
-        so this method is intentionally invoked *inside* the worker submitted
-        by ``_predict_branch_with_timeout``. Any capture setup failure is
-        isolated and falls back to the unmodified classifier call.
-        """
-
-        try:
-            interface = self._capture_interface_for(model)
-        except Exception:
-            logger.exception(
-                "voice_xai_capture_setup_failed",
-                extra={"request_id": request_id, "branch_name": model.branch_name},
-            )
-            prediction, evidence = _predict_with_optional_temporal_evidence(
-                model, processed_audio, capture_temporal_evidence
-            )
-            return prediction, {}, None, evidence
-        if interface is None:
-            prediction, evidence = _predict_with_optional_temporal_evidence(
-                model, processed_audio, capture_temporal_evidence
-            )
-            return prediction, {}, None, evidence
-
-        try:
-            with interface.capture(request_id) as session:
-                prediction, evidence = _predict_with_optional_temporal_evidence(
-                    model, processed_audio, capture_temporal_evidence
-                )
-            bundle = session.build_bundle()
-            return prediction, bundle.branches, bundle.metadata, evidence
-        finally:
-            # Hooks exist only for this opt-in inference. Subsequent ordinary
-            # predictions have no registered callbacks and therefore retain
-            # their original hot path.
-            interface.close()
-
-    def _capture_interface_for(
-        self, model: BaseVoiceModel
-    ) -> PyTorchExtractionInterface | None:
-        """Create and register a short-lived interface for one real branch."""
-
-        if model.mode != ModelMode.real:
-            return None
-        root_module = model.xai_capture_root()
-        if root_module is None:
-            return None
-
-        interface = PyTorchExtractionInterface(
-            max_total_elements=self._settings.xai_capture_max_total_elements
-        )
-        # Capture plans live beside the reconstructed model architectures,
-        # preserving the classifier/XAI ownership boundary.
-        from app.models.capture_targets import register_real_branch_capture
-
-        if not register_real_branch_capture(interface, model.branch_name, root_module):
-            interface.close()
-            return None
-        return interface
 
 
 def _preprocess_from_upload_metadata(
@@ -487,45 +372,20 @@ def _predict_branch_with_timeout(
     model: BaseVoiceModel,
     processed_audio: ProcessedAudio,
     *,
-    request_id: str,
-    capture: Callable[
-        [BaseVoiceModel, ProcessedAudio, str],
-        tuple[
-            BranchPrediction,
-            dict,
-            dict[str, object] | None,
-            tuple[TemporalAttentionWindowInput, ...] | None,
-        ],
-    ]
-    | None = None,
     capture_temporal_evidence: bool = False,
-) -> tuple[
-    BranchPrediction,
-    dict,
-    dict[str, object] | None,
-    tuple[TemporalAttentionWindowInput, ...] | None,
-]:
+) -> tuple[BranchPrediction, tuple[TemporalAttentionWindowInput, ...] | None]:
     timeout = (
         model._config.branch_timeout_seconds
         if getattr(model, "_config", None) is not None
         else 30
     )
     executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-    if capture is None and not capture_temporal_evidence:
-        future = executor.submit(
-            lambda: (model.predict_safe(processed_audio), {}, None, None)
-        )
-    elif capture is None:
-        future = executor.submit(
-            _prediction_without_capture,
-            model,
-            processed_audio,
-            capture_temporal_evidence,
-        )
-    else:
-        # Capture opens its ContextVar session inside this exact worker. A
-        # context set by the request thread would not propagate here.
-        future = executor.submit(capture, model, processed_audio, request_id)
+    future = executor.submit(
+        _predict_with_optional_temporal_evidence,
+        model,
+        processed_audio,
+        capture_temporal_evidence,
+    )
     try:
         return future.result(timeout=timeout)
     except concurrent.futures.TimeoutError:
@@ -554,8 +414,6 @@ def _predict_branch_with_timeout(
                     "research_result": False,
                 },
             ),
-            {},
-            None,
             None,
         )
     finally:
@@ -573,20 +431,6 @@ def _predict_with_optional_temporal_evidence(
     return prediction, tuple(evidence) if evidence else None
 
 
-def _prediction_without_capture(
-    model: BaseVoiceModel,
-    processed_audio: ProcessedAudio,
-    capture_temporal_evidence: bool,
-) -> tuple[
-    BranchPrediction,
-    dict,
-    dict[str, object] | None,
-    tuple[TemporalAttentionWindowInput, ...] | None,
-]:
-    prediction, evidence = _predict_with_optional_temporal_evidence(
-        model, processed_audio, capture_temporal_evidence
-    )
-    return prediction, {}, None, evidence
 
 
 def _prediction_provenance(

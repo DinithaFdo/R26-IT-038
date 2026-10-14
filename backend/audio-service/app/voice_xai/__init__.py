@@ -10,11 +10,6 @@ from app.voice_xai.semantic.features import (
     FeatureExtractionConfig,
     FeatureExtractionResult,
 )
-from app.voice_xai.capture.torch_hooks import (
-    CaptureTarget,
-    ExtractionBundle,
-    PyTorchExtractionInterface,
-)
 from app.voice_xai.jobs.queue import AsynchronousExplanationQueue
 from app.voice_xai.integration.contracts import (
     CANONICAL_XAI_BRANCHES,
@@ -35,9 +30,6 @@ __all__ = [
     "FeatureExtractionConfig",
     "FeatureExtractionResult",
     "AsynchronousExplanationQueue",
-    "CaptureTarget",
-    "ExtractionBundle",
-    "PyTorchExtractionInterface",
     "CANONICAL_XAI_BRANCHES",
     "CLASSIFIER_XAI_CONTRACT_VERSION",
     "PUBLIC_MODEL_NAME_BY_XAI_BRANCH",

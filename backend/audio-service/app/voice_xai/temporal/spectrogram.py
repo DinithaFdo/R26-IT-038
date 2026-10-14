@@ -7,8 +7,8 @@ import math
 import numpy as np
 
 from app.ingestion.audio import ProcessedAudio
-from app.schemas.xai import TemporalExplanation
-from app.voice_xai.temporal.contracts import TemporalVisualization
+from app.schemas.xai import TemporalExplanation # summary of the last result
+from app.voice_xai.temporal.contracts import TemporalVisualization # attention data that needs to draw the heatmap and highlight regions
 
 
 def mel_spectrogram_payload(

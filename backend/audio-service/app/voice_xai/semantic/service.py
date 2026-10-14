@@ -61,8 +61,7 @@ class FixtureSemanticEvidenceProvider:
     """Create deterministic mock SHAP evidence without loading XGBoost or SHAP."""
 
     def extract(self, inference: ClassifierInferenceBundle) -> SemanticEvidence:
-        extraction = inference.extraction
-        features = extraction.acoustic_features if extraction is not None else None
+        features = inference.acoustic_features
         if features is not None:
             return self.extract_features(features, evidence_key=inference.request_id)
         return _fixture_semantic_evidence(
@@ -84,7 +83,7 @@ class FixtureSemanticEvidenceProvider:
             values=features.values,
             extractor_version=features.extractor_version,
             evidence_key=evidence_key,
-            source="phase1_acoustic_features_with_fixture_shap",
+            source="acoustic_features_with_fixture_shap",
         )
 
 
@@ -141,11 +140,10 @@ class XgboostShapEvidenceProvider:
         self._artifacts = artifacts
 
     def extract(self, inference: ClassifierInferenceBundle) -> SemanticEvidence:
-        extraction = inference.extraction
-        features = extraction.acoustic_features if extraction is not None else None
+        features = inference.acoustic_features
         if features is None:
             raise SemanticArtifactCompatibilityError(
-                "Production semantic inference requires captured acoustic features."
+                "Production semantic inference requires acoustic features."
             )
         return self.extract_features(features, evidence_key="whole-clip")
 
@@ -158,23 +156,23 @@ class XgboostShapEvidenceProvider:
         manifest = self._artifacts.manifest
         if features.feature_names != manifest.feature_names:
             raise SemanticArtifactCompatibilityError(
-                "Captured feature names do not match the production manifest."
+                "Acoustic feature names do not match the production manifest."
             )
         if features.extractor_version != manifest.extractor_version:
             raise SemanticArtifactCompatibilityError(
-                "Captured extractor version does not match the production manifest."
+                "Acoustic extractor version does not match the production manifest."
             )
         raw_values = np.asarray(features.values, dtype=np.float64)
         if raw_values.shape != (len(manifest.feature_names),) or np.isinf(raw_values).any():
             raise SemanticArtifactCompatibilityError(
-                "Captured acoustic features must be an ordered v4 feature vector without infinite values."
+                "Acoustic features must be an ordered v4 feature vector without infinite values."
             )
         missing_feature_count = int(np.isnan(raw_values).sum())
         try:
             values = np.asarray(self._artifacts.imputer.transform(raw_values.reshape(1, -1)), dtype=np.float64)
         except Exception as error:
             raise SemanticArtifactCompatibilityError(
-                "The training imputer could not transform the captured acoustic features."
+                "The training imputer could not transform the acoustic features."
             ) from error
         if values.shape != (1, len(manifest.feature_names)) or not np.isfinite(values).all():
             raise SemanticArtifactCompatibilityError(

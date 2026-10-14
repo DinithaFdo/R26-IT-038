@@ -9,8 +9,8 @@ prediction or import a concrete classifier adapter.
 ```text
 app/api                 HTTP authentication and owner-scoped routes
 app/services            prediction workflow and XAI enqueue integration
-app/models              model-specific inference and validated capture targets
-app/voice_xai           explanation capture, analysis, reporting, and storage
+app/models              model-specific inference and original-pass temporal evidence
+app/voice_xai           explanation analysis, reporting, and storage
 ```
 
 The permitted runtime direction is:
@@ -34,7 +34,6 @@ voice_xai/
     orchestrator.py     explanation-run lifecycle and component orchestration
     status.py           independent XAI status transitions
     recovery.py         startup reconciliation of interrupted explanation runs
-  capture/              bounded request-scoped PyTorch representation capture
   jobs/                 bounded post-prediction XAI job scheduling
   temporal/             XLS-R temporal attention analysis and visualisation
   semantic/             acoustic feature schema and XGBoost/SHAP explanations
@@ -55,14 +54,13 @@ package; their availability depends on the local checkout and configuration.
 2. `PredictionSubmissionService.execute_prediction` validates/stores the
    upload, then calls `VoiceService`.
 3. `VoiceService` preprocesses audio once and runs each classifier branch.
-   If opt-in representation capture is enabled, it opens a request-scoped
-   `capture.PyTorchExtractionInterface` session around the relevant real
-   branch forward pass. During a real XLS-R prediction, the adapter also
+   During a real XLS-R prediction, the adapter
    reduces its own attention to a compact time-aligned evidence object and
    discards the raw attention matrices before the branch worker returns.
 4. `VoiceService` returns an internal `PredictionExecutionResult` containing
-   the public classifier prediction, the same ephemeral `ProcessedAudio`, any
-   bounded `ExtractionBundle`, and optional reduced XLS-R temporal evidence.
+   the public classifier prediction, the same ephemeral `ProcessedAudio`, and
+   optional reduced XLS-R temporal evidence. CNN/AASIST intermediate layer
+   outputs are no longer copied or persisted.
 5. The prediction is persisted before `PredictionSubmissionService` calls
    `VoiceXaiOrchestrator.enqueue`. XAI errors cannot turn a successful
    prediction into a failed one.
@@ -85,7 +83,7 @@ package; their availability depends on the local checkout and configuration.
    Evaluation calculates available consistency evidence. Research eligibility
    remains fail-closed.
 9. The report service composes the combined report. Safe metadata goes to the
-   `xai_explanations` repository; tensors and visual artefacts are stored only
+   `xai_explanations` repository; visual artefacts are stored only
    in the private artifact store.
 10. Owner-scoped explanation endpoints return the status, report, temporal and
    semantic summaries. Artifact downloads verify ownership, expiry, size, and

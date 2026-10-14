@@ -487,7 +487,6 @@ class ProcessedAudioVoiceService:
         request_id=None,
         storage_metadata=None,
         cleanup_upload=True,
-        capture_extraction=False,
     ):
         return PredictionExecutionResult(
             prediction=voice_prediction_with_branches(
@@ -496,7 +495,6 @@ class ProcessedAudioVoiceService:
                 storage_metadata=storage_metadata,
             ),
             processed_audio=self.PROCESSED_AUDIO,
-            extraction=None,
         )
 
 
