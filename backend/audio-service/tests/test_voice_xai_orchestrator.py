@@ -33,6 +33,7 @@ from app.voice_xai.workflow.orchestrator import (
     _configuration_hash_inputs,
     _configuration_hash_payload,
     classifier_snapshot_from_prediction,
+    inference_bundle_from_prediction_document,
 )
 from app.voice_xai.persistence.mongodb import MongoXaiExplanationRepository
 from app.voice_xai.report.service import NarrativeGenerationError
@@ -538,19 +539,59 @@ async def test_temporal_validation_failure_has_a_safe_specific_error_code(
     )
 
 
-def test_classifier_snapshot_keeps_glottal_auxiliary_for_learned_fusion() -> None:
+@pytest.mark.parametrize("glottal_name", ["glottal_features", "glottal"])
+def test_classifier_snapshot_records_glottal_contribution_to_learned_fusion(glottal_name) -> None:
     prediction = _prediction_with_glottal(
         fusion_mode="learned_constrained",
         contributing_branches=[
             "cnn_acoustic",
             "aasist",
             "ssl_wavlm_xlsr",
-            "glottal_features",
+            glottal_name,
         ],
+    )
+    original = prediction.model_dump(mode="json")
+
+    snapshot = classifier_snapshot_from_prediction(prediction)
+
+    assert snapshot.auxiliary_evidence.glottal_spoof_probability == pytest.approx(0.7)
+    assert snapshot.auxiliary_evidence.used_for_primary_decision is True
+    assert prediction.model_dump(mode="json") == original
+    replayed = inference_bundle_from_prediction_document(_document(prediction))
+    replayed_snapshot = classifier_snapshot_from_prediction(replayed.prediction)
+    assert replayed_snapshot == snapshot
+    assert type(snapshot).model_validate(snapshot.model_dump(mode="json")) == snapshot
+
+
+def test_classifier_snapshot_does_not_infer_glottal_use_from_fusion_mode() -> None:
+    prediction = _prediction_with_glottal(
+        fusion_mode="learned_constrained",
+        contributing_branches=["cnn_acoustic", "aasist", "ssl_wavlm_xlsr"],
     )
 
     snapshot = classifier_snapshot_from_prediction(prediction)
 
+    assert snapshot.auxiliary_evidence.glottal_spoof_probability == pytest.approx(0.7)
+    assert snapshot.auxiliary_evidence.used_for_primary_decision is False
+
+
+def test_classifier_snapshot_failed_fusion_has_no_primary_glottal_use() -> None:
+    prediction = _prediction_with_glottal(
+        fusion_mode="learned_constrained",
+        contributing_branches=["glottal_features"],
+    )
+    prediction.fusion = FusionResult(
+        status=BranchStatus.failed,
+        method="convex_weighted",
+        fusion_mode="learned_constrained",
+        contributing_branches=["glottal_features"],
+        contains_dummy_branches=True,
+        eligible_for_research_evaluation=False,
+    )
+
+    snapshot = classifier_snapshot_from_prediction(prediction)
+
+    assert snapshot.verdict is None
     assert snapshot.auxiliary_evidence.glottal_spoof_probability == pytest.approx(0.7)
     assert snapshot.auxiliary_evidence.used_for_primary_decision is False
 

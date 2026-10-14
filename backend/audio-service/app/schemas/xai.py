@@ -90,19 +90,16 @@ class ClassifierBranchSnapshot(XaiSchemaModel):
 
 
 class ClassifierAuxiliaryEvidence(XaiSchemaModel):
-    """Evidence that informs explanations but never the primary fusion decision.
+    """Glottal score and its recorded role in the classifier's fusion result.
 
-    Currently just Glottal: per the final research detector contract
-    (``model_artifacts/fusion/final_detector_v1.json``), it is physiological/
-    XAI evidence only. ``glottal_spoof_probability`` is ``None`` whenever the
-    branch did not produce a score (disabled, failed, or not yet
-    implemented) -- absence here must never be read as a bonafide-leaning
-    score of 0. ``used_for_primary_decision`` is always ``False`` and exists
-    so a consumer never has to infer that fact from field absence.
+    ``used_for_primary_decision`` reflects membership in a successful
+    fusion's contributing branches. ``glottal_spoof_probability`` is ``None``
+    when the branch did not produce a score. The default flag keeps older
+    snapshots without this field readable.
     """
 
     glottal_spoof_probability: float | None = Field(default=None, ge=0.0, le=1.0)
-    used_for_primary_decision: Literal[False] = False
+    used_for_primary_decision: bool = False
 
 
 class ClassifierSnapshot(XaiSchemaModel):

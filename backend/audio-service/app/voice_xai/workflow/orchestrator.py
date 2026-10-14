@@ -13,7 +13,7 @@ from typing import Any, Protocol
 
 from app.config.settings import Settings
 from app.models.runtime import canonical_branch_name
-from app.schemas.common import PredictionStatus, SourceType
+from app.schemas.common import BranchStatus, PredictionStatus, SourceType
 from app.schemas.prediction import AudioMetadata, FusionResult, VoicePredictionResponse
 from app.schemas.xai import (
     CanonicalXaiBranch,
@@ -1119,9 +1119,6 @@ def classifier_snapshot_from_prediction(prediction: VoicePredictionResponse) -> 
             branch.probabilities.spoof if branch.probabilities is not None else None
         )
         if canonical == "glottal":
-            # Auxiliary evidence only -- never folded into spoof_probability/
-            # verdict above, and never counted toward contributing branches.
-            # See ClassifierAuxiliaryEvidence's docstring.
             glottal_spoof_probability = spoof_probability
         branches.append(
             ClassifierBranchSnapshot(
@@ -1147,6 +1144,13 @@ def classifier_snapshot_from_prediction(prediction: VoicePredictionResponse) -> 
         branches=branches,
         auxiliary_evidence=ClassifierAuxiliaryEvidence(
             glottal_spoof_probability=glottal_spoof_probability,
+            used_for_primary_decision=(
+                fusion.status == BranchStatus.success
+                and any(
+                    canonical_branch_name(name) == "glottal"
+                    for name in fusion.contributing_branches
+                )
+            ),
         ),
     )
 
