@@ -29,12 +29,12 @@ voice_xai/
   __init__.py           package initialization and public exports
   integration/
     contracts.py        classifier-to-XAI handoff contract
-    replay.py           stored source-audio preparation for manual runs/retries
   workflow/
     orchestrator.py     explanation-run lifecycle and component orchestration
+    queue.py            bounded post-prediction XAI job scheduling
     status.py           independent XAI status transitions
     recovery.py         startup reconciliation of interrupted explanation runs
-  jobs/                 bounded post-prediction XAI job scheduling
+    replay.py           stored source-audio preparation for manual runs/retries
   temporal/             XLS-R temporal attention analysis and visualisation
   semantic/             acoustic feature schema and XGBoost/SHAP explanations
   evaluation/           consistency metrics and research-readiness policy
@@ -68,7 +68,7 @@ package; their availability depends on the local checkout and configuration.
    before queueing work. Its reference is hidden from public XAI artifact
    lists; raw attention matrices are never stored. A manual retry loads this
    compact artifact and therefore does not rerun XLS-R.
-7. `jobs.AsynchronousExplanationQueue` runs the explanation in the
+7. `workflow.queue.AsynchronousExplanationQueue` runs the explanation in the
    background. The orchestrator records an independent explanation run.
 8. The temporal service consumes only reduced XLS-R evidence and creates a
    private visualisation artifact; it never reruns XLS-R. For clips longer

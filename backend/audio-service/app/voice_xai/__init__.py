@@ -10,7 +10,7 @@ from app.voice_xai.semantic.features import (
     FeatureExtractionConfig,
     FeatureExtractionResult,
 )
-from app.voice_xai.jobs.queue import AsynchronousExplanationQueue
+from app.voice_xai.workflow.queue import AsynchronousExplanationQueue
 from app.voice_xai.integration.contracts import (
     CANONICAL_XAI_BRANCHES,
     CLASSIFIER_XAI_CONTRACT_VERSION,

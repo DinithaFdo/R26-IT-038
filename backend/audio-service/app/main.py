@@ -47,12 +47,12 @@ from app.services.prediction_rerun_service import PredictionRerunService
 from app.services.prediction_submission_service import PredictionSubmissionService
 from app.services.voice_service import VoiceService
 from app.storage.factory import get_audio_storage, storage_readiness
-from app.voice_xai.jobs.queue import AsynchronousExplanationQueue
+from app.voice_xai.workflow.queue import AsynchronousExplanationQueue
 from app.voice_xai.artifacts.service import LocalExplanationArtifactStore
 from app.voice_xai.workflow.orchestrator import VoiceXaiOrchestrator
 from app.voice_xai.persistence.mongodb import MongoXaiExplanationRepository
 from app.voice_xai.workflow.recovery import recover_stale_explanations
-from app.voice_xai.integration.replay import StoredAudioReplayService
+from app.voice_xai.workflow.replay import StoredAudioReplayService
 from app.voice_xai.semantic.service import ProductionSemanticExplanationService
 from app.voice_xai.semantic.windows import SemanticWindowConfig
 from app.voice_xai.temporal.xlsr_attention_service import XLSRTemporalAttentionService

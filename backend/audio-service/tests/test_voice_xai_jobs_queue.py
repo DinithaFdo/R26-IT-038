@@ -4,7 +4,7 @@ import threading
 
 import pytest
 
-from app.voice_xai.jobs.queue import AsynchronousExplanationQueue
+from app.voice_xai.workflow.queue import AsynchronousExplanationQueue
 
 
 def test_queue_runs_explanation_task_with_the_original_bundle() -> None:
@@ -133,7 +133,7 @@ def test_queue_logs_unhandled_job_exceptions_and_still_releases_capacity() -> No
             records.append(record)
             logged.set()
 
-    target_logger = logging.getLogger("app.voice_xai.jobs.queue")
+    target_logger = logging.getLogger("app.voice_xai.workflow.queue")
     handler = _RecordingHandler()
     target_logger.addHandler(handler)
 

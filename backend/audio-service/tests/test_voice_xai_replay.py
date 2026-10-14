@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from app.config.settings import Settings
-from app.voice_xai.integration.replay import (
+from app.voice_xai.workflow.replay import (
     StoredAudioReplayService,
     XaiSourceAudioUnavailableError,
 )
@@ -45,7 +45,7 @@ async def test_replay_rebuilds_processed_audio_from_owner_scoped_storage(
         return expected_processed_audio
 
     monkeypatch.setattr(
-        "app.voice_xai.integration.replay.preprocess_audio_file", preprocess
+        "app.voice_xai.workflow.replay.preprocess_audio_file", preprocess
     )
     service = StoredAudioReplayService(storage=storage, app_settings=settings)
 

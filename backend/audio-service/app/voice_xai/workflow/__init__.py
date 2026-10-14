@@ -1,1 +1,1 @@
-"""Voice XAI run orchestration, status lifecycle, and startup recovery."""
+"""Voice XAI scheduling, source-audio replay, orchestration, and lifecycle."""

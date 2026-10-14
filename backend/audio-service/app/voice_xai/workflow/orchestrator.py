@@ -38,7 +38,7 @@ from app.voice_xai.artifacts.service import (
     ArtifactStorageError,
     LocalExplanationArtifactStore,
 )
-from app.voice_xai.jobs.queue import AsynchronousExplanationQueue
+from app.voice_xai.workflow.queue import AsynchronousExplanationQueue
 from app.voice_xai.persistence.protocols import XaiExplanationRepository
 from app.voice_xai.evaluation.consistency import quality_for_analysis
 from app.voice_xai.report.service import (
@@ -46,7 +46,7 @@ from app.voice_xai.report.service import (
     DeterministicReportComposer,
     NarrativeGenerationError,
 )
-from app.voice_xai.integration.replay import (
+from app.voice_xai.workflow.replay import (
     StoredAudioReplayService,
     XaiSourceAudioUnavailableError,
 )
