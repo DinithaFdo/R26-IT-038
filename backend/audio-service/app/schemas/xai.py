@@ -180,10 +180,24 @@ class TemporalRegion(XaiSchemaModel):
     # of 1.0, rather than being a probability.  A local concentration can
     # therefore legitimately exceed 1.0.
     attention_score: float = Field(ge=0.0)
+    # Optional for immutable explanations saved before region metadata existed.
+    duration_seconds: float | None = Field(default=None, gt=0.0)
+    percentage_of_audio: float | None = Field(default=None, ge=0.0, le=100.0)
+    mean_attention_density: float | None = Field(default=None, ge=0.0)
+    start_sample: int | None = Field(default=None, ge=0)
+    end_sample_exclusive: int | None = Field(default=None, ge=0)
+
     @model_validator(mode="after")
     def validate_time_order(self) -> "TemporalRegion":
         if self.end_seconds <= self.start_seconds:
             raise ValueError("Temporal region end must be after its start.")
+        if (self.start_sample is None) != (self.end_sample_exclusive is None):
+            raise ValueError("Temporal region sample boundaries must be supplied together.")
+        if (
+            self.start_sample is not None
+            and self.end_sample_exclusive < self.start_sample
+        ):
+            raise ValueError("Temporal region end sample must not precede its start.")
         return self
 
 
@@ -193,6 +207,16 @@ class TemporalExplanation(XaiSchemaModel):
     model_version: str | None = None
     development_placeholder: bool = True
     research_eligible: bool = False
+    research_blockers: list[str] = Field(default_factory=list)
+    # Samples refer to the preprocessed mono timeline, never the input file's
+    # possibly different sampling rate. Null defaults preserve legacy records.
+    sample_rate_hz: int | None = Field(default=None, gt=0)
+    audio_sample_count: int | None = Field(default=None, gt=0)
+    highlighted_samples: int | None = Field(default=None, ge=0)
+    highlighted_duration_seconds: float | None = Field(default=None, ge=0.0)
+    highlighted_coverage_percentage: float | None = Field(default=None, ge=0.0, le=100.0)
+    raw_high_attention_bin_percentage: float | None = Field(default=None, ge=0.0, le=100.0)
+    flat_attention_map: bool | None = None
     score_kind: Literal["high_attention"] = "high_attention"
     attention_score_peak: float | None = Field(default=None, ge=0.0)
     threshold_percentile: float | None = Field(default=None, ge=0.0, le=100.0)
@@ -220,6 +244,14 @@ class TemporalExplanation(XaiSchemaModel):
 
     @model_validator(mode="after")
     def fill_and_validate_high_attention_region_count(self) -> "TemporalExplanation":
+        if self.research_eligible and (self.development_placeholder or self.research_blockers):
+            raise ValueError("Temporal research eligibility requires non-placeholder, unblocked evidence.")
+        if (
+            self.audio_sample_count is not None
+            and self.highlighted_samples is not None
+            and self.highlighted_samples > self.audio_sample_count
+        ):
+            raise ValueError("Highlighted samples cannot exceed the audio sample count.")
         actual_high_attention_count = len(self.high_attention_regions)
         if self.high_attention_region_count is None:
             self.high_attention_region_count = actual_high_attention_count

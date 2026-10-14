@@ -1,4 +1,5 @@
 import time
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -53,6 +54,14 @@ async def test_real_p90_temporal_result_is_persisted_without_calibration(
     settings = Settings(_env_file=None, xai_enabled=True, xai_mode="mock")
     repository = MongoXaiExplanationRepository(FakeDatabase("p90_temporal_run"))
     prediction = _prediction()
+    prediction.branches.append(BranchPrediction(
+        model_name="ssl_wavlm_xlsr", display_name="SSL sequence",
+        status=BranchStatus.success, mode=ModelMode.real,
+        prediction=PredictionLabel.spoof, confidence=0.8,
+        probabilities=ProbabilityScores(bonafide=0.2, spoof=0.8),
+        processing_time_ms=1.0,
+        metadata={"preprocessing_verified": True, "class_mapping_verified": True, "research_result": True},
+    ))
     prediction_before = prediction.model_dump(mode="json")
     bundle = _bundle(
         prediction, processed_audio=_audio(2.0), temporal_evidence=_temporal_evidence()
@@ -77,7 +86,22 @@ async def test_real_p90_temporal_result_is_persisted_without_calibration(
     assert temporal.threshold_percentile == 90.0
     assert temporal.attention_threshold == temporal.visualization_attention_threshold
     assert temporal.high_attention_regions == temporal.visualization_high_attention_regions
-    assert temporal.method_version.endswith("p90-v5")
+    assert temporal.method_version.endswith("p90-v6")
+    assert temporal.research_eligible is True
+    assert temporal.research_blockers == []
+    assert response.research_eligible is False  # Mock classifier/failed semantic remain ineligible.
+    assert temporal.sample_rate_hz == 16000
+    assert temporal.audio_sample_count == 32000
+    assert temporal.highlighted_samples == sum(
+        region.end_sample_exclusive - region.start_sample for region in temporal.high_attention_regions
+    )
+    artifact = next(a for a in temporal.artifacts if a.kind == "attention_visualization")
+    payload = json.loads(store.read(artifact).content)
+    assert payload["raw_high_attention_mask"] == payload["high_attention_mask"]
+    assert len(payload["final_region_mask"]) == len(payload["time_seconds"])
+    assert payload["regions"] == [region.model_dump(mode="json") for region in temporal.high_attention_regions]
+    assert payload["highlighted_coverage_percentage"] == temporal.highlighted_coverage_percentage
+    assert payload["flat_attention_map"] == temporal.flat_attention_map
     assert "temporal_threshold_percentile" in response.provenance.configuration_hash_inputs
     assert prediction.model_dump(mode="json") == prediction_before
 
@@ -566,7 +590,7 @@ def test_xai_readiness_and_provenance_describe_only_p90(tmp_path: Path) -> None:
     assert readiness["temporal_threshold_percentile"] == 90.0
     assert readiness["temporal_percentile_method"] == "linear_float32_comparison"
     payload = _configuration_hash_payload(settings)
-    assert payload["temporal_method_version"].endswith("p90-v5")
+    assert payload["temporal_method_version"].endswith("p90-v6")
     assert payload["temporal_threshold_percentile"] == 90.0
     assert set(payload) == set(_configuration_hash_inputs())
     assert "temporal_threshold_config_path" not in readiness

@@ -7,6 +7,7 @@ from typing import Any, Mapping
 import numpy as np
 
 from app.config.settings import Settings
+from app.schemas.common import BranchStatus, ModelMode
 from app.schemas.xai import ComponentStatus, TemporalExplanation, TemporalRegion
 from app.voice_xai.integration.contracts import ClassifierInferenceBundle
 from app.voice_xai.temporal.contracts import (
@@ -56,6 +57,22 @@ class XLSRTemporalAttentionService:
             for index, window in enumerate(raw_windows)
         ]
         analyzed_spans = _analyzed_spans(windows)
+        sample_rate = (
+            inference.processed_audio.sample_rate
+            if inference.processed_audio is not None
+            else (
+                inference.prediction.provenance.preprocessing.target_sample_rate
+                if inference.prediction.provenance is not None
+                else self._settings.target_sample_rate
+            )
+        )
+        sample_count = (
+            int(inference.processed_audio.waveform.size)
+            if inference.processed_audio is not None
+            else int(round(duration * sample_rate))
+        )
+        if sample_rate <= 0 or sample_count <= 0:
+            raise TemporalAttentionError("Temporal audio sample boundaries are invalid.")
         hop = self._settings.xai_temporal_global_hop_seconds
         times = np.arange(hop / 2.0, duration, hop, dtype=np.float32)
         if not times.size:
@@ -117,12 +134,47 @@ class XLSRTemporalAttentionService:
         combined_duration = sum(
             r.end_seconds - r.start_seconds for r in high_attention_regions
         )
+        final_region_mask = np.zeros(times.shape, dtype=bool)
+        enriched_regions = []
+        sample_intervals = []
+        for region in high_attention_regions:
+            start, end = region.start_seconds, region.end_seconds
+            selected = covered & (times >= start) & (times <= end)
+            final_region_mask |= selected
+            start_sample = max(0, min(sample_count, int(round(start * sample_rate))))
+            end_sample = max(start_sample, min(sample_count, int(round(end * sample_rate))))
+            sample_intervals.append((start_sample, end_sample))
+            enriched_regions.append(region.model_copy(update={
+                "duration_seconds": end - start,
+                "percentage_of_audio": 100.0 * (end - start) / duration,
+                "mean_attention_density": float(np.mean(density[selected])),
+                "start_sample": start_sample,
+                "end_sample_exclusive": end_sample,
+            }))
+        high_attention_regions = enriched_regions
+        # Count the union in sample coordinates, not selected-bin counts or
+        # unrounded seconds. Merged gaps count; unknown evidence gaps do not.
+        highlighted_samples = _sample_union_length(sample_intervals)
+        highlighted_duration = highlighted_samples / sample_rate
+        coverage_percentage = 100.0 * highlighted_samples / sample_count
+        raw_bin_percentage = 100.0 * np.count_nonzero(high_attention_mask) / np.count_nonzero(covered)
+        flat_attention_map = bool(float(np.ptp(density[covered])) == 0.0)
+        research_blockers = _temporal_research_blockers(inference)
+        research_eligible = not research_blockers
         explanation = TemporalExplanation(
             status=ComponentStatus.completed,
             method_version=TEMPORAL_METHOD_VERSION,
-            model_version="xlsr-mamba-asvspoof2019-best",
+            model_version=_temporal_model_version(inference),
             development_placeholder=False,
-            research_eligible=False,
+            research_eligible=research_eligible,
+            research_blockers=research_blockers,
+            sample_rate_hz=sample_rate,
+            audio_sample_count=sample_count,
+            highlighted_samples=highlighted_samples,
+            highlighted_duration_seconds=highlighted_duration,
+            highlighted_coverage_percentage=coverage_percentage,
+            raw_high_attention_bin_percentage=raw_bin_percentage,
+            flat_attention_map=flat_attention_map,
             attention_score_peak=float(density[covered].max()),
             threshold_percentile=TEMPORAL_THRESHOLD_PERCENTILE,
             attention_threshold=threshold,
@@ -151,12 +203,66 @@ class XLSRTemporalAttentionService:
                 visualization_quantile=TEMPORAL_THRESHOLD_QUANTILE,
                 analyzed_spans=analyzed_spans,
                 duration_seconds=duration,
+                final_region_mask=final_region_mask,
+                regions=tuple(region.model_dump(mode="json") for region in high_attention_regions),
+                sample_rate_hz=sample_rate,
+                audio_sample_count=sample_count,
+                highlighted_samples=highlighted_samples,
+                highlighted_duration_seconds=highlighted_duration,
+                highlighted_coverage_percentage=coverage_percentage,
+                raw_high_attention_bin_percentage=raw_bin_percentage,
+                flat_attention_map=flat_attention_map,
                 title="XLS-R original-forward attention rollout density (pure p90)",
             ),
             development_placeholder=False,
-            research_eligible=False,
+            research_eligible=research_eligible,
             warnings=(),
         )
+
+
+def _sample_union_length(intervals: list[tuple[int, int]]) -> int:
+    total = 0
+    previous_end = 0
+    for start, end in sorted(intervals):
+        total += max(0, end - max(start, previous_end))
+        previous_end = max(previous_end, end)
+    return total
+
+
+def _temporal_model_version(inference: ClassifierInferenceBundle) -> str | None:
+    # Describe the checkpoint that produced the evidence, not a notebook model.
+    provenance = inference.prediction.provenance
+    if provenance is None:
+        return None
+    return next((
+        model.model_version for model in provenance.models
+        if model.model_name in {"ssl_wavlm_xlsr", "ssl_sequence"}
+    ), None)
+
+
+def _temporal_research_blockers(inference: ClassifierInferenceBundle) -> list[str]:
+    """Use original prediction provenance, including on a persisted retry.
+
+    Temporal eligibility concerns the SSL evidence-producing branch, independently
+    of other fusion branches and semantic XAI. Configuration changes cannot
+    retrospectively attest an unverified prediction.
+    """
+    branches = [
+        branch for branch in inference.prediction.branches
+        if branch.model_name in {"ssl_wavlm_xlsr", "ssl_sequence"}
+    ]
+    if len(branches) != 1:
+        return ["ssl_branch_provenance_missing"]
+    branch = branches[0]
+    blockers = []
+    if branch.mode != ModelMode.real:
+        blockers.append("ssl_branch_not_real")
+    if branch.status != BranchStatus.success:
+        blockers.append("ssl_branch_not_successful")
+    for field in ("preprocessing_verified", "class_mapping_verified", "research_result"):
+        if branch.metadata.get(field) is not True:
+            blockers.append(f"ssl_{field}_not_verified")
+    return blockers
 
 
 def _regions(

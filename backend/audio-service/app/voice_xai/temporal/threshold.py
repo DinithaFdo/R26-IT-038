@@ -10,7 +10,7 @@ TEMPORAL_THRESHOLD_MODE = "per_clip_percentile"
 TEMPORAL_THRESHOLD_PERCENTILE = 90.0
 TEMPORAL_THRESHOLD_QUANTILE = TEMPORAL_THRESHOLD_PERCENTILE / 100.0
 TEMPORAL_PERCENTILE_METHOD = "linear_float32_comparison"
-TEMPORAL_METHOD_VERSION = "xlsr-original-forward-attention-rollout-source-time-p90-v5"
+TEMPORAL_METHOD_VERSION = "xlsr-original-forward-attention-rollout-source-time-p90-v6"
 
 
 def pure_p90_threshold(density: np.ndarray) -> float:

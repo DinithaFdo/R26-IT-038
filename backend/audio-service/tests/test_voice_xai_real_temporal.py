@@ -14,6 +14,7 @@ from app.schemas.prediction import (
     AudioMetadata, BranchPrediction, FusionResult, ProbabilityScores,
     VoicePredictionResponse,
 )
+from app.schemas.provenance import PredictionProvenance
 from app.voice_xai.integration.contracts import ClassifierInferenceBundle
 from app.voice_xai.temporal.contracts import (
     TemporalAttentionError, TemporalAttentionWindowInput,
@@ -53,9 +54,11 @@ def test_p90_works_without_artifacts_and_matches_all_outputs(tmp_path) -> None:
     )
     assert explanation.development_placeholder is False
     assert explanation.research_eligible is False
-    assert explanation.method_version.endswith("p90-v5")
+    assert explanation.method_version.endswith("p90-v6")
     assert set(explanation.high_attention_regions[0].model_dump()) == {
         "region_id", "start_seconds", "end_seconds", "attention_score",
+        "duration_seconds", "percentage_of_audio", "mean_attention_density",
+        "start_sample", "end_sample_exclusive",
     }
     artifact = visualization.as_json_dict()
     assert artifact["threshold"] == expected
@@ -81,6 +84,8 @@ def test_flat_attention_selects_all_tied_bins_without_floor(tmp_path, value) -> 
     assert result.visualization.threshold == float(np.float32(value))
     assert result.visualization.high_attention_mask.all()
     assert result.explanation.high_attention_region_count == 1
+    assert result.explanation.flat_attention_map is True
+    assert result.visualization.as_json_dict()["flat_attention_map"] is True
     assert "coverage other than 10%" in result.explanation.warning
 
 
@@ -143,6 +148,23 @@ def test_region_postprocessing_merges_close_p90_spans(tmp_path) -> None:
     region = result.explanation.high_attention_regions[0]
     assert region.start_seconds == pytest.approx(0.10)
     assert region.end_seconds == pytest.approx(0.26)
+    assert region.duration_seconds == pytest.approx(0.16)
+    assert region.percentage_of_audio == pytest.approx(8.0)
+    assert region.mean_attention_density == pytest.approx(0.95)
+    assert region.attention_score == pytest.approx(1.2)
+    assert region.start_sample == 1600
+    assert region.end_sample_exclusive == 4160
+    assert result.explanation.highlighted_samples == 2560
+    assert result.explanation.highlighted_duration_seconds == pytest.approx(0.16)
+    assert result.explanation.highlighted_coverage_percentage == pytest.approx(8.0)
+    assert result.explanation.raw_high_attention_bin_percentage == pytest.approx(15.0)
+    assert np.count_nonzero(result.visualization.final_region_mask) == 8
+    assert result.explanation.flat_attention_map is False
+    artifact = result.visualization.as_json_dict()
+    assert artifact["raw_high_attention_mask"] == artifact["high_attention_mask"]
+    assert sum(artifact["final_region_mask"]) == 8
+    assert artifact["regions"] == [region.model_dump(mode="json")]
+    assert artifact["highlighted_coverage_percentage"] == pytest.approx(8.0)
 
 
 def test_region_postprocessing_keeps_distant_p90_spans_separate(tmp_path) -> None:
@@ -159,6 +181,9 @@ def test_minimum_duration_can_remove_p90_selected_bins(tmp_path) -> None:
     assert result.visualization.high_attention_mask.any()
     assert result.explanation.high_attention_regions == []
     assert result.explanation.high_attention_region_count == 0
+    assert not result.visualization.final_region_mask.any()
+    assert result.explanation.highlighted_samples == 0
+    assert result.explanation.highlighted_coverage_percentage == 0.0
 
 
 def test_temporal_regions_remain_within_original_evidence_span(tmp_path) -> None:
@@ -212,6 +237,9 @@ def test_source_crop_has_no_zero_scores_or_highlights_outside_evidence(tmp_path)
     assert plot.analyzed_spans == ((7.0, 13.0),)
     assert np.isnan(plot.attention_scores[outside]).all()
     assert not plot.high_attention_mask[outside].any()
+    assert not plot.final_region_mask[outside].any()
+    assert result.explanation.audio_sample_count == 320000
+    assert result.explanation.highlighted_coverage_percentage == pytest.approx(3.0)
     assert plot.threshold == pure_p90_threshold(plot.attention_scores[inside])
     assert plot.threshold < 1.0
     assert result.explanation.high_attention_regions
@@ -241,6 +269,9 @@ def test_unknown_gap_is_not_interpolated_or_merged_into_a_region(tmp_path) -> No
     gap = (plot.time_seconds >= 0.2) & (plot.time_seconds < 0.24)
     assert np.isnan(plot.attention_scores[gap]).all()
     assert not plot.high_attention_mask[gap].any()
+    assert not plot.final_region_mask[gap].any()
+    assert result.explanation.highlighted_samples == 6400
+    assert result.explanation.flat_attention_map is True
 
 
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
@@ -269,6 +300,127 @@ def test_temporal_evidence_contract_rejects_invalid_window() -> None:
     with pytest.raises(TemporalAttentionError) as error:
         _window(0.0, 2.0, [0.75, 0.25], [1.2, 1.4])
     assert error.value.code == "xai_temporal_window_invalid"
+
+
+def test_verified_real_ssl_evidence_is_research_eligible_without_changing_prediction(tmp_path) -> None:
+    inference = _density_inference(np.linspace(0.1, 0.8, 100, dtype=np.float32))
+    inference.prediction.branches[0].metadata.update({
+        "preprocessing_verified": True,
+        "class_mapping_verified": True,
+        "research_result": True,
+    })
+    before = inference.prediction.model_dump(mode="json")
+    result = _service(tmp_path).analyze(inference)
+    assert result.research_eligible is True
+    assert result.explanation.research_eligible is True
+    assert result.explanation.research_blockers == []
+    # Eligibility is local to temporal evidence, not the other fusion branches.
+    assert inference.prediction.fusion.eligible_for_research_evaluation is False
+    assert inference.prediction.model_dump(mode="json") == before
+
+
+@pytest.mark.parametrize("field", ["preprocessing_verified", "class_mapping_verified", "research_result"])
+@pytest.mark.parametrize("value", [False, None, "true", 1])
+def test_temporal_research_eligibility_requires_recorded_boolean_verification(tmp_path, field, value) -> None:
+    inference = _density_inference(np.ones(100, dtype=np.float32))
+    inference.prediction.branches[0].metadata.update({
+        "preprocessing_verified": True,
+        "class_mapping_verified": True,
+        "research_result": True,
+        field: value,
+    })
+    result = _service(tmp_path).analyze(inference)
+    assert result.research_eligible is False
+    assert result.explanation.research_blockers == [f"ssl_{field}_not_verified"]
+
+
+@pytest.mark.parametrize("mode,status,blocker", [
+    (ModelMode.dummy, BranchStatus.success, "ssl_branch_not_real"),
+    (ModelMode.disabled, BranchStatus.skipped, "ssl_branch_not_real"),
+    (ModelMode.real, BranchStatus.failed, "ssl_branch_not_successful"),
+])
+def test_dummy_disabled_or_failed_ssl_cannot_be_temporal_research_eligible(tmp_path, mode, status, blocker) -> None:
+    inference = _density_inference(np.ones(100, dtype=np.float32))
+    branch = inference.prediction.branches[0]
+    branch.mode, branch.status = mode, status
+    branch.metadata.update({
+        "preprocessing_verified": True, "class_mapping_verified": True, "research_result": True,
+    })
+    result = _service(tmp_path).analyze(inference)
+    assert result.research_eligible is False
+    assert blocker in result.explanation.research_blockers
+
+
+def test_current_settings_do_not_attest_an_old_unverified_prediction(tmp_path) -> None:
+    inference = _density_inference(np.ones(100, dtype=np.float32))
+    service = XLSRTemporalAttentionService(app_settings=Settings(
+        _env_file=None, model_root_dir=str(tmp_path / "models"),
+        ssl_preprocessing_verified=True, ssl_class_mapping_verified=True,
+    ))
+    assert service.analyze(inference).research_eligible is False
+
+
+def test_missing_ssl_provenance_is_not_research_eligible(tmp_path) -> None:
+    inference = _density_inference(np.ones(100, dtype=np.float32))
+    inference.prediction.branches = []
+    result = _service(tmp_path).analyze(inference)
+    assert result.explanation.research_blockers == ["ssl_branch_provenance_missing"]
+
+
+def test_sample_rounded_coverage_and_processed_sampling_rate(tmp_path) -> None:
+    from app.ingestion.audio import ProcessedAudio
+
+    audio = ProcessedAudio(
+        waveform=np.ones(88201, dtype=np.float32), sample_rate=44100,
+        original_sample_rate=48000, original_channels=2,
+        duration_seconds=88201 / 44100, was_resampled=True, was_converted_to_mono=True,
+        normalisation_applied=False, peak_amplitude=1.0, rms_energy=1.0,
+    )
+    inference = _inference("rounded", temporal_evidence=(
+        _window(0.00703125, 0.06103125, [0.001, 0.05], [1.0, 1.0]),
+    ))
+    result = _service(tmp_path, minimum=0.0).analyze(replace(inference, processed_audio=audio))
+    region = result.explanation.high_attention_regions[0]
+    expected_start = round(region.start_seconds * 44100)
+    expected_end = round(region.end_seconds * 44100)
+    assert region.start_sample == expected_start
+    assert region.end_sample_exclusive == expected_end
+    assert result.explanation.sample_rate_hz == 44100
+    assert result.explanation.audio_sample_count == 88201
+    assert result.explanation.highlighted_samples == expected_end - expected_start
+    assert result.explanation.highlighted_duration_seconds == (expected_end - expected_start) / 44100
+    assert result.explanation.highlighted_coverage_percentage == 100 * (expected_end - expected_start) / 88201
+    assert region.percentage_of_audio == pytest.approx(100 * region.duration_seconds / audio.duration_seconds)
+
+
+def test_persisted_provenance_supplies_sample_rate_and_actual_model_version(tmp_path) -> None:
+    inference = _density_inference(np.linspace(0.1, 0.8, 100, dtype=np.float32))
+    inference.prediction.provenance = PredictionProvenance.model_validate({
+        "preprocessing": {
+            "input_sample_rate": 48000, "input_channels": 2,
+            "input_duration_seconds": 2.0, "target_sample_rate": 22050,
+            "target_channels": 1, "resampled": True,
+            "mono_conversion_applied": True, "normalisation_applied": False,
+            "preprocessing_version": "fixture-preprocessing-v1",
+        },
+        "models": [{
+            "model_name": "ssl_wavlm_xlsr", "mode": "real",
+            "model_version": "fixture-asvspoof5-checkpoint",
+            "architecture_version": "xlsr-mamba", "class_mapping_version": "v1",
+            "preprocessing_compatibility_version": "v1", "framework_version": "fixture",
+            "device_type": "cpu", "research_result": False,
+        }],
+        "fusion": {
+            "fusion_method": "weighted_average", "threshold": 0.5,
+            "fusion_version": "fixture-v1", "contains_dummy_branches": False,
+            "eligible_for_research_evaluation": False,
+        },
+    })
+    result = _service(tmp_path).analyze(inference)
+    assert result.explanation.sample_rate_hz == 22050
+    assert result.explanation.audio_sample_count == 44100
+    assert result.explanation.model_version == "fixture-asvspoof5-checkpoint"
+    assert result.explanation.high_attention_regions[0].end_sample_exclusive == 44100
 
 
 def _density_inference(scores):

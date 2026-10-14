@@ -26,6 +26,7 @@ from app.schemas.xai import (
     SemanticClipSummary,
     ShapDirection,
     TemporalRegion,
+    TemporalExplanation,
     XaiExplanationResponse,
 )
 
@@ -38,6 +39,47 @@ def test_xai_schema_rejects_unknown_fields() -> None:
             end_seconds=0.2,
             attention_score=0.8,
             unsupported=True,
+        )
+
+
+def test_legacy_temporal_metadata_remains_readable() -> None:
+    explanation = TemporalExplanation.model_validate({
+        "status": "completed", "method_version": "legacy-v1",
+        "high_attention_regions": [{
+            "region_id": 1, "start_seconds": 0.1, "end_seconds": 0.2,
+            "attention_score": 1.2,
+        }],
+    })
+    assert explanation.flat_attention_map is None
+    assert explanation.highlighted_coverage_percentage is None
+    assert explanation.high_attention_regions[0].start_sample is None
+    assert explanation.high_attention_regions[0].mean_attention_density is None
+
+
+@pytest.mark.parametrize("boundaries", [
+    {"start_sample": 100},
+    {"end_sample_exclusive": 200},
+    {"start_sample": 200, "end_sample_exclusive": 100},
+])
+def test_temporal_sample_boundaries_reject_incomplete_or_reversed_pairs(boundaries) -> None:
+    with pytest.raises(ValidationError, match="sample"):
+        TemporalRegion(
+            region_id=1, start_seconds=0.1, end_seconds=0.2,
+            attention_score=1.2, **boundaries,
+        )
+
+
+def test_temporal_metadata_rejects_impossible_coverage_and_eligibility() -> None:
+    with pytest.raises(ValidationError, match="sample count"):
+        TemporalExplanation(
+            status=ComponentStatus.completed, method_version="test-v1",
+            audio_sample_count=100, highlighted_samples=101,
+        )
+    with pytest.raises(ValidationError, match="eligibility"):
+        TemporalExplanation(
+            status=ComponentStatus.completed, method_version="test-v1",
+            development_placeholder=False, research_eligible=True,
+            research_blockers=["ssl_branch_not_real"],
         )
 
 

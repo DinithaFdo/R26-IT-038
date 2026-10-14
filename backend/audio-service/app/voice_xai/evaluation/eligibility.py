@@ -7,10 +7,7 @@ still not be research eligible.
 
 This module is the single place that decision is made -- previously it was
 an inline boolean expression inside ``VoiceXaiOrchestrator._run_internal``.
-Consolidating it here does not change today's outcome (every requirement
-below is still unmet, so evaluation still returns ``eligible=False``); it
-exists so future changes flip individual, named, documented requirements
-instead of loosening one combined expression. Every criterion must be met;
+Each component reports its own eligibility and diagnostics. Every criterion must be met;
 an unmet criterion fails the decision closed, never open. See
 ``app/voice_xai/CLASSIFIER_XAI_CONTRACT.md`` for the classifier/XAI boundary
 and the criteria below for the current eligibility requirements.
@@ -54,8 +51,9 @@ def evaluate_research_eligibility(
     Temporal
       - A temporal component result must exist for this run.
       - ``temporal.research_eligible`` must be True. The real XLS-R temporal
-        service currently reports False until its classifier and temporal
-        verification evidence is explicitly attested.
+        service validates original-pass evidence and requires a successful real
+        SSL branch with recorded preprocessing/class-mapping verification and
+        ``research_result=True`` in the original prediction metadata.
 
     Semantic
       - A semantic component result must exist for this run.
@@ -72,9 +70,8 @@ def evaluate_research_eligibility(
         computes the raw interval IoU today but no eligibility threshold is
         defined on it yet.
 
-    Returns a decision that is always ``eligible=False`` until every
-    requirement above is genuinely satisfied -- not merely engineered around
-    -- with the specific unmet requirement names for diagnostics/logging.
+    Returns ``eligible=True`` only when every requirement is satisfied, with
+    specific unmet requirement names for diagnostics/logging otherwise.
     """
 
     unmet: list[str] = []

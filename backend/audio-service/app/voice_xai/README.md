@@ -98,9 +98,36 @@ using the pure per-clip 90th percentile of the aggregated rollout density. There
 is no density floor or external threshold artifact. The cutoff is computed with
 linear interpolation, rounded to float32, and compared using `>=`. Explanation
 and visualization fields contain the same result. Ties and postprocessing mean
-coverage is not necessarily 10%; flat maps can select all covered bins. Each includes exact
-start/end times and its attention score. These regions are model-focus evidence,
+coverage is not necessarily 10%; flat maps can select all covered bins. Each region
+includes start/end times, maximum and mean attention density, duration,
+percentage of full audio, `start_sample`, and `end_sample_exclusive`.
+Samples refer to the classifier-preprocessed mono waveform at `sample_rate_hz`,
+not the original file's sampling rate. These regions are model-focus evidence,
 not ground-truth fake-audio percentages.
+
+The attention visualization JSON saves `raw_high_attention_mask` (also exposed
+under the legacy `high_attention_mask` name) and `final_region_mask` separately.
+The final mask includes merged gaps and excludes filtered short regions. Both
+masks align with `time_seconds`; unavailable attention remains unselected.
+`highlighted_samples` counts the union of final intervals rounded to sample
+boundaries. `highlighted_duration_seconds` and `highlighted_coverage_percentage`
+use that count and the full `audio_sample_count`, including unanalysed audio in
+the denominator. `raw_high_attention_bin_percentage` instead uses only available
+attention bins. `flat_attention_map` tests equality across those available scores.
+These summaries are saved in the temporal API response as well.
+
+Temporal `research_eligible` is true for validated original-pass evidence from a
+successful real SSL branch whose original prediction metadata records
+`preprocessing_verified`, `class_mapping_verified`, and `research_result` as true.
+Otherwise `research_blockers` explains the missing evidence. Changing current
+settings does not retrospectively attest an old prediction. Overall XAI research
+eligibility still requires the classifier and semantic components to be eligible.
+Previously the real temporal service hardcoded false even for verified evidence.
+Restart the backend after updating SSL verification flags and create a new
+prediction/explanation to record the verified provenance. Legacy explanations
+remain readable with absent metadata represented as null; they are not rewritten.
+Temporal model version is read from the original classifier provenance instead
+of a fixed ASVspoof2019 label.
 
 When processed audio is available, the temporal artifacts include both the
 attention time-series JSON and an `attention_spectrogram` JSON payload. The
