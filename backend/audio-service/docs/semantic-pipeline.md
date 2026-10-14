@@ -18,34 +18,46 @@ The current extractor is `shared-clean-fullclip-audio-v2`, with schema
 and the exact `preprocessing` object from `schema.py`. See
 [the retraining steps](semantic-retraining.md) for dataset rebuilding and export.
 The former crop-based model is incompatible; changing its metadata does not
-make it a full-clip model. The current archived v1 bundle remains untouched.
-With real XAI enabled, startup rejects that bundle until a retrained v2 model
-is imported. Classification can run during retraining with `XAI_ENABLED=false`.
+make it a full-clip model. The existing v1 model bytes are preserved in the fixed
+model directory.
+With real XAI enabled, startup rejects that model until retrained v2 exports
+replace it. Classification can run during retraining with `XAI_ENABLED=false`.
 
 The optional `probability_calibrator.joblib`, `teacher_fusion.json`,
 `teacher_assets_<fingerprint>.json`, and `selected_glottal_features_20.json`
-are preserved and validated when supplied. Only import your trusted joblib files.
+can be placed beside the required files. Teacher provenance and the selected
+feature list are validated when present. Use the matching optional files for the
+same teacher/run; remove stale companions when replacing a model. The calibrator
+is retained as an optional export and is not applied to runtime predictions.
+Only place trusted joblib files in the configured directory.
 
-From `audio-service`, run:
+The default model directory is:
 
-```powershell
-.\.venv\Scripts\python.exe -m app.voice_xai.semantic.import_bundle --source "D:\Models\new-surrogate"
+```text
+audio-service/app/voice_xai/semantic/artifacts/
+  surrogate_xgboost.json
+  feature_columns.json
+  imputer.joblib
+  training_metadata.json
 ```
 
-Then restart the backend. For a model trained with the same feature contract,
-no source, feature labels, hashes, model version, threshold, R² value, or settings
-need editing.
-`XAI_SEMANTIC_BUNDLE_DIR` selects the deployment's bundle directory; the command
-uses that setting automatically. `--destination PATH` can prepare another deployment.
-`--imputer "imputer (1).joblib"` accepts a differently named downloaded imputer.
+Set `XAI_SEMANTIC_MODEL_DIR` only if you use another directory. Relative paths
+resolve from `audio-service`.
 
-Each import validates the input contract, objective, fitted median imputer,
-teacher metadata when supplied, and a real prediction/SHAP reconstruction before
-activation. An invalid import leaves `active.json` untouched. All file hashes
-contribute to a unique version, so a retrained model cannot inherit an earlier
-model's provenance or quality cache. Previous valid versions remain in `bundles/`.
-The running service requires restart after activation to avoid mixing versions.
-Bundle files retain their exact bytes in Git, including JSON line endings.
+To update the model, stop the backend, replace the four required files together
+from the same finalized training run, update any optional companions, and restart.
+A downloaded imputer named `imputer (1).joblib` must be renamed to `imputer.joblib`.
+
+Startup checks the feature order, preprocessing contract, regression objective,
+fitted imputer, optional teacher provenance, and prediction/SHAP reconstruction.
+Invalid or incomplete exports reject startup. Model identity is calculated from
+file contents automatically; no import command, version folder, manifest, or
+active pointer is required. File bytes are preserved in Git.
+
+The running process retains its loaded model until restart. If model files change
+while it is running, explanations request a restart instead of mixing loaded
+weights with newly replaced metadata. Keep backups outside this model directory
+if you need to restore an earlier export.
 
 ## Feature extraction and inference
 
@@ -72,7 +84,7 @@ inference output. All 165 signed contributions
 are returned; positive, negative and zero values have distinct directions.
 The teacher prediction remains separate from the surrogate approximation.
 
-R² is read from the **current bundle's** `primary_test_fidelity.r2` metadata,
+R² is read from the **current model's** `primary_test_fidelity.r2` metadata,
 with its sample count. Missing metrics remain unavailable and never block
 inference. Fidelity metadata must describe the active model's evaluation run.
 Clip-level SHAP has no temporal intervals, so temporal/semantic IoU is unavailable.
@@ -86,27 +98,31 @@ Clip-level SHAP has no temporal intervals, so temporal/semantic IoU is unavailab
 | `runtime.py` | Load the DisVoice Glottal extractor with runtime compatibility patches. |
 | `features.py` | Merge measurements into the ordered 165-feature input vector. |
 | `dataset.py` | Rebuild all feature columns while preserving teacher targets and sample metadata. |
-| `artifact_loader.py` | Validate bundle integrity and load the imputer, regressor, and Tree SHAP explainer. |
-| `import_bundle.py` | Validate model exports and atomically activate an immutable version. |
+| `artifact_loader.py` | Validate fixed-directory model exports and load the imputer, regressor, and Tree SHAP explainer. |
 | `contracts.py` | Validate prediction evidence and carry analysis results to the workflow. |
 | `service.py` | Coordinate extraction, imputation, regression, and SHAP additivity checks. |
 | `feature_labels.py` | Format supported feature identifiers for display. |
 | `explainer.py` | Build ranked contributions, clip summaries, and fidelity metadata for the API. |
 | `__init__.py` | Expose the package's feature contract, extractor, and service. |
 
+The package supports startup model loading, audio extraction/explanation, and
+offline training-data rebuilding. Portable DataFrame/dataset helpers are required
+for rebuilding training inputs even though they are not called for each API
+request. Dataclass validation hooks run when evidence is constructed.
+
 ## Verification and scope
 
 From `audio-service`, run:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests/test_semantic_pipeline.py tests/test_semantic_bundle_updates.py tests/test_semantic_training_export.py
+.\.venv\Scripts\python.exe -m pytest tests/test_semantic_pipeline.py tests/test_semantic_model_updates.py tests/test_semantic_training_export.py
 ```
 
 Tests verify full-duration processing beyond six seconds, removal of the CPP
 frame cap, one source decode/preparation, and waveform identity across extractors.
 They compare exported training features with backend features, validate real
 XGBoost prediction/SHAP reconstruction using a small fitted test model, exercise
-invalid imports, and verify preservation of sample targets and original bytes.
+invalid model replacements, and verify preservation of sample targets and original bytes.
 These tests do not establish the accuracy or fidelity of a retrained production
 model. Extraction parity across machines also depends on matching dependency
 versions; the portable export records the backend's extraction environment.

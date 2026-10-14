@@ -10,7 +10,6 @@ from app.config.settings import Settings
 from app.ingestion import audio as ingestion
 from app.voice_xai.semantic import recipe
 from app.voice_xai.semantic.features import AcousticFeatureExtractor, FeatureExtractionResult
-from app.voice_xai.semantic.import_bundle import import_bundle
 from app.voice_xai.semantic.schema import FEATURE_NAMES, FEATURE_EXTRACTION_VERSION, SELECTED20
 from app.voice_xai.semantic.service import ProductionSemanticExplanationService
 from tests.semantic_support import write_model_export
@@ -25,8 +24,7 @@ def feature_row(values):
 def trained(tmp_path_factory):
     root = tmp_path_factory.mktemp("fullclip-model")
     inputs, model, imputer = write_model_export(root / "source")
-    import_bundle(root / "source", root / "bundles")
-    service = ProductionSemanticExplanationService.load_once(bundle_dir=root / "bundles")
+    service = ProductionSemanticExplanationService.load_once(model_dir=root / "source")
     return service, inputs, model, imputer
 
 

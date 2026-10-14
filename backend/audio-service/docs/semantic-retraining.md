@@ -214,20 +214,28 @@ DEFAULT_THRESHOLD = float(training_metadata['decision_threshold'])
 6. Add the same three contract fields from step 4 to `run_metadata` before it
    is written in the analysis metadata cell (zero-based cell 46).
 
-## 7. Import the retrained bundle into the backend
+## 7. Replace the backend model files manually
 
-Copy the complete new model export folder to your local machine, then run from
-`audio-service`:
+Stop the backend and copy these four matching files from the new training run
+directly into `audio-service/app/voice_xai/semantic/artifacts/`:
 
-```powershell
-.\.venv\Scripts\python.exe -m app.voice_xai.semantic.import_bundle --source "D:\Models\asv2019_shared_fullclip_reg50_v2\model"
-```
+- `surrogate_xgboost.json`
+- `imputer.joblib`
+- `feature_columns.json`
+- `training_metadata.json`
 
-Restart the backend. The importer validates the new contract, model, fitted
-imputer, and prediction/SHAP reconstruction before switching `active.json`.
-It rejects unversioned or old preprocessing metadata. Existing immutable model
-files are retained unchanged, and an invalid import does not replace the active
-reference. With real XAI enabled, the old v1 bundle cannot start the new service.
+If the downloaded imputer has a suffix such as `(1)`, rename it to
+`imputer.joblib`. Replace optional teacher/fusion/selected-feature companion
+files with the matching exports, or remove obsolete companions. Keep any
+backups outside the configured model directory.
+
+Restart the backend. `XAI_SEMANTIC_MODEL_DIR` selects the fixed directory and
+defaults to the path above. Startup validates the preprocessing contract,
+feature order, regressor, fitted imputer, optional provenance, and a real
+prediction/SHAP reconstruction. Old preprocessing metadata and incomplete model
+folders are rejected. Model version and explanation-cache identity are derived
+automatically from the files; there is no import command or manifest to generate.
+With real XAI enabled, the old v1 model still cannot start the new service.
 
 For final parity verification, use the same original audio on both machines and
 compare all 165 raw and imputed values, raw prediction, clipped probability, and

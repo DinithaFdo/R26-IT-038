@@ -657,19 +657,21 @@ def test_xai_configuration_hash_ignores_filesystem_relocation(tmp_path: Path) ->
     second = tmp_path / "nested" / "second"
     first.mkdir()
     second.mkdir(parents=True)
-    (first / "bundle_manifest.json").write_text('{"same": true}', encoding="utf-8")
-    (second / "bundle_manifest.json").write_text('{"same": true}', encoding="utf-8")
+    for name in ["surrogate_xgboost.json", "imputer.joblib", "feature_columns.json", "training_metadata.json"]:
+        (first / name).write_bytes(b"same model bytes")
+        (second / name).write_bytes(b"same model bytes")
     original = Settings(
         _env_file=None,
         xai_mode="real",
-        xai_semantic_bundle_dir=str(first),
+        xai_semantic_model_dir=str(first),
     )
     relocated = Settings(
         _env_file=None,
         xai_mode="real",
-        xai_semantic_bundle_dir=str(second),
+        xai_semantic_model_dir=str(second),
     )
 
+    assert _configuration_hash_payload(original)["semantic_model_identity"] is not None
     assert _configuration_hash(original) == _configuration_hash(relocated)
 
 

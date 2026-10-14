@@ -206,7 +206,7 @@ Ensures millisecond-level precision in frontend player alignment.
 
 ### XGBoost Surrogate Model
 - Trained to mimic primary classifier decisions on physical acoustic features.
-- Model version follows the active imported model bundle; retraining with the same feature contract requires no code edits.
+- Model version follows the files in the configured model directory; retraining with the same feature contract requires no code edits.
 
 ### SHAP TreeExplainer Integration
 - Fast exact SHAP calculation for tree ensembles.
@@ -221,7 +221,7 @@ Ensures millisecond-level precision in frontend player alignment.
 - 148 base acoustic features plus 17 additional selected-20 names (3 overlaps retained).
 - Full-clip XGBRegressor approximates the four-branch teacher spoof probability.
 - Tree SHAP explains raw regression output; reported probability is clipped to [0,1].
-- Import retrained bundles with `python -m app.voice_xai.semantic.import_bundle --source MODEL_FOLDER`, then restart.
+- Stop the backend, replace matching model/imputer/feature-column/metadata files in `XAI_SEMANTIC_MODEL_DIR`, then restart.
 - Current model R² comes from its training metadata; see `docs/semantic-pipeline.md`.
 
 ### Feature Importance Ranking

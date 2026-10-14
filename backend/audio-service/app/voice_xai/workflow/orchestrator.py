@@ -1212,7 +1212,7 @@ def _configuration_hash_inputs() -> list[str]:
 
 _CONFIGURATION_HASH_INPUTS = (
     "pipeline_version",
-    "semantic_bundle_identity",
+    "semantic_model_identity",
     "semantic_extractor_version",
     "semantic_feature_schema_version",
     "mode",
@@ -1232,16 +1232,15 @@ _CONFIGURATION_HASH_INPUTS = (
 
 
 def _configuration_hash_payload(settings: Settings) -> dict[str, object]:
-    from app.voice_xai.semantic.artifact_loader import file_hash, resolve_bundle
+    from app.voice_xai.semantic.artifact_loader import model_fingerprint
     from app.voice_xai.semantic.schema import FEATURE_EXTRACTION_VERSION, FEATURE_SCHEMA_VERSION
     try:
-        directory = resolve_bundle(settings.resolve_xai_artifact_path(settings.xai_semantic_bundle_dir))
-        bundle_identity = file_hash(directory / "bundle_manifest.json")
+        model_identity = model_fingerprint(settings.resolve_xai_artifact_path(settings.xai_semantic_model_dir))
     except (OSError, ValueError):
-        bundle_identity = None
+        model_identity = None
     return {
         "pipeline_version": settings.xai_pipeline_version,
-        "semantic_bundle_identity": bundle_identity,
+        "semantic_model_identity": model_identity,
         "semantic_extractor_version": FEATURE_EXTRACTION_VERSION,
         "semantic_feature_schema_version": FEATURE_SCHEMA_VERSION,
         "mode": settings.xai_mode,

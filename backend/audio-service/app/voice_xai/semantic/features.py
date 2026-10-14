@@ -26,9 +26,6 @@ class FeatureExtractionResult:
     extractor_version: str
     metadata: dict
 
-    def as_feature_mapping(self):
-        return dict(zip(self.feature_names, map(float, self.values), strict=True))
-
 class AcousticFeatureExtractor:
     """Compute all feature groups from one full cleaned waveform."""
     def extract_file(self, path: Path) -> FeatureExtractionResult:

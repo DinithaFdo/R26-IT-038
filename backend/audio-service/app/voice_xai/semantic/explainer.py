@@ -16,12 +16,12 @@ def build_semantic_explanation(evidence, artifacts):
         name = FEATURE_NAMES[index]
         value = float(evidence.shap_values[index])
         contributions.append(SemanticFeatureContribution(
-            rank=rank, feature_name=name, display_name=label_for_feature(name).display_name,
+            rank=rank, feature_name=name, display_name=label_for_feature(name),
             value=float(evidence.feature_values[index]), shap_value=value,
             direction=ShapDirection.toward_spoof if value > 0 else ShapDirection.toward_bonafide if value < 0 else ShapDirection.neutral,
         ))
     fidelity = artifacts.fidelity()
-    metric = MetricEvidence(status=MetricStatus.available, value=fidelity[0], scope="offline_validation", dataset_version=f"Current model test export (n={fidelity[1]})") if fidelity else MetricEvidence(status=MetricStatus.not_computed, scope="offline_validation", reason="This model bundle has no valid test fidelity metadata.")
+    metric = MetricEvidence(status=MetricStatus.available, value=fidelity[0], scope="offline_validation", dataset_version=f"Current model test export (n={fidelity[1]})") if fidelity else MetricEvidence(status=MetricStatus.not_computed, scope="offline_validation", reason="This model export has no valid test fidelity metadata.")
     warning = "Tree SHAP explains the surrogate raw score before clipping. It approximates the teacher and provides no time localisation."
     if evidence.imputed_feature_count:
         warning += f" {evidence.imputed_feature_count} missing features used training medians."

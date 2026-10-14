@@ -44,7 +44,7 @@ voice_xai/
 ```
 
 Model training runs separately from the runtime package. Semantic inference
-loads validated model exports from the configured bundle directory.
+loads validated model exports from the configured fixed model directory.
 
 ## Current request and response flow
 
@@ -78,7 +78,7 @@ loads validated model exports from the configured bundle directory.
    a single full cleaned waveform decoded from the original upload bytes. The
    acoustic and Glottal measurements share that waveform without duration cropping.
    The fitted median imputer and regressor come
-   from the active versioned bundle. Tree SHAP explains its raw regression
+   from the fixed model directory at startup. Tree SHAP explains its raw regression
    score; the clip probability is clipped to [0,1].
    All 165 contributions are clip-level, without semantic windows. Quality
    reads this model's optional fidelity metadata; evaluation eligibility remains

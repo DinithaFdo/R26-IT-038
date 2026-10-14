@@ -241,9 +241,9 @@ def test_settings_reject_invalid_model_mode() -> None:
         Settings(_env_file=None, cnn_model_mode="experimental")
 
 
-def test_settings_require_semantic_bundle_for_real_xai_mode():
-    with pytest.raises(ValidationError, match="XAI_SEMANTIC_BUNDLE_DIR"):
-        Settings(_env_file=None, xai_enabled=True, xai_mode="real", xai_semantic_bundle_dir="")
+def test_settings_require_semantic_model_directory_for_real_xai_mode():
+    with pytest.raises(ValidationError, match="XAI_SEMANTIC_MODEL_DIR"):
+        Settings(_env_file=None, xai_enabled=True, xai_mode="real", xai_semantic_model_dir="")
 
 
 def test_settings_reject_wildcard_origin_in_production() -> None:

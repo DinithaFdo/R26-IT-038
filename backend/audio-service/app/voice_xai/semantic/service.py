@@ -5,7 +5,7 @@ predict the raw regression score, and verify that SHAP reconstructs that score.
 """
 from pathlib import Path
 import numpy as np
-from app.voice_xai.semantic.artifact_loader import SemanticArtifactCompatibilityError, load_production_semantic_artifacts, resolve_bundle
+from app.voice_xai.semantic.artifact_loader import SemanticArtifactCompatibilityError, load_production_semantic_artifacts, model_fingerprint
 from app.voice_xai.semantic.contracts import SemanticAnalysisResult, SemanticEvidence
 from app.voice_xai.semantic.features import AcousticFeatureExtractor
 from app.voice_xai.semantic.schema import FEATURE_NAMES, FEATURE_EXTRACTION_VERSION
@@ -40,22 +40,23 @@ class XgboostShapEvidenceProvider:
         return evidence
 
 class ProductionSemanticExplanationService:
-    """One loaded immutable model bundle; restart after activating a new bundle."""
+    """Keep one validated model in memory until the backend restarts."""
     def __init__(self, artifacts, *, feature_extractor=None):
         self.artifacts = artifacts
         self._provider = XgboostShapEvidenceProvider(artifacts)
         self._feature_extractor = feature_extractor or AcousticFeatureExtractor()
-        self._bundle_root = None
 
     @classmethod
-    def load_once(cls, *, bundle_dir: Path):
-        service = cls(load_production_semantic_artifacts(bundle_dir))
-        service._bundle_root = bundle_dir.resolve()
-        return service
+    def load_once(cls, *, model_dir: Path):
+        return cls(load_production_semantic_artifacts(model_dir))
 
     def analyze(self, inference):
-        if self._bundle_root is not None and resolve_bundle(self._bundle_root) != self.artifacts.directory:
-            raise SemanticArtifactCompatibilityError("A new model bundle is active. Restart the backend before creating explanations.")
+        try:
+            current = model_fingerprint(self.artifacts.directory)
+        except SemanticArtifactCompatibilityError as error:
+            raise SemanticArtifactCompatibilityError("Model files changed or are incomplete. Restart after replacing the complete model export.") from error
+        if current != self.artifacts.fingerprint:
+            raise SemanticArtifactCompatibilityError("Model files changed. Restart the backend before creating explanations.")
         features = inference.acoustic_features
         if features is None:
             if inference.processed_audio is None:

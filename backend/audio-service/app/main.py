@@ -176,7 +176,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             and app.state.load_xai_semantic_on_startup
         ):
             semantic_service = ProductionSemanticExplanationService.load_once(
-                bundle_dir=app_settings.resolve_xai_artifact_path(app_settings.xai_semantic_bundle_dir),
+                model_dir=app_settings.resolve_xai_artifact_path(app_settings.xai_semantic_model_dir),
             )
             app.state.xai_orchestrator.set_semantic_service(semantic_service)
         yield

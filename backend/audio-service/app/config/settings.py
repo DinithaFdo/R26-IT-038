@@ -143,7 +143,7 @@ class Settings(BaseSettings):
     xai_spectrogram_n_fft: int = Field(default=512, ge=128, le=4096)
     xai_spectrogram_hop_length: int = Field(default=160, ge=1, le=4096)
     xai_spectrogram_max_frames: int = Field(default=900, ge=32, le=2000)
-    xai_semantic_bundle_dir: str = "app/voice_xai/semantic/artifacts"
+    xai_semantic_model_dir: str = "app/voice_xai/semantic/artifacts"
     # Optional post-processing only: this client receives compact validated
     # XAI evidence, never raw audio or classifier inputs. It is disabled by
     # default so normal prediction and deterministic-report behaviour stays
@@ -524,8 +524,8 @@ class Settings(BaseSettings):
                     "OpenAI-compatible base URL ending in /compatible-mode/v1."
                 )
         if self.xai_enabled and self.xai_mode == "real":
-            if not self.xai_semantic_bundle_dir.strip():
-                raise ValueError("XAI_SEMANTIC_BUNDLE_DIR is required for real XAI.")
+            if not self.xai_semantic_model_dir.strip():
+                raise ValueError("XAI_SEMANTIC_MODEL_DIR is required for real XAI.")
         if not self.xai_pipeline_version.strip():
             raise ValueError("XAI_PIPELINE_VERSION must be configured.")
         if not self.xai_artifact_root.strip():
