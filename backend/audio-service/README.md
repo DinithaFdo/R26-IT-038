@@ -308,6 +308,11 @@ For real explanations, enable `XAI_ENABLED=true`, set `XAI_MODE=real`, and set
 paths resolve from `audio-service`. The semantic service uses a 165-feature
 teacher surrogate with raw-score Tree SHAP.
 
+All semantic features use one full cleaned waveform with no six-second crop.
+This requires a retrained `shared-clean-fullclip-audio-v2` model; the previous
+model bundle is rejected. Follow [the retraining steps](docs/semantic-retraining.md)
+to rebuild inputs with the portable backend extractor.
+
 To use a retrained model, export its model folder and run from `audio-service`:
 
 ```powershell

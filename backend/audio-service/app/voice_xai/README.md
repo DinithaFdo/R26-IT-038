@@ -71,12 +71,13 @@ loads validated model exports from the configured bundle directory.
 7. `workflow.queue.AsynchronousExplanationQueue` runs the explanation in the
    background. The orchestrator records an independent explanation run.
 8. The temporal service consumes only reduced XLS-R evidence and creates a
-   private visualisation artifact; it never reruns XLS-R. For clips longer
-   than six seconds, that evidence is created in the classifier worker from
-   six-second windows with a three-second stride and cosine-weighted overlap
-   fusion. The
+   private visualisation artifact; it never reruns XLS-R. The classifier's
+   six-second centre crop retains its offset in the original audio timeline.
+   The
    semantic service runs the 165-feature teacher surrogate on
-   the original upload bytes. The fitted median imputer and regressor come
+   a single full cleaned waveform decoded from the original upload bytes. The
+   acoustic and Glottal measurements share that waveform without duration cropping.
+   The fitted median imputer and regressor come
    from the active versioned bundle. Tree SHAP explains its raw regression
    score; the clip probability is clipped to [0,1].
    All 165 contributions are clip-level, without semantic windows. Quality

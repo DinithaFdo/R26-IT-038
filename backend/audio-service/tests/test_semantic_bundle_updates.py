@@ -1,7 +1,5 @@
 """A retrained model activates without changing source or a hardcoded R²."""
-from pathlib import Path
 import json
-import shutil
 from types import SimpleNamespace
 import numpy as np
 import pandas as pd
@@ -14,13 +12,12 @@ from app.voice_xai.semantic.features import FeatureExtractionResult
 from app.voice_xai.semantic.schema import FEATURE_NAMES,FEATURE_EXTRACTION_VERSION
 from app.voice_xai.semantic.service import ProductionSemanticExplanationService
 from app.voice_xai.workflow.orchestrator import _configuration_hash
-
-ROOT=Path(__file__).parents[1]/"app/voice_xai/semantic/artifacts"
+from tests.semantic_support import write_model_export
 
 @pytest.fixture
 def source(tmp_path):
     path=tmp_path/"export"
-    shutil.copytree(resolve_bundle(ROOT),path)
+    write_model_export(path)
     return path
 
 def test_retrained_model_and_new_r2_replace_as_one_bundle(source,tmp_path):
@@ -48,7 +45,7 @@ def test_retrained_model_and_new_r2_replace_as_one_bundle(source,tmp_path):
     result=new.analyze(SimpleNamespace(acoustic_features=features)).explanation
     assert result.model_version==second
     assert result.fidelity_r2.value==0.93
-    assert first.startswith("asv2019_selected20_aligned_reg50_v1-")
+    assert first.startswith("fullclip-test-v2-")
     assert len(list((destination/"bundles").iterdir()))==2
 
 def test_invalid_update_preserves_active_model(source,tmp_path):
@@ -68,7 +65,7 @@ def test_import_without_fidelity_still_runs(source,tmp_path,null_metric):
     if null_metric:
         metadata["primary_test_fidelity"] = None
     if null_metric == "nan":
-        metadata["primary_test_fidelity"] = {"r2": float("nan"), "n": 3991}
+        metadata["primary_test_fidelity"] = {"r2": float("nan"), "n": 12}
     (source/"training_metadata.json").write_text(json.dumps(metadata))
     destination=tmp_path/"models"
     import_bundle(source,destination)
@@ -104,3 +101,48 @@ def test_binary_classifier_export_cannot_activate(source,tmp_path):
     with pytest.raises(SemanticArtifactCompatibilityError,match="Expected a 165-feature XGBRegressor"):
         import_bundle(source,destination)
     assert (destination/"active.json").read_bytes()==pointer
+
+
+@pytest.mark.parametrize("field", ["extractor_version", "feature_schema_version", "preprocessing"])
+def test_missing_fullclip_contract_cannot_relabel_old_exports(source, tmp_path, field):
+    destination = tmp_path / "models"
+    import_bundle(source, destination)
+    pointer = (destination / "active.json").read_bytes()
+    metadata = json.loads((source / "training_metadata.json").read_text())
+    metadata.pop(field)
+    (source / "training_metadata.json").write_text(json.dumps(metadata))
+    with pytest.raises(SemanticArtifactCompatibilityError, match="Re-extract training features"):
+        import_bundle(source, destination)
+    assert (destination / "active.json").read_bytes() == pointer
+
+
+def test_existing_v1_bundle_requires_retraining(source, tmp_path):
+    destination = tmp_path / "models"
+    import_bundle(source, destination)
+    directory = resolve_bundle(destination)
+    manifest = json.loads((directory / "bundle_manifest.json").read_text())
+    manifest["bundle_version"] = "notebook-surrogate-bundle-v1"
+    manifest["extractor_version"] = "selected20-aligned-audio-v1"
+    (directory / "bundle_manifest.json").write_text(json.dumps(manifest))
+    with pytest.raises(SemanticArtifactCompatibilityError, match="retrained v2 bundle"):
+        load_production_semantic_artifacts(directory)
+
+
+@pytest.mark.parametrize("setting,value", [("crop_seconds", 6.0), ("disvoice_input", "original_audio_pcm16")])
+def test_wrong_preprocessing_cannot_activate(source, tmp_path, setting, value):
+    destination = tmp_path / "models"
+    import_bundle(source, destination)
+    pointer = (destination / "active.json").read_bytes()
+    metadata = json.loads((source / "training_metadata.json").read_text())
+    metadata["preprocessing"][setting] = value
+    (source / "training_metadata.json").write_text(json.dumps(metadata))
+    with pytest.raises(SemanticArtifactCompatibilityError, match="Re-extract training features"):
+        import_bundle(source, destination)
+    assert (destination / "active.json").read_bytes() == pointer
+
+
+def test_configuration_cache_includes_extraction_version(monkeypatch):
+    settings = Settings(_env_file=None)
+    first = _configuration_hash(settings)
+    monkeypatch.setattr("app.voice_xai.semantic.schema.FEATURE_EXTRACTION_VERSION", "different-extractor")
+    assert _configuration_hash(settings) != first

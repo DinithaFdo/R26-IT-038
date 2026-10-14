@@ -3,8 +3,22 @@
 Define the 165-feature inference contract and selected 20 Glottal names shared
 by feature extraction, artifact validation, and explanation serialization.
 """
-FEATURE_EXTRACTION_VERSION = "selected20-aligned-audio-v1"
-FEATURE_SCHEMA_VERSION = "selected20-aligned-165-v1"
+FEATURE_EXTRACTION_VERSION = "shared-clean-fullclip-audio-v2"
+FEATURE_SCHEMA_VERSION = "shared-clean-fullclip-165-v2"
+PREPROCESSING_CONTRACT = {
+    "sample_rate": 16000,
+    "mono": True,
+    "decoder": "soundfile",
+    "resample_method": "kaiser_fast",
+    "remove_dc_offset": True,
+    "silence_trim_top_db": 35,
+    "peak_normalization": True,
+    "minimum_clean_duration_seconds": 0.2,
+    "analysis_scope": "full_cleaned_clip",
+    "crop_seconds": None,
+    "disvoice_input": "shared_cleaned_waveform_pcm16",
+    "overlap_policy": "retain_base_acoustic_value",
+}
 FEATURE_NAMES = ('jitter',
  'shimmer',
  'hnr',

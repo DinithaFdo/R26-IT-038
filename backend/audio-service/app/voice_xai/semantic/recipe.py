@@ -1,8 +1,8 @@
 """Signal processing functions for acoustic and selected Glottal features.
 
-Compute 148 base measurements from a six-second acoustic crop and 20 selected
-measurements through a separate full-source Glottal path. The extractor merges
-these groups into 165 unique model inputs while retaining shared base values.
+Decode and clean the full clip once, then use that same waveform for all 148
+base measurements and 20 selected Glottal measurements. Merge these groups into
+165 unique model inputs while retaining shared base values.
 """
 from pathlib import Path
 import os
@@ -16,12 +16,10 @@ from parselmouth.praat import call
 from scipy.fft import dct, rfft, irfft
 from scipy.signal import get_window
 from scipy.stats import linregress
-from app.voice_xai.semantic.runtime import load_glottal_class
-from app.voice_xai.semantic.schema import SELECTED20
-Glottal = load_glottal_class()
+from functools import lru_cache
+from .runtime import load_glottal_class
+from .schema import FEATURE_NAMES, PREPROCESSING_CONTRACT, SELECTED20
 TARGET_SR = 16000
-MAX_AUDIO_SECONDS = 6.0
-MAX_AUDIO_SAMPLES = 96000
 
 
 
@@ -33,27 +31,27 @@ def safe_float(v, default=np.nan):
     except Exception:
         return default
 
-def center_crop(y, max_samples=MAX_AUDIO_SAMPLES):
-    if len(y) <= max_samples:
-        return y
-    start = (len(y) - max_samples) // 2
-    return y[start:start + max_samples]
-
 def prepare_audio(y, sr):
+    """Clean a full decoded clip once; never crop or pad the source duration."""
     y = np.asarray(y, dtype=np.float32)
     if y.ndim == 2:
         y = y.mean(axis=1)
-    if y.size == 0:
-        raise ValueError('empty audio')
+    if y.ndim != 1 or y.size == 0 or sr <= 0:
+        raise ValueError('Expected non-empty audio and a positive sample rate.')
+    y = np.nan_to_num(y, nan=0.0, posinf=0.0, neginf=0.0)
     if sr != TARGET_SR:
         y = librosa.resample(y, orig_sr=sr, target_sr=TARGET_SR, res_type='kaiser_fast')
         sr = TARGET_SR
     y = np.nan_to_num(y, nan=0.0, posinf=0.0, neginf=0.0)
     y = y - np.mean(y)
-    y = center_crop(y)
-    if len(y) < int(0.2 * sr):
+    y, _ = librosa.effects.trim(y, top_db=PREPROCESSING_CONTRACT['silence_trim_top_db'])
+    if len(y) < int(PREPROCESSING_CONTRACT['minimum_clean_duration_seconds'] * sr):
         raise ValueError('audio too short after preprocessing')
-    return (y.astype(np.float32), sr)
+    peak = float(np.max(np.abs(y)))
+    if not np.isfinite(peak) or peak <= 1e-8:
+        raise ValueError('Audio is silent after preprocessing.')
+    y = np.ascontiguousarray(y / peak, dtype=np.float32)
+    return y, sr
 
 def load_audio_path(path):
     y, sr = sf.read(str(path), dtype='float32', always_2d=False)
@@ -89,8 +87,6 @@ def compute_framewise_cpp(y, sr, frame_ms=40, hop_ms=10, f0_min=60.0, f0_max=500
     if len(y) < frame_len:
         y = np.pad(y, (0, frame_len - len(y)))
     frames = librosa.util.frame(y, frame_length=frame_len, hop_length=hop).T
-    if len(frames) > 1000:
-        frames = frames[:1000]
     window = get_window('hann', frame_len, fftbins=True)
     q = np.arange(frame_len) / sr
     q_search = (q >= 1.0 / f0_max) & (q <= 1.0 / f0_min)
@@ -168,7 +164,7 @@ def pause_features_from_rms(rms, hop_length, sr, silence_db=-40.0, min_pause_s=0
     return {'pause_ratio': float(np.mean(silent)), 'pause_count': float(len(durations)), 'pause_mean_duration': float(np.mean(durations)) if durations else 0.0, 'pause_max_duration': float(np.max(durations)) if durations else 0.0}
 
 def extract_acoustic_features(y, sr):
-    y, sr = prepare_audio(y, sr)
+    """Measure the full shared waveform without applying preprocessing again."""
     out = {}
     hop = 160
     n_fft = 512
@@ -225,7 +221,6 @@ def extract_acoustic_features(y, sr):
     out['cpp_mean'] = float(np.mean(cpp)) if len(cpp) else np.nan
     out['cpp_std'] = float(np.std(cpp)) if len(cpp) else np.nan
     out.update(pause_features_from_rms(rms, hop, sr, silence_db=-40.0, min_pause_s=0.15))
-    out['duration_s'] = float(len(y) / sr)
     return out
 
 
@@ -237,25 +232,9 @@ def normalize_disvoice_name(name):
     name = re.sub('[^a-z0-9_]', '', name)
     return f'glottal_{name}'
 DISVOICE_FEATURE_NAMES = [normalize_disvoice_name(name) for name in DISVOICE_RAW_NAMES]
-GLOTTAL_EXTRACTOR = Glottal()
-
-def preprocess_glottal_audio(audio_path, target_sr=16000, trim_silence=True):
-    audio_path = Path(audio_path)
-    if not audio_path.exists():
-        raise FileNotFoundError(audio_path)
-    y, _ = librosa.load(str(audio_path), sr=target_sr, mono=True)
-    y = np.asarray(y, dtype=np.float32)
-    if y.size == 0:
-        raise ValueError(f'Empty audio: {audio_path}')
-    y = y - np.mean(y)
-    if trim_silence:
-        y, _ = librosa.effects.trim(y, top_db=35)
-    if y.size == 0:
-        raise ValueError(f'Audio became empty after silence trimming: {audio_path}')
-    peak = np.max(np.abs(y))
-    if peak > 0:
-        y = y / peak
-    return (y.astype(np.float32), target_sr)
+@lru_cache(maxsize=1)
+def _get_glottal_extractor():
+    return load_glottal_class()()
 
 def extract_glottal_voice_quality(audio, sr=16000):
     features = {}
@@ -316,21 +295,14 @@ def extract_glottal_spectral_features(y, sr=16000):
         features['spectral_centroid_std'] = np.nan
     return features
 
-def glottal_convert_to_temp_wav(audio_path, target_sr=16000):
-    y, _ = librosa.load(str(audio_path), sr=target_sr, mono=True)
-    if y.size == 0:
-        raise ValueError(f'Empty DisVoice audio: {audio_path}')
-    tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
-    tmp_path = tmp.name
-    tmp.close()
-    sf.write(tmp_path, y, target_sr, subtype='PCM_16')
-    return tmp_path
-
-def extract_disvoice_glottal_exact(audio_path):
+def extract_disvoice_glottal_exact(y, sr=TARGET_SR):
+    """Encode the shared waveform as PCM16 only for DisVoice's file interface."""
     temp_wav = None
     try:
-        temp_wav = glottal_convert_to_temp_wav(audio_path, target_sr=16000)
-        values = GLOTTAL_EXTRACTOR.extract_features_file(temp_wav, static=True, plots=False, fmt='npy')
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as handle:
+            temp_wav = handle.name
+        sf.write(temp_wav, y, sr, subtype='PCM_16')
+        values = _get_glottal_extractor().extract_features_file(temp_wav, static=True, plots=False, fmt='npy')
         values = np.asarray(values, dtype=np.float64).flatten()
         if len(values) != 36:
             raise ValueError(f'Expected 36 DisVoice features, got {len(values)}')
@@ -342,18 +314,18 @@ def extract_disvoice_glottal_exact(audio_path):
         if temp_wav is not None and os.path.exists(temp_wav):
             os.remove(temp_wav)
 
-def extract_complete_glottal_features_exact(audio_path):
-    y, sr = preprocess_glottal_audio(audio_path, target_sr=16000, trim_silence=True)
+def extract_complete_glottal_features_exact(y, sr=TARGET_SR):
+    """Use one prepared waveform for voice-quality, spectral, and DisVoice values."""
     features = {}
     features.update(extract_glottal_voice_quality(y, sr))
     features.update(extract_glottal_spectral_features(y, sr))
-    disvoice_values = extract_disvoice_glottal_exact(audio_path)
+    disvoice_values = extract_disvoice_glottal_exact(y, sr)
     for name, value in zip(DISVOICE_FEATURE_NAMES, disvoice_values):
         features[name] = float(value)
     return features
 
-def extract_selected20_features_exact(audio_path):
-    all_features = extract_complete_glottal_features_exact(audio_path)
+def extract_selected20_features_exact(y, sr=TARGET_SR):
+    all_features = extract_complete_glottal_features_exact(y, sr)
     selected = {}
     for feature_name in SELECTED20:
         if feature_name not in all_features:
@@ -366,5 +338,23 @@ def extract_selected20_features_exact(audio_path):
         raise RuntimeError(f'Expected 20 selected Glottal features, got {len(selected)}')
     return selected
 
-def reconstructed_glottal20(audio_path):
-    return extract_selected20_features_exact(audio_path)
+def extract_feature_mapping(y, sr=TARGET_SR):
+    """Merge full-clip feature groups in model order, retaining shared base names."""
+    if sr != TARGET_SR or y.ndim != 1 or not np.isfinite(y).all():
+        raise ValueError('Expected a finite, prepared mono waveform at 16 kHz.')
+    combined = extract_acoustic_features(y, sr)
+    for name, value in extract_selected20_features_exact(y, sr).items():
+        if name not in combined:
+            combined[name] = value
+    return {name: float(combined[name]) if np.isfinite(combined[name]) else np.nan
+            for name in FEATURE_NAMES}
+
+
+def extract_surrogate_165_features(audio_path, expected_feature_columns=None):
+    """Extract one ordered DataFrame for training and standalone inference."""
+    import pandas as pd
+    columns = FEATURE_NAMES if expected_feature_columns is None else tuple(expected_feature_columns)
+    if columns != FEATURE_NAMES:
+        raise ValueError('Expected the exact semantic model 165-feature order.')
+    y, sr = load_audio_path(Path(audio_path))
+    return pd.DataFrame([extract_feature_mapping(y, sr)], columns=columns)

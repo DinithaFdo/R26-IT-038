@@ -18,9 +18,9 @@ import tempfile
 from app.voice_xai.semantic.artifact_loader import (
     BUNDLE_VERSION, OPTIONAL_FILES, REQUIRED_FILES,
     SemanticArtifactCompatibilityError, file_hash,
-    load_production_semantic_artifacts, read_json,
+    load_production_semantic_artifacts, read_json, validate_training_contract,
 )
-from app.voice_xai.semantic.schema import FEATURE_EXTRACTION_VERSION
+from app.voice_xai.semantic.schema import FEATURE_EXTRACTION_VERSION, FEATURE_SCHEMA_VERSION
 
 
 def import_bundle(source: Path, destination: Path, *, imputer_name="imputer.joblib") -> str:
@@ -32,6 +32,9 @@ def import_bundle(source: Path, destination: Path, *, imputer_name="imputer.jobl
         original = imputer_name if name == "imputer.joblib" else name
         if not (source / original).is_file():
             raise SemanticArtifactCompatibilityError(f"Missing required model export: {original}.")
+    # Validate the source declaration before creating or activating any bundle.
+    # A new manifest must never relabel exports trained with an older extractor.
+    validate_training_contract(read_json(source / "training_metadata.json"))
     destination.mkdir(parents=True, exist_ok=True)
     versions = destination / "bundles"
     versions.mkdir(exist_ok=True)
@@ -60,6 +63,7 @@ def import_bundle(source: Path, destination: Path, *, imputer_name="imputer.jobl
             "bundle_version": BUNDLE_VERSION,
             "model_version": version,
             "extractor_version": FEATURE_EXTRACTION_VERSION,
+            "feature_schema_version": FEATURE_SCHEMA_VERSION,
             "prediction_transform": "clip_raw",
             "files": hashes,
         }

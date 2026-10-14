@@ -217,7 +217,7 @@ Ensures millisecond-level precision in frontend player alignment.
 - **Negative SHAP value (< 0):** Pushes prediction towards **Bonafide**.
 
 ### Acoustic 165-Feature Contract
-- Separate base acoustic and selected-20 Glottal extraction paths.
+- One shared full-clip waveform for acoustic and selected-20 Glottal extraction: mono/16 kHz, DC removal, silence trimming, and peak normalization.
 - 148 base acoustic features plus 17 additional selected-20 names (3 overlaps retained).
 - Full-clip XGBRegressor approximates the four-branch teacher spoof probability.
 - Tree SHAP explains raw regression output; reported probability is clipped to [0,1].

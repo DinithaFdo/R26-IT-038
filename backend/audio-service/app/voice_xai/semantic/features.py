@@ -1,6 +1,6 @@
 """Extract the ordered 165-feature input from original source audio.
 
-Combine cropped acoustic measurements with full-source Glottal measurements,
+Decode and clean the whole clip once for both acoustic and Glottal measurements,
 preserve base values for shared names, and mark non-finite values for imputation.
 """
 from dataclasses import dataclass
@@ -30,22 +30,19 @@ class FeatureExtractionResult:
         return dict(zip(self.feature_names, map(float, self.values), strict=True))
 
 class AcousticFeatureExtractor:
-    """Combine the acoustic and Glottal paths while preserving their preprocessing."""
+    """Compute all feature groups from one full cleaned waveform."""
     def extract_file(self, path: Path) -> FeatureExtractionResult:
         with _LOCK:
             from app.voice_xai.semantic import recipe
             y, sr = recipe.load_audio_path(path)
-            combined = recipe.extract_acoustic_features(y, sr)
-            selected = recipe.extract_selected20_features_exact(path)
-            for name, value in selected.items():
-                if name not in combined:
-                    combined[name] = value
+            combined = recipe.extract_feature_mapping(y, sr)
             values = np.asarray([combined[name] for name in FEATURE_NAMES], dtype=np.float64)
             values[~np.isfinite(values)] = np.nan
             return FeatureExtractionResult(
                 FEATURE_NAMES, values, sr, len(y) / sr, FEATURE_EXTRACTION_VERSION,
                 {"feature_count": len(FEATURE_NAMES), "analysis_scope": "whole_clip",
-                 "acoustic_crop_seconds": 6.0, "glottal_scope": "full_original_audio"},
+                 "preprocessing_scope": "shared_full_cleaned_clip",
+                 "acoustic_crop_seconds": None, "glottal_scope": "full_cleaned_clip"},
             )
 
     def extract_processed_audio(self, audio: ProcessedAudio) -> FeatureExtractionResult:

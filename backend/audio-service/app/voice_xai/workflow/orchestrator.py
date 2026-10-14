@@ -1213,6 +1213,8 @@ def _configuration_hash_inputs() -> list[str]:
 _CONFIGURATION_HASH_INPUTS = (
     "pipeline_version",
     "semantic_bundle_identity",
+    "semantic_extractor_version",
+    "semantic_feature_schema_version",
     "mode",
     "temporal_method_version",
     "temporal_threshold_mode",
@@ -1231,6 +1233,7 @@ _CONFIGURATION_HASH_INPUTS = (
 
 def _configuration_hash_payload(settings: Settings) -> dict[str, object]:
     from app.voice_xai.semantic.artifact_loader import file_hash, resolve_bundle
+    from app.voice_xai.semantic.schema import FEATURE_EXTRACTION_VERSION, FEATURE_SCHEMA_VERSION
     try:
         directory = resolve_bundle(settings.resolve_xai_artifact_path(settings.xai_semantic_bundle_dir))
         bundle_identity = file_hash(directory / "bundle_manifest.json")
@@ -1239,6 +1242,8 @@ def _configuration_hash_payload(settings: Settings) -> dict[str, object]:
     return {
         "pipeline_version": settings.xai_pipeline_version,
         "semantic_bundle_identity": bundle_identity,
+        "semantic_extractor_version": FEATURE_EXTRACTION_VERSION,
+        "semantic_feature_schema_version": FEATURE_SCHEMA_VERSION,
         "mode": settings.xai_mode,
         "temporal_method_version": TEMPORAL_METHOD_VERSION,
         "temporal_threshold_mode": TEMPORAL_THRESHOLD_MODE,

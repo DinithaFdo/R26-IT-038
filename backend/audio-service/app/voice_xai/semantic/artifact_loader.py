@@ -11,9 +11,12 @@ from pathlib import Path
 from threading import RLock
 from typing import Any
 import numpy as np
-from app.voice_xai.semantic.schema import FEATURE_NAMES, FEATURE_EXTRACTION_VERSION, SELECTED20
+from app.voice_xai.semantic.schema import (
+    FEATURE_NAMES, FEATURE_EXTRACTION_VERSION, FEATURE_SCHEMA_VERSION,
+    PREPROCESSING_CONTRACT, SELECTED20,
+)
 
-BUNDLE_VERSION = "notebook-surrogate-bundle-v1"
+BUNDLE_VERSION = "semantic-surrogate-bundle-v2"
 REQUIRED_FILES = {"surrogate_xgboost.json", "feature_columns.json", "imputer.joblib", "training_metadata.json"}
 OPTIONAL_FILES = {"probability_calibrator.joblib", "teacher_fusion.json", "teacher_assets.json", "selected_glottal_features_20.json"}
 _EXPLAINER_LOCK = RLock()
@@ -74,13 +77,31 @@ def resolve_bundle(root: Path) -> Path:
         raise SemanticArtifactCompatibilityError("Active bundle manifest hash mismatch.")
     return directory
 
+def validate_training_contract(metadata):
+    """Require explicit evidence of training with the current extraction contract."""
+    if (not isinstance(metadata, dict)
+            or metadata.get("extractor_version") != FEATURE_EXTRACTION_VERSION
+            or metadata.get("feature_schema_version") != FEATURE_SCHEMA_VERSION
+            or metadata.get("preprocessing") != PREPROCESSING_CONTRACT):
+        raise SemanticArtifactCompatibilityError(
+            "Re-extract training features and retrain the surrogate with the shared "
+            "full-clip preprocessing contract before importing this model. "
+            "Training metadata must declare the matching extractor_version, "
+            "feature_schema_version, and preprocessing settings."
+        )
+
+
 def validate_bundle(directory: Path):
     manifest = read_json(directory / "bundle_manifest.json")
     if (not isinstance(manifest, dict) or manifest.get("bundle_version") != BUNDLE_VERSION
             or manifest.get("extractor_version") != FEATURE_EXTRACTION_VERSION
+            or manifest.get("feature_schema_version") != FEATURE_SCHEMA_VERSION
             or manifest.get("prediction_transform") != "clip_raw"
             or not isinstance(manifest.get("model_version"), str) or not manifest["model_version"]):
-        raise SemanticArtifactCompatibilityError("Unsupported semantic model bundle contract.")
+        raise SemanticArtifactCompatibilityError(
+            "Unsupported semantic model bundle contract. Full-clip extraction requires "
+            "a retrained v2 bundle; import it and restart the backend."
+        )
     files = manifest.get("files", {})
     if not isinstance(files, dict) or not REQUIRED_FILES <= files.keys() or not files.keys() <= REQUIRED_FILES | OPTIONAL_FILES:
         raise SemanticArtifactCompatibilityError("Incomplete or unknown bundle files.")
@@ -92,6 +113,7 @@ def validate_bundle(directory: Path):
     if not isinstance(columns, list) or tuple(columns) != FEATURE_NAMES:
         raise SemanticArtifactCompatibilityError("Expected the exact semantic model 165-feature order.")
     metadata = read_json(directory / "training_metadata.json")
+    validate_training_contract(metadata)
     if (not isinstance(metadata, dict) or metadata.get("model_type") != "XGBRegressor"
             or metadata.get("target") != "teacher_fused_spoof_probability"
             or metadata.get("ground_truth_used_as_training_target") is not False
