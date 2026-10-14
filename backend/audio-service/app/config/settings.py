@@ -143,27 +143,7 @@ class Settings(BaseSettings):
     xai_spectrogram_n_fft: int = Field(default=512, ge=128, le=4096)
     xai_spectrogram_hop_length: int = Field(default=160, ge=1, le=4096)
     xai_spectrogram_max_frames: int = Field(default=900, ge=32, le=2000)
-    xai_semantic_model_path: str = (
-        "app/voice_xai/semantic/artifacts/xgboost_surrogate_v4.json"
-    )
-    xai_semantic_manifest_path: str = (
-        "app/voice_xai/semantic/manifests/xgboost-surrogate-v4.json"
-    )
-    xai_semantic_feature_columns_path: str = (
-        "app/voice_xai/semantic/artifacts/feature_columns_v4.json"
-    )
-    xai_semantic_threshold_path: str = (
-        "app/voice_xai/semantic/artifacts/threshold_v4.json"
-    )
-    xai_semantic_training_metadata_path: str = (
-        "app/voice_xai/semantic/artifacts/training_metadata_v4.json"
-    )
-    xai_semantic_imputer_path: str = (
-        "app/voice_xai/semantic/artifacts/imputer_v4.joblib"
-    )
-    xai_semantic_shap_background_path: str = ""
-    xai_semantic_window_duration_seconds: float = Field(default=1.0, gt=0.0)
-    xai_semantic_window_overlap_seconds: float = Field(default=0.5, ge=0.0)
+    xai_semantic_bundle_dir: str = "app/voice_xai/semantic/artifacts"
     # Optional post-processing only: this client receives compact validated
     # XAI evidence, never raw audio or classifier inputs. It is disabled by
     # default so normal prediction and deterministic-report behaviour stays
@@ -544,17 +524,8 @@ class Settings(BaseSettings):
                     "OpenAI-compatible base URL ending in /compatible-mode/v1."
                 )
         if self.xai_enabled and self.xai_mode == "real":
-            if not self.xai_semantic_manifest_path.strip():
-                raise ValueError("XAI_SEMANTIC_MANIFEST_PATH is required for XAI_MODE=real.")
-            for field_name, value in {
-                "XAI_SEMANTIC_MODEL_PATH": self.xai_semantic_model_path,
-                "XAI_SEMANTIC_FEATURE_COLUMNS_PATH": self.xai_semantic_feature_columns_path,
-                "XAI_SEMANTIC_THRESHOLD_PATH": self.xai_semantic_threshold_path,
-                "XAI_SEMANTIC_TRAINING_METADATA_PATH": self.xai_semantic_training_metadata_path,
-                "XAI_SEMANTIC_IMPUTER_PATH": self.xai_semantic_imputer_path,
-            }.items():
-                if not value.strip():
-                    raise ValueError(f"{field_name} is required for XAI_MODE=real.")
+            if not self.xai_semantic_bundle_dir.strip():
+                raise ValueError("XAI_SEMANTIC_BUNDLE_DIR is required for real XAI.")
         if not self.xai_pipeline_version.strip():
             raise ValueError("XAI_PIPELINE_VERSION must be configured.")
         if not self.xai_artifact_root.strip():
@@ -639,27 +610,10 @@ class Settings(BaseSettings):
                     "production/research until its preprocessing and class "
                     "mapping are verified."
                 )
-        if (
-            self.xai_semantic_window_overlap_seconds
-            >= self.xai_semantic_window_duration_seconds
-        ):
-            raise ValueError(
-                "XAI_SEMANTIC_WINDOW_OVERLAP_SECONDS must be smaller than "
-                "XAI_SEMANTIC_WINDOW_DURATION_SECONDS."
-            )
         step_seconds = self.model_window_duration_seconds - self.model_window_overlap_seconds
         max_segments = int((self.max_audio_duration_seconds / step_seconds) + 2)
         if max_segments > 500:
             raise ValueError("Windowing configuration creates too many segments.")
-        semantic_step_seconds = (
-            self.xai_semantic_window_duration_seconds
-            - self.xai_semantic_window_overlap_seconds
-        )
-        max_semantic_windows = int(
-            (self.max_audio_duration_seconds / semantic_step_seconds) + 2
-        )
-        if max_semantic_windows > 500:
-            raise ValueError("Semantic windowing configuration creates too many windows.")
         if "/" in self.cloudinary_audio_folder.strip("\\"):
             folder_parts = [part for part in self.cloudinary_audio_folder.split("/") if part]
         else:

@@ -138,9 +138,9 @@ async def test_real_p90_temporal_result_is_persisted_without_calibration(
 
 
 @pytest.mark.anyio
-async def test_windowed_semantic_evidence_and_interval_quality_are_persisted(tmp_path: Path) -> None:
+async def test_clip_semantic_evidence_and_quality_are_persisted(tmp_path: Path) -> None:
     settings = Settings(_env_file=None, xai_enabled=True, xai_mode="real")
-    repository = MongoXaiExplanationRepository(FakeDatabase("xai_windowed_run"))
+    repository = MongoXaiExplanationRepository(FakeDatabase("xai_semantic_run"))
     prediction = _prediction()
     bundle = _bundle(prediction, processed_audio=_audio(2.0))
     orchestrator = _orchestrator(repository, settings, tmp_path)
@@ -152,9 +152,9 @@ async def test_windowed_semantic_evidence_and_interval_quality_are_persisted(tmp
         explanation_id=explanation_id, owner_user_id="user-123"
     )
     assert response.semantic is not None
-    assert response.semantic.windows
-    assert response.semantic.windows[0].feature_importance[0].start_seconds == 0.0
-    assert response.quality.temporal_semantic_iou.status.value == "available"
+    assert response.semantic.output_space == "raw_regression"
+    assert response.semantic.target_type.value == "classifier_surrogate"
+    assert response.quality.temporal_semantic_iou.status.value == "not_applicable"
     assert response.development_placeholder is True
     assert response.research_eligible is False
     assert response.provenance.semantic_model_version == response.semantic.model_version
@@ -653,20 +653,21 @@ def test_xai_configuration_hash_changes_for_behavioral_setting() -> None:
 
 
 def test_xai_configuration_hash_ignores_filesystem_relocation(tmp_path: Path) -> None:
-    first = tmp_path / "first.json"
-    second = tmp_path / "nested" / "second.json"
-    second.parent.mkdir()
-    first.write_text('{"same": true}', encoding="utf-8")
-    second.write_text('{"same": true}', encoding="utf-8")
+    first = tmp_path / "first"
+    second = tmp_path / "nested" / "second"
+    first.mkdir()
+    second.mkdir(parents=True)
+    (first / "bundle_manifest.json").write_text('{"same": true}', encoding="utf-8")
+    (second / "bundle_manifest.json").write_text('{"same": true}', encoding="utf-8")
     original = Settings(
         _env_file=None,
         xai_mode="real",
-        xai_semantic_manifest_path=str(first),
+        xai_semantic_bundle_dir=str(first),
     )
     relocated = Settings(
         _env_file=None,
         xai_mode="real",
-        xai_semantic_manifest_path=str(second),
+        xai_semantic_bundle_dir=str(second),
     )
 
     assert _configuration_hash(original) == _configuration_hash(relocated)

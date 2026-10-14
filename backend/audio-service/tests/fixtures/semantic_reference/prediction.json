@@ -1,0 +1,17 @@
+{
+  "analysis_id": "clip_01",
+  "source_group": "wavefake",
+  "filename": "gen_1174.wav",
+  "original_audio_path": "/content/drive/MyDrive/Research/Voice_Deepfake_Datasets/WaveFake/generated_audio/generated_audio/common_voices_prompts_from_conformer_fastspeech2_pwg_ljspeech/generated/gen_1174.wav",
+  "copied_audio_path": "/content/drive/MyDrive/Research/Surrogate-v1/SHAP_analysis/asv2019_selected20_aligned_reg50_v1/selected_audio/clip_01__wavefake__gen_1174.wav",
+  "raw_xgb_score": 0.7558910250663757,
+  "spoof_probability_clipped": 0.7558910250663757,
+  "bonafide_probability": 0.24410897493362427,
+  "prediction": "SPOOF",
+  "threshold": 0.5,
+  "shap_base_value": 0.45916247367858887,
+  "sum_shap_values": 0.2967288107793138,
+  "shap_reconstructed_raw_score": 0.7558912844579027,
+  "shap_additivity_error": 2.593915269244462e-07,
+  "feature_count": 165
+}

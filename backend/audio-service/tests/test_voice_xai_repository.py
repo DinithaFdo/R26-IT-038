@@ -48,7 +48,7 @@ async def test_xai_repository_creates_versioned_owner_scoped_record() -> None:
 
     assert document is not None
     assert document["id"] == explanation_id
-    assert document["schema_version"] == "voice-xai-api-v1"
+    assert document["schema_version"] == "voice-xai-api-v2"
     assert document["pipeline_version"] == "voice-xai-pipeline-v1"
     assert document["status"] == "queued"
     assert document["component_statuses"] == {

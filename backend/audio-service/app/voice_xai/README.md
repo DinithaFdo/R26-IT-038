@@ -37,14 +37,14 @@ voice_xai/
     replay.py           stored source-audio preparation for manual runs/retries
   temporal/             XLS-R temporal attention analysis and visualisation
   semantic/             acoustic feature schema and XGBoost/SHAP explanations
-  evaluation/           consistency metrics and research-readiness policy
+  evaluation/           consistency metrics and evaluation eligibility policy
   report/               deterministic reports and optional Qwen AI narration
   persistence/          XAI repository contracts and MongoDB implementation
   artifacts/            private, hash-verified evidence artifact storage
 ```
 
-Research notebooks and trained artifacts are separate from the runtime Python
-package; their availability depends on the local checkout and configuration.
+Model training runs separately from the runtime package. Semantic inference
+loads validated model exports from the configured bundle directory.
 
 ## Current request and response flow
 
@@ -75,12 +75,13 @@ package; their availability depends on the local checkout and configuration.
    than six seconds, that evidence is created in the classifier worker from
    six-second windows with a three-second stride and cosine-weighted overlap
    fusion. The
-   semantic service uses the v4 notebook-compatible
-   148-feature extraction recipe and hash-verified XGBoost/TreeSHAP artifacts
-   to produce whole-clip or windowed evidence. It uses ingestion's bounded
-   pre-normalisation waveform so feature values match the training recipe.
-   Evaluation calculates available consistency evidence. Research eligibility
-   remains fail-closed.
+   semantic service runs the 165-feature teacher surrogate on
+   the original upload bytes. The fitted median imputer and regressor come
+   from the active versioned bundle. Tree SHAP explains its raw regression
+   score; the clip probability is clipped to [0,1].
+   All 165 contributions are clip-level, without semantic windows. Quality
+   reads this model's optional fidelity metadata; evaluation eligibility remains
+   fail-closed. See `docs/semantic-pipeline.md` for model replacement.
 9. The report service composes the combined report. Safe metadata goes to the
    `xai_explanations` repository; visual artefacts are stored only
    in the private artifact store.

@@ -1,8 +1,5 @@
 from collections.abc import Generator
-from hashlib import sha256
-import json
 import os
-from pathlib import Path
 import socket
 
 from fastapi.testclient import TestClient
@@ -32,42 +29,6 @@ def isolate_process_state(monkeypatch: pytest.MonkeyPatch, request) -> Generator
 def client() -> Generator[TestClient, None, None]:
     with TestClient(app) as test_client:
         yield test_client
-
-
-@pytest.fixture
-def fidelity_artifact_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Use synthetic validation data without requiring a local research export."""
-    from app.voice_xai.evaluation import offline_metrics
-
-    source = tmp_path / "fixture_fidelity.csv"
-    source.write_bytes(b"dataset,r2\nfixture_dataset,0.75\n")
-    path = tmp_path / "surrogate_fidelity.json"
-    path.write_text(
-        json.dumps(
-            {
-                "artifact_version": "voice-xai-surrogate-fidelity-r2-v1",
-                "metric_name": "surrogate_fidelity_r2",
-                "value": 0.75,
-                "scope": "offline_validation",
-                "dataset_version": "fixture_dataset",
-                "sample_count": 4,
-                "semantic_model_version": "fixture-surrogate-v1",
-                "source": {
-                    "artifact_name": source.name,
-                    "sha256": sha256(source.read_bytes()).hexdigest(),
-                    "dataset_column": "dataset",
-                    "dataset_value": "fixture_dataset",
-                    "metric_column": "r2",
-                },
-            }
-        ),
-        encoding="utf-8",
-    )
-    loader = offline_metrics.load_surrogate_fidelity_artifact
-    monkeypatch.setattr(
-        offline_metrics, "load_surrogate_fidelity_artifact", lambda: loader(path)
-    )
-    return path
 
 
 def _allows_network(request) -> bool:

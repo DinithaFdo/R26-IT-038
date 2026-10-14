@@ -1,0 +1,23 @@
+{
+  "version": "fusion-convex-4branch-v3",
+  "feature_order": [
+    "cnn_spoof_probability",
+    "aasist_spoof_probability",
+    "ssl_spoof_probability",
+    "glottal_spoof_probability"
+  ],
+  "weights": {
+    "cnn_spoof_probability": 0.3488902015351922,
+    "aasist_spoof_probability": 0.289776249915524,
+    "ssl_spoof_probability": 0.22524436863750652,
+    "glottal_spoof_probability": 0.13608917991177738
+  },
+  "threshold": 0.5,
+  "reg_lambda": 1.0,
+  "constraints": {
+    "non_negative_weights": true,
+    "weights_sum_to_one": true,
+    "intercept": false,
+    "post_sigmoid_calibration": false
+  }
+}

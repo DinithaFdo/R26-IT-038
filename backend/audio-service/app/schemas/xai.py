@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.schemas.common import BranchStatus, ModelMode, PredictionLabel
 
-XAI_SCHEMA_VERSION = "voice-xai-api-v1"
+XAI_SCHEMA_VERSION = "voice-xai-api-v2"
 
 
 class XaiSchemaModel(BaseModel):
@@ -60,11 +60,11 @@ class MetricStatus(str, Enum):
 class ShapDirection(str, Enum):
     toward_spoof = "toward_spoof"
     toward_bonafide = "toward_bonafide"
+    neutral = "neutral"
 
 
 class SemanticTargetType(str, Enum):
     classifier_surrogate = "classifier_surrogate"
-    independent_acoustic_evidence_model = "independent_acoustic_evidence_model"
 
 
 class ReportDisposition(str, Enum):
@@ -280,81 +280,40 @@ class SemanticFeatureContribution(XaiSchemaModel):
     reference_summary: str | None = None
     shap_value: float
     direction: ShapDirection
-    start_seconds: float | None = Field(default=None, ge=0.0)
-    end_seconds: float | None = Field(default=None, gt=0.0)
-
-    @model_validator(mode="after")
-    def validate_optional_window(self) -> "SemanticFeatureContribution":
-        if (self.start_seconds is None) != (self.end_seconds is None):
-            raise ValueError("Semantic window start and end must be supplied together.")
-        if (
-            self.start_seconds is not None
-            and self.end_seconds is not None
-            and self.end_seconds <= self.start_seconds
-        ):
-            raise ValueError("Semantic window end must be after its start.")
-        return self
-
-
-class SemanticEvidenceWindow(XaiSchemaModel):
-    start_seconds: float = Field(ge=0.0)
-    end_seconds: float = Field(gt=0.0)
-    feature_importance: list[SemanticFeatureContribution] = Field(default_factory=list)
-
-    @model_validator(mode="after")
-    def validate_window(self) -> "SemanticEvidenceWindow":
-        if self.end_seconds <= self.start_seconds:
-            raise ValueError("Semantic window end must be after its start.")
-        return self
 
 
 class SemanticClipSummary(XaiSchemaModel):
-    """One clip-level decision from the independent semantic evidence model.
-
-    This is intentionally separate from ``ClassifierSnapshot``: semantic XAI
-    explains an auxiliary acoustic model and must never be presented as the
-    primary fused classifier decision.
-    """
-
+    """The surrogate model's approximation, separate from the teacher verdict."""
     spoof_probability: float = Field(ge=0.0, le=1.0)
     bonafide_probability: float = Field(ge=0.0, le=1.0)
     decision_threshold: float = Field(gt=0.0, lt=1.0)
     predicted_label: PredictionLabel
-    aggregation_method: Literal[
-        "coverage_weighted_mean_window_probability"
-    ] = "coverage_weighted_mean_window_probability"
-    window_count: int = Field(ge=1)
+    aggregation_method: Literal["whole_clip_surrogate"] = "whole_clip_surrogate"
 
     @model_validator(mode="after")
-    def validate_summary(self) -> "SemanticClipSummary":
-        if abs(self.spoof_probability + self.bonafide_probability - 1.0) > 0.01:
-            raise ValueError("Semantic clip probabilities must sum to one.")
-        expected_label = (
-            PredictionLabel.spoof
-            if self.spoof_probability >= self.decision_threshold
-            else PredictionLabel.bonafide
-        )
-        if self.predicted_label != expected_label:
-            raise ValueError(
-                "Semantic clip predicted_label must match the decision threshold."
-            )
+    def validate_summary(self):
+        if abs(self.spoof_probability + self.bonafide_probability - 1.0) > 1e-6:
+            raise ValueError("Surrogate probabilities must sum to one.")
+        expected = PredictionLabel.spoof if self.spoof_probability >= self.decision_threshold else PredictionLabel.bonafide
+        if self.predicted_label != expected:
+            raise ValueError("Surrogate predicted_label must match the decision threshold.")
         return self
 
 
 class SemanticExplanation(XaiSchemaModel):
     status: ComponentStatus
-    target_type: SemanticTargetType
+    target_type: Literal[SemanticTargetType.classifier_surrogate]
     model_version: str = Field(min_length=1)
     feature_schema_version: str = Field(min_length=1)
     extractor_version: str = Field(min_length=1)
-    output_space: Literal["raw_margin", "log_odds", "probability"]
+    output_space: Literal["raw_regression"]
     development_placeholder: bool = True
     research_eligible: bool = False
     base_value: float | None = None
     predicted_value: float | None = None
     clip_summary: SemanticClipSummary | None = None
     feature_importance: list[SemanticFeatureContribution] = Field(default_factory=list)
-    windows: list[SemanticEvidenceWindow] = Field(default_factory=list)
+    fidelity_r2: MetricEvidence | None = None
     warning: str | None = None
 
 

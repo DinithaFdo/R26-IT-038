@@ -1,0 +1,16 @@
+{
+  "bundle_version": "notebook-surrogate-bundle-v1",
+  "model_version": "asv2019_selected20_aligned_reg50_v1-999b39d63e8e1afb",
+  "extractor_version": "selected20-aligned-audio-v1",
+  "prediction_transform": "clip_raw",
+  "files": {
+    "feature_columns.json": "2b253ed7a2a258a157a677af74673e33104a378eca389650d77f6a251db0b253",
+    "imputer.joblib": "c2dfbc640c254026f7915fcc60944387be52dba42e8949ed7f724cd508055c89",
+    "probability_calibrator.joblib": "b0d46e3c079fa3655075b3607496d98c0752984a11d989c450fcf624da5f1d63",
+    "selected_glottal_features_20.json": "48bc1fa432b5067249ced4cd0036827c364e621ea7c642048a4029a95aad9cae",
+    "surrogate_xgboost.json": "e19fc21ab38ea70fdf7813cae3826e1b73ad97dcb75596d7d028155cc3b40d2d",
+    "teacher_assets.json": "018e27df5ba48abd4eaab000e2a205554d6693391b2f2a4c68beb73ccfa38927",
+    "teacher_fusion.json": "41402b1c242da8768c6a437c809a1b2c338a44662d2965e2e60c27fadef697e7",
+    "training_metadata.json": "a8b9265b01d159ef7eb52ce5632ee36dc3e4fee5284af04ef4be0f572c1f29fc"
+  }
+}

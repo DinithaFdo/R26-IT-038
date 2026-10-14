@@ -391,8 +391,6 @@ def _narrative_evidence(
                     "reference_summary": feature.reference_summary,
                     "shap_value": feature.shap_value,
                     "direction": feature.direction.value,
-                    "start_seconds": feature.start_seconds,
-                    "end_seconds": feature.end_seconds,
                 }
             )
     for metric_name, metric in quality:

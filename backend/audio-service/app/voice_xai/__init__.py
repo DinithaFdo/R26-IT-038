@@ -7,7 +7,6 @@ Those are added only after the classifier-to-XAI integration contract is frozen.
 from app.voice_xai.semantic.features import (
     FEATURE_NAMES,
     AcousticFeatureExtractor,
-    FeatureExtractionConfig,
     FeatureExtractionResult,
 )
 from app.voice_xai.workflow.queue import AsynchronousExplanationQueue
@@ -27,7 +26,6 @@ from app.voice_xai.workflow.status import (
 __all__ = [
     "FEATURE_NAMES",
     "AcousticFeatureExtractor",
-    "FeatureExtractionConfig",
     "FeatureExtractionResult",
     "AsynchronousExplanationQueue",
     "CANONICAL_XAI_BRANCHES",

@@ -210,11 +210,11 @@ def _temporal() -> TemporalExplanation:
 def _semantic() -> SemanticExplanation:
     return SemanticExplanation(
         status=ComponentStatus.completed,
-        target_type=SemanticTargetType.independent_acoustic_evidence_model,
+        target_type=SemanticTargetType.classifier_surrogate,
         model_version="semantic-v1",
         feature_schema_version="features-v1",
         extractor_version="extractor-v1",
-        output_space="probability",
+        output_space="raw_regression",
         feature_importance=[
             SemanticFeatureContribution(
                 rank=1,

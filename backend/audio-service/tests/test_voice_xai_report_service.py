@@ -58,7 +58,7 @@ def test_report_composer_is_deterministic_and_uses_controlled_evidence_text() ->
         model_version="fixture-v1",
         feature_schema_version="fixture-features-v1",
         extractor_version="fixture-v1",
-        output_space="raw_margin",
+        output_space="raw_regression",
         feature_importance=[
             SemanticFeatureContribution(
                 rank=1,

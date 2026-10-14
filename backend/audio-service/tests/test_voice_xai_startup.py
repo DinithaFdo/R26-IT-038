@@ -55,4 +55,4 @@ async def test_default_orchestrator_loads_real_service_or_rejects_startup(
             assert app.state.xai_orchestrator._semantic_service is service
             assert app.state.xai_orchestrator.readiness()["ready"] is True
     assert len(calls) == 1
-    assert calls[0]["manifest_path"].name == "xgboost-surrogate-v4.json"
+    assert calls[0]["bundle_dir"].name == "artifacts"

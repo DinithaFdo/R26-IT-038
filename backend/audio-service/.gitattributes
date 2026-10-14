@@ -1,3 +1,6 @@
 # Linux entrypoints and hash-verified JSON exports must retain LF line endings.
 docker/*.sh text eol=lf
 app/voice_xai/semantic/artifacts/*.json text eol=lf
+
+# Bundle hashes cover exact exported bytes, including JSON line endings.
+app/voice_xai/semantic/artifacts/** -text

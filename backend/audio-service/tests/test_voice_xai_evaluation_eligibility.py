@@ -51,11 +51,11 @@ def _temporal(*, eligible: bool) -> TemporalExplanation:
 def _semantic(*, eligible: bool) -> SemanticExplanation:
     return SemanticExplanation(
         status=ComponentStatus.completed,
-        target_type=SemanticTargetType.independent_acoustic_evidence_model,
+        target_type=SemanticTargetType.classifier_surrogate,
         model_version="v1",
         feature_schema_version="fixture-features-v1",
         extractor_version="v1",
-        output_space="probability",
+        output_space="raw_regression",
         development_placeholder=not eligible,
         research_eligible=eligible,
         base_value=0.0,

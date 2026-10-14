@@ -152,7 +152,6 @@ def test_temporal_and_semantic_values_reject_invalid_numbers_and_windows() -> No
             bonafide_probability=0.8,
             decision_threshold=0.5,
             predicted_label=PredictionLabel.spoof,
-            window_count=1,
         )
 
 

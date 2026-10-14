@@ -1,329 +1,65 @@
-"""Artifact-backed XGBoost and SHAP semantic explanation service."""
+"""Run clip-level surrogate inference and produce additive Tree SHAP evidence.
 
-from __future__ import annotations
-
+Extract or accept acoustic features, apply the active model's median imputer,
+predict the raw regression score, and verify that SHAP reconstructs that score.
+"""
 from pathlib import Path
-from typing import Protocol
-
 import numpy as np
-
-from app.ingestion.audio import ProcessedAudio
-from app.schemas.xai import SemanticTargetType
-from app.voice_xai.integration.contracts import ClassifierInferenceBundle
-from app.voice_xai.semantic.features import (
-    AcousticFeatureExtractor,
-    FeatureExtractionResult,
-)
-from app.voice_xai.semantic.contracts import (
-    SemanticAnalysisResult,
-    SemanticEvidence,
-    SemanticExplanationConfig,
-    SemanticWindowAnalysisResult,
-)
-from app.voice_xai.semantic.artifact_loader import (
-    LoadedSemanticArtifacts,
-    SemanticArtifactCompatibilityError,
-    load_production_semantic_artifacts,
-    reference_summary_for,
-)
-from app.voice_xai.semantic.explainer import (
-    build_semantic_contributions,
-    build_semantic_explanation,
-    build_windowed_semantic_explanation,
-)
-from app.voice_xai.semantic.windows import (
-    SemanticWindow,
-    SemanticWindowConfig,
-    extract_semantic_feature_windows,
-)
-
-
-class SemanticEvidenceProvider(Protocol):
-    """Interface for ordered feature evidence and XGBoost SHAP values."""
-
-    def extract(self, inference: ClassifierInferenceBundle) -> SemanticEvidence:
-        """Return ordered per-clip feature and attribution values."""
-
-    def extract_features(
-        self,
-        features: FeatureExtractionResult,
-        *,
-        evidence_key: str,
-    ) -> SemanticEvidence:
-        """Return ordered feature and attribution values for one audio window."""
-
+from app.voice_xai.semantic.artifact_loader import SemanticArtifactCompatibilityError, load_production_semantic_artifacts, resolve_bundle
+from app.voice_xai.semantic.contracts import SemanticAnalysisResult, SemanticEvidence
+from app.voice_xai.semantic.features import AcousticFeatureExtractor
+from app.voice_xai.semantic.schema import FEATURE_NAMES, FEATURE_EXTRACTION_VERSION
+from app.voice_xai.semantic.explainer import build_semantic_explanation
 
 class XgboostShapEvidenceProvider:
-    """Read production feature evidence from the approved loaded-once artifacts."""
+    def __init__(self, artifacts):
+        self.artifacts = artifacts
 
-    def __init__(self, artifacts: LoadedSemanticArtifacts) -> None:
-        self._artifacts = artifacts
-
-    def extract(self, inference: ClassifierInferenceBundle) -> SemanticEvidence:
-        features = inference.acoustic_features
-        if features is None:
-            raise SemanticArtifactCompatibilityError(
-                "Production semantic inference requires acoustic features."
-            )
-        return self.extract_features(features, evidence_key="whole-clip")
-
-    def extract_features(
-        self,
-        features: FeatureExtractionResult,
-        *,
-        evidence_key: str,
-    ) -> SemanticEvidence:
-        manifest = self._artifacts.manifest
-        if features.feature_names != manifest.feature_names:
-            raise SemanticArtifactCompatibilityError(
-                "Acoustic feature names do not match the production manifest."
-            )
-        if features.extractor_version != manifest.extractor_version:
-            raise SemanticArtifactCompatibilityError(
-                "Acoustic extractor version does not match the production manifest."
-            )
-        raw_values = np.asarray(features.values, dtype=np.float64)
-        if raw_values.shape != (len(manifest.feature_names),) or np.isinf(raw_values).any():
-            raise SemanticArtifactCompatibilityError(
-                "Acoustic features must be an ordered v4 feature vector without infinite values."
-            )
-        missing_feature_count = int(np.isnan(raw_values).sum())
-        try:
-            values = np.asarray(self._artifacts.imputer.transform(raw_values.reshape(1, -1)), dtype=np.float64)
-        except Exception as error:
-            raise SemanticArtifactCompatibilityError(
-                "The training imputer could not transform the acoustic features."
-            ) from error
-        if values.shape != (1, len(manifest.feature_names)) or not np.isfinite(values).all():
-            raise SemanticArtifactCompatibilityError(
-                "Training imputation did not produce one finite v4 feature vector."
-            )
-        row = values
-        try:
-            import xgboost
-
-            matrix = xgboost.DMatrix(
-                row,
-                feature_names=list(manifest.feature_names),
-            )
-            predicted_value = float(
-                np.asarray(self._artifacts.booster.predict(matrix, output_margin=True))[0]
-            )
-            shap_values = np.asarray(self._artifacts.shap_explainer.shap_values(row))
-        except Exception as error:
-            raise SemanticArtifactCompatibilityError(
-                "Production XGBoost or SHAP inference failed."
-            ) from error
-        shap_values = np.asarray(shap_values, dtype=np.float64).reshape(-1)
-        if shap_values.shape != values.shape[1:] or not np.isfinite(shap_values).all():
-            raise SemanticArtifactCompatibilityError(
-                "SHAP output must contain one finite contribution per feature."
-            )
-        expected_value = np.asarray(self._artifacts.shap_explainer.expected_value)
-        if expected_value.size != 1 or not np.isfinite(expected_value).all():
-            raise SemanticArtifactCompatibilityError("SHAP expected value is invalid.")
-        base_value = float(expected_value.reshape(-1)[0])
-        if not np.isclose(
-            base_value + float(shap_values.sum()),
-            predicted_value,
-            rtol=1e-4,
-            atol=1e-4,
-        ):
-            raise SemanticArtifactCompatibilityError(
-                "SHAP contributions do not reconstruct the XGBoost raw margin."
-            )
-        return SemanticEvidence(
-            feature_names=manifest.feature_names,
-            feature_values=values.reshape(-1).astype(np.float32),
-            shap_values=shap_values.astype(np.float32),
-            base_value=base_value,
-            predicted_value=predicted_value,
-            extractor_version=features.extractor_version,
-            source=(
-                f"xgboost_shap:{manifest.model_version};"
-                f"median_imputed_features={missing_feature_count}"
-            ),
-            imputed_feature_count=missing_feature_count,
-        )
-
+    def extract_features(self, features):
+        import pandas as pd
+        import xgboost
+        if features.feature_names != FEATURE_NAMES or features.extractor_version != FEATURE_EXTRACTION_VERSION:
+            raise SemanticArtifactCompatibilityError("Feature extraction does not match the semantic model contract.")
+        raw = np.asarray(features.values, dtype=np.float64)
+        if raw.shape != (len(FEATURE_NAMES),):
+            raise SemanticArtifactCompatibilityError("Expected 165 feature values.")
+        raw = np.where(np.isfinite(raw), raw, np.nan)
+        values = np.asarray(self.artifacts.imputer.transform(pd.DataFrame([raw], columns=FEATURE_NAMES)), dtype=np.float64)
+        if values.shape != (1, len(FEATURE_NAMES)) or not np.isfinite(values).all():
+            raise SemanticArtifactCompatibilityError("Imputation did not produce 165 finite values.")
+        matrix = xgboost.DMatrix(values, feature_names=list(FEATURE_NAMES))
+        score = float(self.artifacts.booster.predict(matrix, output_margin=True)[0])
+        shap = np.asarray(self.artifacts.shap_explainer.shap_values(values, check_additivity=True), dtype=np.float64).reshape(-1)
+        expected = np.asarray(self.artifacts.shap_explainer.expected_value).reshape(-1)
+        if expected.size != 1 or shap.shape != (len(FEATURE_NAMES),):
+            raise SemanticArtifactCompatibilityError("Unexpected Tree SHAP output shape.")
+        base = float(expected[0])
+        evidence = SemanticEvidence(values[0], shap, base, score, int(np.isnan(raw).sum()))
+        if abs(base + float(shap.sum()) - score) > 1e-4:
+            raise SemanticArtifactCompatibilityError("Tree SHAP does not reconstruct the raw regressor score.")
+        return evidence
 
 class ProductionSemanticExplanationService:
-    """Production semantic inference backed by a startup-loaded XGBoost model."""
-
-    def __init__(
-        self,
-        artifacts: LoadedSemanticArtifacts,
-        *,
-        feature_extractor: AcousticFeatureExtractor | None = None,
-        window_config: SemanticWindowConfig | None = None,
-    ) -> None:
-        self._artifacts = artifacts
-        manifest = artifacts.manifest
+    """One loaded immutable model bundle; restart after activating a new bundle."""
+    def __init__(self, artifacts, *, feature_extractor=None):
+        self.artifacts = artifacts
         self._provider = XgboostShapEvidenceProvider(artifacts)
         self._feature_extractor = feature_extractor or AcousticFeatureExtractor()
-        self._window_config = window_config or SemanticWindowConfig()
-        self._config = SemanticExplanationConfig(
-            method_version="xgboost-tree-shap-v4",
-            model_version=manifest.model_version,
-            feature_schema_version=manifest.feature_schema_version,
-            output_space=manifest.output_space,
-            decision_threshold=manifest.decision_threshold,
-            target_type=SemanticTargetType(manifest.target_type),
-            contribution_warning=(
-                "Whole-clip feature contributions do not localize evidence in time."
-            ),
-            reference_summaries={
-                name: reference_summary_for(manifest, name)
-                for name in manifest.feature_names
-            },
-        )
+        self._bundle_root = None
 
     @classmethod
-    def load_once(
-        cls,
-        *,
-        manifest_path: Path,
-        model_path: Path,
-        feature_columns_path: Path,
-        threshold_path: Path,
-        training_metadata_path: Path,
-        imputer_path: Path,
-        shap_background_path: Path | None,
-        window_config: SemanticWindowConfig | None = None,
-    ) -> "ProductionSemanticExplanationService":
-        return cls(
-            load_production_semantic_artifacts(
-                manifest_path=manifest_path,
-                model_path=model_path,
-                feature_columns_path=feature_columns_path,
-                threshold_path=threshold_path,
-                training_metadata_path=training_metadata_path,
-                imputer_path=imputer_path,
-                shap_background_path=shap_background_path,
-            ),
-            window_config=window_config,
-        )
+    def load_once(cls, *, bundle_dir: Path):
+        service = cls(load_production_semantic_artifacts(bundle_dir))
+        service._bundle_root = bundle_dir.resolve()
+        return service
 
-    def analyze(self, inference: ClassifierInferenceBundle) -> SemanticAnalysisResult:
-        evidence = self._provider.extract(inference)
-        return SemanticAnalysisResult(
-            explanation=build_semantic_explanation(evidence, self._config).model_copy(
-                update={"development_placeholder": False, "research_eligible": False}
-            ),
-            development_placeholder=False,
-            research_eligible=False,
-            warnings=(
-                "Whole-clip semantic output does not provide timestamp localization.",
-                "The supplied model was trained on ASVspoof2019 LA, ASVspoof5, and WaveFake/LJSpeech; its metadata must be consulted before treating results as benchmark claims.",
-            ),
-        )
-
-    def analyze_windows(
-        self,
-        audio: ProcessedAudio,
-        *,
-        request_id: str,
-    ) -> SemanticWindowAnalysisResult:
-        return _analyze_windows(
-            audio=audio,
-            request_id=request_id,
-            provider=self._provider,
-            config=self._config,
-            feature_extractor=self._feature_extractor,
-            window_config=self._window_config,
-            development_placeholder=False,
-            research_eligible=False,
-        )
-
-
-def _analyze_windows(
-    *,
-    audio: ProcessedAudio,
-    request_id: str,
-    provider: SemanticEvidenceProvider,
-    config: SemanticExplanationConfig,
-    feature_extractor: AcousticFeatureExtractor,
-    window_config: SemanticWindowConfig,
-    development_placeholder: bool,
-    research_eligible: bool,
-) -> SemanticWindowAnalysisResult:
-    feature_windows = extract_semantic_feature_windows(
-        audio,
-        extractor=feature_extractor,
-        config=window_config,
-    )
-    semantic_windows: list[SemanticWindow] = []
-    imputed_feature_count = 0
-    for window in feature_windows:
-        evidence = provider.extract_features(
-            window.features,
-            evidence_key=(
-                f"{request_id}:{window.start_sample}:{window.end_sample}:"
-                f"{window_config.version}"
-            ),
-        )
-        imputed_feature_count += evidence.imputed_feature_count
-        contributions = build_semantic_contributions(
-            evidence,
-            config,
-            start_seconds=window.start_seconds,
-            end_seconds=window.end_seconds,
-        )
-        semantic_windows.append(
-            SemanticWindow(
-                start_seconds=window.start_seconds,
-                end_seconds=window.end_seconds,
-                contributions=tuple(contributions),
-                spoof_probability=_spoof_probability(
-                    evidence.predicted_value, config.output_space
-                ),
-            )
-        )
-    windows = tuple(semantic_windows)
-    explanation = build_windowed_semantic_explanation(
-        windows,
-        config,
-        extractor_version=feature_windows[0].features.extractor_version,
-    )
-    if imputed_feature_count:
-        explanation = explanation.model_copy(
-            update={
-                "warning": (
-                    f"{explanation.warning} {imputed_feature_count} unavailable "
-                    "feature value(s) were replaced with training median values "
-                    "before XGBoost and SHAP."
-                )
-            }
-        )
-    explanation = explanation.model_copy(
-        update={
-            "development_placeholder": development_placeholder,
-            "research_eligible": research_eligible,
-        }
-    )
-    return SemanticWindowAnalysisResult(
-        explanation=explanation,
-        windows=windows,
-        development_placeholder=development_placeholder,
-        research_eligible=research_eligible,
-    )
-
-
-def _spoof_probability(predicted_value: float, output_space: str) -> float:
-    """Map the validated XGBoost binary-logistic output to P(spoof)."""
-
-    if output_space == "probability":
-        probability = predicted_value
-    elif output_space in {"raw_margin", "log_odds"}:
-        if predicted_value >= 0.0:
-            probability = 1.0 / (1.0 + np.exp(-predicted_value))
-        else:
-            exponent = np.exp(predicted_value)
-            probability = exponent / (1.0 + exponent)
-    else:
-        raise SemanticArtifactCompatibilityError("Unsupported semantic output space.")
-    if not np.isfinite(probability) or not 0.0 <= probability <= 1.0:
-        raise SemanticArtifactCompatibilityError(
-            "Semantic model probability is invalid."
-        )
-    return float(probability)
+    def analyze(self, inference):
+        if self._bundle_root is not None and resolve_bundle(self._bundle_root) != self.artifacts.directory:
+            raise SemanticArtifactCompatibilityError("A new model bundle is active. Restart the backend before creating explanations.")
+        features = inference.acoustic_features
+        if features is None:
+            if inference.processed_audio is None:
+                raise SemanticArtifactCompatibilityError("Semantic inference requires original audio or extracted features.")
+            features = self._feature_extractor.extract_processed_audio(inference.processed_audio)
+        evidence = self._provider.extract_features(features)
+        return SemanticAnalysisResult(build_semantic_explanation(evidence, self.artifacts))

@@ -798,14 +798,7 @@ class VoiceXaiOrchestrator:
             )
             if self._semantic_service is None:
                 raise SemanticServiceUnavailableError("Real semantic model is not initialized.")
-            analyze_windows = getattr(self._semantic_service, "analyze_windows", None)
-            if bundle.processed_audio is not None and callable(analyze_windows):
-                semantic_result = analyze_windows(
-                    bundle.processed_audio,
-                    request_id=bundle.request_id,
-                )
-            else:
-                semantic_result = self._semantic_service.analyze(bundle)
+            semantic_result = self._semantic_service.analyze(bundle)
             self._raise_if_timed_out(deadline)
             semantic = semantic_result.explanation
             await status_service.complete_component(
@@ -1219,9 +1212,8 @@ def _configuration_hash_inputs() -> list[str]:
 
 _CONFIGURATION_HASH_INPUTS = (
     "pipeline_version",
+    "semantic_bundle_identity",
     "mode",
-    "semantic_window_duration_seconds",
-    "semantic_window_overlap_seconds",
     "temporal_method_version",
     "temporal_threshold_mode",
     "temporal_threshold_percentile",
@@ -1238,11 +1230,16 @@ _CONFIGURATION_HASH_INPUTS = (
 
 
 def _configuration_hash_payload(settings: Settings) -> dict[str, object]:
+    from app.voice_xai.semantic.artifact_loader import file_hash, resolve_bundle
+    try:
+        directory = resolve_bundle(settings.resolve_xai_artifact_path(settings.xai_semantic_bundle_dir))
+        bundle_identity = file_hash(directory / "bundle_manifest.json")
+    except (OSError, ValueError):
+        bundle_identity = None
     return {
         "pipeline_version": settings.xai_pipeline_version,
+        "semantic_bundle_identity": bundle_identity,
         "mode": settings.xai_mode,
-        "semantic_window_duration_seconds": settings.xai_semantic_window_duration_seconds,
-        "semantic_window_overlap_seconds": settings.xai_semantic_window_overlap_seconds,
         "temporal_method_version": TEMPORAL_METHOD_VERSION,
         "temporal_threshold_mode": TEMPORAL_THRESHOLD_MODE,
         "temporal_threshold_percentile": TEMPORAL_THRESHOLD_PERCENTILE,

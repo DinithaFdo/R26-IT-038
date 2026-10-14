@@ -16,3 +16,7 @@ validation_data/real_world_sanity_set/samples/*
 model_artifacts/
 .postman/
 postman/
+
+!app/voice_xai/semantic/artifacts/active.json
+!app/voice_xai/semantic/artifacts/bundles/
+!app/voice_xai/semantic/artifacts/bundles/**

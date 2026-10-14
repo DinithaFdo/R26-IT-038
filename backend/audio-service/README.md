@@ -303,13 +303,21 @@ forcibly terminate an underlying model operation.
 Voice XAI runs downstream of a persisted classifier result. An explanation failure
 does not change a completed prediction into a failed prediction.
 
-For real explanations, enable `XAI_ENABLED=true`, set `XAI_MODE=real`, and supply
-the semantic paths specified by `XAI_SEMANTIC_*` in `.env.example`. Relative XAI
-artifact paths resolve from `audio-service`, independently of `MODEL_ROOT_DIR`.
-The semantic service checks artifact hashes and compatibility against its
-manifest, including the 148-feature column order, model, threshold, training
-metadata, and imputer. Missing or incompatible semantic artifacts can fail
-startup. These artifacts are not installed by pip.
+For real explanations, enable `XAI_ENABLED=true`, set `XAI_MODE=real`, and set
+`XAI_SEMANTIC_BUNDLE_DIR` to the imported model bundle directory. Relative
+paths resolve from `audio-service`. The semantic service uses a 165-feature
+teacher surrogate with raw-score Tree SHAP.
+
+To use a retrained model, export its model folder and run from `audio-service`:
+
+```powershell
+.\.venv\Scripts\python.exe -m app.voice_xai.semantic.import_bundle --source "D:\Models\new-surrogate"
+```
+
+Restart the backend afterwards. The command validates and atomically activates
+an immutable bundle; no code edits or manual hash updates are required. Current
+model version, decision threshold and optional fidelity R² follow the imported
+metadata. R² targets never gate runtime. See [the model update guide](docs/semantic-pipeline.md).
 
 `XAI_MODE` supports only `disabled` and `real`. There is no mock semantic
 pipeline or generated SHAP fallback. A semantic service that has not been

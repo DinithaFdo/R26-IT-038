@@ -54,7 +54,6 @@ from app.voice_xai.persistence.mongodb import MongoXaiExplanationRepository
 from app.voice_xai.workflow.recovery import recover_stale_explanations
 from app.voice_xai.workflow.replay import StoredAudioReplayService
 from app.voice_xai.semantic.service import ProductionSemanticExplanationService
-from app.voice_xai.semantic.windows import SemanticWindowConfig
 from app.voice_xai.temporal.xlsr_attention_service import XLSRTemporalAttentionService
 
 logger = logging.getLogger(__name__)
@@ -177,31 +176,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             and app.state.load_xai_semantic_on_startup
         ):
             semantic_service = ProductionSemanticExplanationService.load_once(
-                manifest_path=app_settings.resolve_xai_artifact_path(
-                    app_settings.xai_semantic_manifest_path
-                ),
-                model_path=app_settings.resolve_xai_artifact_path(
-                    app_settings.xai_semantic_model_path
-                ),
-                feature_columns_path=app_settings.resolve_xai_artifact_path(
-                    app_settings.xai_semantic_feature_columns_path
-                ),
-                threshold_path=app_settings.resolve_xai_artifact_path(
-                    app_settings.xai_semantic_threshold_path
-                ),
-                training_metadata_path=app_settings.resolve_xai_artifact_path(
-                    app_settings.xai_semantic_training_metadata_path
-                ),
-                imputer_path=app_settings.resolve_xai_artifact_path(
-                    app_settings.xai_semantic_imputer_path
-                ),
-                shap_background_path=app_settings.resolve_xai_artifact_path(
-                    app_settings.xai_semantic_shap_background_path
-                ) if app_settings.xai_semantic_shap_background_path.strip() else None,
-                window_config=SemanticWindowConfig(
-                    duration_seconds=app_settings.xai_semantic_window_duration_seconds,
-                    overlap_seconds=app_settings.xai_semantic_window_overlap_seconds,
-                ),
+                bundle_dir=app_settings.resolve_xai_artifact_path(app_settings.xai_semantic_bundle_dir),
             )
             app.state.xai_orchestrator.set_semantic_service(semantic_service)
         yield
