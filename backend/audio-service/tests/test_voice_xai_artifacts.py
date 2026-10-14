@@ -42,7 +42,7 @@ def test_local_artifact_store_keeps_json_and_binary_bytes_outside_mongodb(tmp_pa
     npz_reference = store.store_bytes(
         explanation_id="explanation-123",
         content=b"npz-bytes",
-        kind="attention_tensor",
+        kind="other",
         content_type="application/x-npz",
     )
 
@@ -58,13 +58,13 @@ def test_deleting_one_explanation_removes_only_its_private_artifacts(tmp_path: P
     deleted_reference = store.store_bytes(
         explanation_id="explanation-delete",
         content=b"remove-me",
-        kind="attention_tensor",
+        kind="other",
         content_type="application/x-npz",
     )
     retained_reference = store.store_bytes(
         explanation_id="explanation-retain",
         content=b"keep-me",
-        kind="attention_tensor",
+        kind="other",
         content_type="application/x-npz",
     )
 

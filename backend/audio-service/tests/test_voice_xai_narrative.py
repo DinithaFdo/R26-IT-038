@@ -23,7 +23,7 @@ from app.schemas.xai import (
     TemporalExplanation,
     TemporalRegion,
 )
-from app.voice_xai.narrative.service import (
+from app.voice_xai.report.service import (
     AlibabaQwenNarrativeService,
     NarrativeGenerationError,
 )

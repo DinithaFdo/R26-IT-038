@@ -35,7 +35,7 @@ from app.voice_xai.workflow.orchestrator import (
     classifier_snapshot_from_prediction,
 )
 from app.voice_xai.persistence.mongodb import MongoXaiExplanationRepository
-from app.voice_xai.narrative.service import NarrativeGenerationError
+from app.voice_xai.report.service import NarrativeGenerationError
 from app.voice_xai.temporal.contracts import (
     TemporalAnalysisResult,
     TemporalAttentionError,

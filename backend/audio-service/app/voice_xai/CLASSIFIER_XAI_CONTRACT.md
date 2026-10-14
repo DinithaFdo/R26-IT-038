@@ -90,8 +90,6 @@ rerunning XLS-R; if it is expired, missing, or fails integrity validation,
 temporal analysis is unavailable while other XAI components may still run.
 
 The bundle is internal and must not expose raw tensors through a public API.
-Existing intermediate-representation artifact references remain readable for
-historical explanations; new predictions do not create such artifacts.
 
 ## Additive XAI contract
 

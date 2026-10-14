@@ -159,8 +159,6 @@ class ExplanationArtifactReference(XaiSchemaModel):
         "temporal_evidence",
         "attention_visualization",
         "attention_spectrogram",
-        "attention_tensor",
-        "intermediate_representations",  # Legacy saved artifacts; no new producer.
         "semantic_values",
         "report",
         "other",

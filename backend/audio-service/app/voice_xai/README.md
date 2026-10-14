@@ -38,8 +38,7 @@ voice_xai/
   temporal/             XLS-R temporal attention analysis and visualisation
   semantic/             acoustic feature schema and XGBoost/SHAP explanations
   evaluation/           consistency metrics and research-readiness policy
-  report/               deterministic unified forensic report composition
-  narrative/            optional AI narration of the deterministic report
+  report/               deterministic reports and optional Qwen AI narration
   persistence/          XAI repository contracts and MongoDB implementation
   artifacts/            private, hash-verified evidence artifact storage
 ```
