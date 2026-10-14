@@ -22,7 +22,3 @@ postman/
 !app/voice_xai/semantic/artifacts/feature_columns.json
 !app/voice_xai/semantic/artifacts/imputer.joblib
 !app/voice_xai/semantic/artifacts/training_metadata.json
-!app/voice_xai/semantic/artifacts/probability_calibrator.joblib
-!app/voice_xai/semantic/artifacts/teacher_fusion.json
-!app/voice_xai/semantic/artifacts/teacher_assets*.json
-!app/voice_xai/semantic/artifacts/selected_glottal_features_20.json

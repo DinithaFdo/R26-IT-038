@@ -1,7 +1,7 @@
 """Validate and load semantic model exports from one fixed directory.
 
-Check feature order, preprocessing, regression objective, and optional teacher
-provenance before loading the imputer, regressor, and Tree SHAP explainer.
+Check feature order, preprocessing, and the regression objective before loading
+the imputer, regressor, and Tree SHAP explainer from the four required exports.
 """
 from dataclasses import dataclass
 from hashlib import sha256
@@ -17,11 +17,10 @@ import numpy as np
 
 from app.voice_xai.semantic.schema import (
     FEATURE_NAMES, FEATURE_EXTRACTION_VERSION, FEATURE_SCHEMA_VERSION,
-    PREPROCESSING_CONTRACT, SELECTED20,
+    PREPROCESSING_CONTRACT,
 )
 
 REQUIRED_FILES = {"surrogate_xgboost.json", "feature_columns.json", "imputer.joblib", "training_metadata.json"}
-OPTIONAL_FILES = {"probability_calibrator.joblib", "teacher_fusion.json", "teacher_assets.json", "selected_glottal_features_20.json"}
 _EXPLAINER_LOCK = RLock()
 
 
@@ -56,21 +55,14 @@ class LoadedSemanticArtifacts:
 
 
 def _read_model_files(directory: Path) -> dict[str, bytes]:
-    """Snapshot the required exports and any known optional companions."""
+    """Snapshot only the four required model exports."""
     files = {}
     try:
-        for name in sorted(REQUIRED_FILES | OPTIONAL_FILES):
+        for name in sorted(REQUIRED_FILES):
             path = directory / name
-            if path.is_file():
-                files[name] = path.read_bytes()
-            elif name in REQUIRED_FILES:
+            if not path.is_file():
                 raise SemanticArtifactCompatibilityError(f"Missing required model file: {name}.")
-        if "teacher_assets.json" not in files:
-            candidates = sorted(directory.glob("teacher_assets_*.json"))
-            if len(candidates) > 1:
-                raise SemanticArtifactCompatibilityError("Keep only the matching teacher_assets file in the model directory.")
-            if candidates:
-                files["teacher_assets.json"] = candidates[0].read_bytes()
+            files[name] = path.read_bytes()
     except OSError as error:
         raise SemanticArtifactCompatibilityError("Semantic model files could not be read.") from error
     return files
@@ -88,7 +80,7 @@ def model_fingerprint(directory: Path) -> str:
 
 def _read_json(files: dict[str, bytes], name: str):
     try:
-        # Optional evaluation metrics may serialize as NaN; fidelity() handles
+        # Unavailable evaluation metrics may serialize as NaN; fidelity() handles
         # those as unavailable. Inference fields are validated separately.
         return json.loads(files[name])
     except (KeyError, ValueError) as error:
@@ -129,24 +121,6 @@ def _validate_model_files(files: dict[str, bytes]):
         raise SemanticArtifactCompatibilityError("Invalid XGBoost export.") from error
     if not valid:
         raise SemanticArtifactCompatibilityError("Expected a 165-feature XGBRegressor with the reg:squarederror objective.")
-    if "selected_glottal_features_20.json" in files:
-        selected = _read_json(files, "selected_glottal_features_20.json")
-        if not isinstance(selected, dict) or selected.get("selected_features") != list(SELECTED20):
-            raise SemanticArtifactCompatibilityError("Selected-20 feature contract mismatch.")
-    if "teacher_assets.json" in files:
-        assets = _read_json(files, "teacher_assets.json")
-        hashes = assets.get("hashes") if isinstance(assets, dict) else None
-        if not isinstance(hashes, dict):
-            raise SemanticArtifactCompatibilityError("Teacher provenance mismatch.")
-        fingerprint = sha256(json.dumps(hashes, sort_keys=True).encode()).hexdigest()[:16]
-        fingerprints = metadata.get("teacher_fingerprints", {})
-        if (assets.get("teacher_fingerprint") != fingerprint
-                or hashes.get("feature_schema") != list(FEATURE_NAMES)
-                or not isinstance(fingerprints, dict)
-                or any(values != [fingerprint] for values in fingerprints.values())):
-            raise SemanticArtifactCompatibilityError("Teacher provenance mismatch.")
-        if "teacher_fusion.json" in files and hashes.get("fusion") != _read_json(files, "teacher_fusion.json"):
-            raise SemanticArtifactCompatibilityError("Teacher fusion provenance mismatch.")
     return metadata, float(threshold)
 
 

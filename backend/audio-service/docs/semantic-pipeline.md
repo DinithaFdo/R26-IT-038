@@ -23,13 +23,8 @@ model directory.
 With real XAI enabled, startup rejects that model until retrained v2 exports
 replace it. Classification can run during retraining with `XAI_ENABLED=false`.
 
-The optional `probability_calibrator.joblib`, `teacher_fusion.json`,
-`teacher_assets_<fingerprint>.json`, and `selected_glottal_features_20.json`
-can be placed beside the required files. Teacher provenance and the selected
-feature list are validated when present. Use the matching optional files for the
-same teacher/run; remove stale companions when replacing a model. The calibrator
-is retained as an optional export and is not applied to runtime predictions.
-Only place trusted joblib files in the configured directory.
+The loader reads only these four files. Only place a trusted imputer export in
+the configured directory. The selected feature names are defined in `schema.py`.
 
 The default model directory is:
 
@@ -45,11 +40,11 @@ Set `XAI_SEMANTIC_MODEL_DIR` only if you use another directory. Relative paths
 resolve from `audio-service`.
 
 To update the model, stop the backend, replace the four required files together
-from the same finalized training run, update any optional companions, and restart.
+from the same finalized training run, and restart.
 A downloaded imputer named `imputer (1).joblib` must be renamed to `imputer.joblib`.
 
 Startup checks the feature order, preprocessing contract, regression objective,
-fitted imputer, optional teacher provenance, and prediction/SHAP reconstruction.
+fitted imputer, and prediction/SHAP reconstruction.
 Invalid or incomplete exports reject startup. Model identity is calculated from
 file contents automatically; no import command, version folder, manifest, or
 active pointer is required. File bytes are preserved in Git.

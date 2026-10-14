@@ -315,8 +315,8 @@ to rebuild inputs with the portable backend extractor.
 
 To use a retrained model, stop the backend and replace `surrogate_xgboost.json`,
 `imputer.joblib`, `feature_columns.json`, and `training_metadata.json` together
-inside `app/voice_xai/semantic/artifacts/`, then restart. Update any optional
-teacher/feature companion files to match. Startup validates the exports and
+inside `app/voice_xai/semantic/artifacts/`, then restart. The model directory
+contains only these four files. Startup validates the exports and
 prediction/SHAP behavior. Model identity is derived from file contents;
 decision threshold and optional fidelity R² come from metadata. R² targets
 never gate runtime. See [the model update guide](docs/semantic-pipeline.md).

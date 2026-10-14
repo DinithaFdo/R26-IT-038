@@ -1,6 +1,5 @@
 """Manual model replacement, startup validation, and cache provenance tests."""
 import json
-from hashlib import sha256
 from types import SimpleNamespace
 
 import joblib
@@ -14,7 +13,7 @@ from app.voice_xai.semantic.artifact_loader import (
     SemanticArtifactCompatibilityError, load_production_semantic_artifacts, model_fingerprint,
 )
 from app.voice_xai.semantic.features import FeatureExtractionResult
-from app.voice_xai.semantic.schema import FEATURE_NAMES, FEATURE_EXTRACTION_VERSION, SELECTED20
+from app.voice_xai.semantic.schema import FEATURE_NAMES, FEATURE_EXTRACTION_VERSION
 from app.voice_xai.semantic.service import ProductionSemanticExplanationService
 from app.voice_xai.workflow.orchestrator import _configuration_hash
 from tests.semantic_support import write_model_export
@@ -157,28 +156,8 @@ def test_configuration_cache_includes_extraction_version(monkeypatch):
     assert _configuration_hash(settings) != first
 
 
-def test_fingerprint_ignores_unrelated_files(model_dir):
+@pytest.mark.parametrize("filename", ["notes.txt", "unused_model.joblib", "unrelated.json"])
+def test_fingerprint_ignores_unrelated_files(model_dir, filename):
     first = model_fingerprint(model_dir)
-    (model_dir / "notes.txt").write_text("Local notes")
+    (model_dir / filename).write_text("Unrelated content")
     assert model_fingerprint(model_dir) == first
-
-
-@pytest.mark.parametrize("filename", ["teacher_assets.json", "teacher_assets_test.json"])
-def test_optional_teacher_exports_load_from_fixed_directory(model_dir, filename):
-    hashes = {"feature_schema": list(FEATURE_NAMES), "fusion": {"version": "test-teacher"}}
-    fingerprint = sha256(json.dumps(hashes, sort_keys=True).encode()).hexdigest()[:16]
-    assets = {"teacher_fingerprint": fingerprint, "hashes": hashes}
-    (model_dir / filename).write_text(json.dumps(assets))
-    (model_dir / "teacher_fusion.json").write_text(json.dumps(hashes["fusion"]))
-    (model_dir / "selected_glottal_features_20.json").write_text(json.dumps({"selected_features": list(SELECTED20)}))
-    artifacts = load_production_semantic_artifacts(model_dir)
-    assert artifacts.fingerprint == model_fingerprint(model_dir)
-    (model_dir / "teacher_fusion.json").write_text('{"version":"different-teacher"}')
-    with pytest.raises(SemanticArtifactCompatibilityError, match="Teacher fusion provenance mismatch"):
-        load_production_semantic_artifacts(model_dir)
-
-
-def test_malformed_optional_feature_contract_is_rejected(model_dir):
-    (model_dir / "selected_glottal_features_20.json").write_text('{"selected_features":null}')
-    with pytest.raises(SemanticArtifactCompatibilityError, match="Selected-20 feature contract mismatch"):
-        load_production_semantic_artifacts(model_dir)

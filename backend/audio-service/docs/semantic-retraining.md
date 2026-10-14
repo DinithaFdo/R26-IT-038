@@ -170,8 +170,8 @@ training_metadata.update({
 Export a newly fitted `surrogate_xgboost.json`, `imputer.joblib`,
 `feature_columns.json`, and `training_metadata.json` together. The existing
 export cell already writes these. Its fidelity metadata must come from the new
-evaluation, not an old result or an R² target. Keep the matching teacher-fusion
-and teacher-assets files if you export them as optional provenance companions.
+evaluation, not an old result or an R² target. The backend needs only these four
+model exports; other training/evaluation outputs stay outside its model folder.
 
 ## 5. Replace the late raw-audio helper definitions
 
@@ -225,13 +225,12 @@ directly into `audio-service/app/voice_xai/semantic/artifacts/`:
 - `training_metadata.json`
 
 If the downloaded imputer has a suffix such as `(1)`, rename it to
-`imputer.joblib`. Replace optional teacher/fusion/selected-feature companion
-files with the matching exports, or remove obsolete companions. Keep any
-backups outside the configured model directory.
+`imputer.joblib`. Keep only the four required exports in the configured model
+directory. Keep backups and other training outputs elsewhere.
 
 Restart the backend. `XAI_SEMANTIC_MODEL_DIR` selects the fixed directory and
 defaults to the path above. Startup validates the preprocessing contract,
-feature order, regressor, fitted imputer, optional provenance, and a real
+feature order, regressor, fitted imputer, and a real
 prediction/SHAP reconstruction. Old preprocessing metadata and incomplete model
 folders are rejected. Model version and explanation-cache identity are derived
 automatically from the files; there is no import command or manifest to generate.
