@@ -309,6 +309,9 @@ paths resolve from `audio-service`. The semantic service uses a 165-feature
 teacher surrogate with raw-score Tree SHAP.
 
 All semantic features use one full cleaned waveform with no six-second crop.
+`app/voice_xai/semantic/feature_extraction.py` owns preprocessing, the unified
+165-feature helpers and the public `AcousticFeatureExtractor`. Its ordered
+output feeds the existing imputer, surrogate and Tree SHAP pipeline directly.
 This requires a retrained `shared-clean-fullclip-audio-v2` model; the previous
 model is rejected. Train the replacement outside the backend using the same
 feature order and preprocessing contract defined in `app/voice_xai/semantic/schema.py`.

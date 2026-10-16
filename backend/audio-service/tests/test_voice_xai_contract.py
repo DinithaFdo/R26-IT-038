@@ -21,7 +21,7 @@ from app.voice_xai.integration.contracts import (
     PUBLIC_MODEL_NAME_BY_XAI_BRANCH,
     ClassifierInferenceBundle,
 )
-from app.voice_xai.semantic.features import FeatureExtractionResult
+from app.voice_xai.semantic.feature_extraction import FeatureExtractionResult
 
 
 def test_classifier_xai_contract_freezes_branch_names_and_aliases() -> None:

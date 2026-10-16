@@ -12,7 +12,7 @@ from app.models.runtime import (
 )
 from app.schemas.common import SourceType
 from app.schemas.prediction import VoicePredictionResponse
-from app.voice_xai.semantic.features import FeatureExtractionResult
+from app.voice_xai.semantic.feature_extraction import FeatureExtractionResult
 from app.voice_xai.temporal.contracts import TemporalAttentionWindowInput
 
 if TYPE_CHECKING:

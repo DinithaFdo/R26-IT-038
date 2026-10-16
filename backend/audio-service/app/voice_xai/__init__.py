@@ -4,7 +4,7 @@ The package intentionally has no FastAPI routes or persistence side effects.
 Those are added only after the classifier-to-XAI integration contract is frozen.
 """
 
-from app.voice_xai.semantic.features import (
+from app.voice_xai.semantic.feature_extraction import (
     FEATURE_NAMES,
     AcousticFeatureExtractor,
     FeatureExtractionResult,

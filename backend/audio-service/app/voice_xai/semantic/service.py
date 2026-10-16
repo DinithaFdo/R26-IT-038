@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 from app.voice_xai.semantic.artifact_loader import SemanticArtifactCompatibilityError, load_production_semantic_artifacts, model_fingerprint
 from app.voice_xai.semantic.contracts import SemanticAnalysisResult, SemanticEvidence
-from app.voice_xai.semantic.features import AcousticFeatureExtractor
+from app.voice_xai.semantic.feature_extraction import AcousticFeatureExtractor
 from app.voice_xai.semantic.schema import FEATURE_NAMES, FEATURE_EXTRACTION_VERSION
 from app.voice_xai.semantic.explainer import build_semantic_explanation
 

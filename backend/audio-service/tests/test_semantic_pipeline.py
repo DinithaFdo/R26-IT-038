@@ -8,8 +8,8 @@ import soundfile as sf
 
 from app.config.settings import Settings
 from app.ingestion import audio as ingestion
-from app.voice_xai.semantic import recipe
-from app.voice_xai.semantic.features import AcousticFeatureExtractor, FeatureExtractionResult
+from app.voice_xai.semantic import feature_extraction as extraction
+from app.voice_xai.semantic.feature_extraction import AcousticFeatureExtractor, FeatureExtractionResult
 from app.voice_xai.semantic.schema import FEATURE_NAMES, FEATURE_EXTRACTION_VERSION, SELECTED20
 from app.voice_xai.semantic.service import ProductionSemanticExplanationService
 from tests.semantic_support import write_model_export
@@ -55,7 +55,7 @@ def test_preprocessing_preserves_long_audio_and_trims_only_boundaries():
     sr = 16000
     active = 0.2 * np.sin(2 * np.pi * 180 * np.arange(12 * sr) / sr)
     source = np.concatenate([np.zeros(sr), active, np.zeros(sr)])
-    cleaned, actual_sr = recipe.prepare_audio(np.column_stack([source, source]), sr)
+    cleaned, actual_sr = extraction.prepare_audio(np.column_stack([source, source]), sr)
     assert actual_sr == sr
     assert 12 * sr <= len(cleaned) < len(source)
     assert cleaned.dtype == np.float32
@@ -67,7 +67,7 @@ def test_resampling_and_numeric_cleanup_keep_complete_clip():
     sr = 48000
     signal = np.sin(2 * np.pi * 180 * np.arange(8 * sr) / sr).astype(np.float32)
     signal[0] = np.nan
-    cleaned, rate = recipe.prepare_audio(signal, sr)
+    cleaned, rate = extraction.prepare_audio(signal, sr)
     assert rate == 16000
     assert len(cleaned) == 8 * rate
     assert np.isfinite(cleaned).all()
@@ -76,7 +76,7 @@ def test_resampling_and_numeric_cleanup_keep_complete_clip():
 @pytest.mark.parametrize("signal", [np.zeros(16000), np.ones(16000), np.array([]), np.ones(100)])
 def test_empty_silent_and_too_short_inputs_are_rejected(signal):
     with pytest.raises(ValueError):
-        recipe.prepare_audio(signal, 16000)
+        extraction.prepare_audio(signal, 16000)
 
 
 def test_every_feature_group_receives_same_waveform_once(monkeypatch, tmp_path):
@@ -86,7 +86,7 @@ def test_every_feature_group_receives_same_waveform_once(monkeypatch, tmp_path):
     decoded = []
     prepared = []
     seen = []
-    original_read, original_prepare = recipe.sf.read, recipe.prepare_audio
+    original_read, original_prepare = sf.read, extraction.prepare_audio
     def read(*args, **kwargs):
         decoded.append(args[0])
         return original_read(*args, **kwargs)
@@ -106,15 +106,27 @@ def test_every_feature_group_receives_same_waveform_once(monkeypatch, tmp_path):
     def disvoice(y, rate):
         seen.append(y)
         return np.arange(36, dtype=float)
-    monkeypatch.setattr(recipe.sf, "read", read)
-    monkeypatch.setattr(recipe, "prepare_audio", prepare)
-    monkeypatch.setattr(recipe, "extract_acoustic_features", base)
-    monkeypatch.setattr(recipe, "extract_glottal_voice_quality", voice)
-    monkeypatch.setattr(recipe, "extract_glottal_spectral_features", spectral)
-    monkeypatch.setattr(recipe, "extract_disvoice_glottal_exact", disvoice)
+    def write_group(out, y, rate):
+        seen.append(y)
+    def energy(out, y):
+        seen.append(y)
+        return np.ones(10)
+    def cpp_and_pauses(out, y, rate, rms):
+        seen.append(y)
+        assert len(rms) == 10
+    monkeypatch.setattr(sf, "read", read)
+    monkeypatch.setattr(extraction, "prepare_audio", prepare)
+    monkeypatch.setattr(extraction, "praat_voice_features", base)
+    for name in ("_write_cepstra", "_write_pitch", "_write_spectra"):
+        monkeypatch.setattr(extraction, name, write_group)
+    monkeypatch.setattr(extraction, "_write_energy", energy)
+    monkeypatch.setattr(extraction, "_write_cpp_and_pauses", cpp_and_pauses)
+    monkeypatch.setattr(extraction, "extract_glottal_voice_quality", voice)
+    monkeypatch.setattr(extraction, "extract_glottal_spectral_features", spectral)
+    monkeypatch.setattr(extraction, "extract_disvoice_glottal_exact", disvoice)
     result = AcousticFeatureExtractor().extract_file(path)
     assert len(decoded) == len(prepared) == 1
-    assert len(seen) == 4 and all(y is prepared[0] for y in seen)
+    assert len(seen) == 9 and all(y is prepared[0] for y in seen)
     assert len(prepared[0]) == 12 * sr
     assert result.duration_seconds == 12
     assert result.metadata["acoustic_crop_seconds"] is None
@@ -131,8 +143,8 @@ def test_disvoice_uses_shared_waveform_and_removes_temporary_file(monkeypatch):
         assert sr == 16000 and len(encoded) == len(waveform)
         np.testing.assert_allclose(encoded, waveform, atol=1 / 32768)
         return np.arange(36, dtype=float)
-    monkeypatch.setattr(recipe, "_get_glottal_extractor", lambda: SimpleNamespace(extract_features_file=extract))
-    assert len(recipe.extract_disvoice_glottal_exact(waveform)) == 36
+    monkeypatch.setattr(extraction, "_get_glottal_extractor", lambda: SimpleNamespace(extract_features_file=extract))
+    assert len(extraction.extract_disvoice_glottal_exact(waveform)) == 36
     assert not paths[0].exists()
 
 
@@ -141,28 +153,30 @@ def test_disvoice_failure_removes_temporary_file(monkeypatch):
     def extract(path, **kwargs):
         paths.append(Path(path))
         raise RuntimeError("Extraction failed")
-    monkeypatch.setattr(recipe, "_get_glottal_extractor", lambda: SimpleNamespace(extract_features_file=extract))
+    monkeypatch.setattr(extraction, "_get_glottal_extractor", lambda: SimpleNamespace(extract_features_file=extract))
     with pytest.raises(RuntimeError):
-        recipe.extract_disvoice_glottal_exact(np.ones(16000))
+        extraction.extract_disvoice_glottal_exact(np.ones(16000))
     assert not paths[0].exists()
 
 
 def test_cpp_uses_frames_beyond_first_ten_seconds():
     sr = 16000
     signal = np.sin(2 * np.pi * 180 * np.arange(12 * sr) / sr)
-    values = recipe.compute_framewise_cpp(signal, sr)
+    values = extraction.compute_framewise_cpp(signal, sr)
     assert len(values) == 1197
 
 
-def test_acoustic_summary_includes_audio_outside_old_center_crop():
+def test_unified_summary_includes_audio_outside_old_center_crop(monkeypatch):
     sr = 16000
     t = np.arange(12 * sr) / sr
     source = np.sin(2 * np.pi * 180 * t)
     source[:3 * sr] *= 0.1
     source[9 * sr:] *= 0.1
-    cleaned, sr = recipe.prepare_audio(source, sr)
-    features = recipe.extract_acoustic_features(cleaned, sr)
-    assert len(features) == 148
+    cleaned, sr = extraction.prepare_audio(source, sr)
+    monkeypatch.setattr(extraction, 'extract_complete_glottal_features_exact',
+                        lambda *args: dict.fromkeys(SELECTED20, 123.0))
+    features = extraction.extract_feature_mapping(cleaned, sr)
+    assert len(features) == 165
     assert features["rms_mean"] < 0.5
 
 
@@ -182,7 +196,31 @@ def test_no_normalised_waveform_fallback():
         AcousticFeatureExtractor().extract_processed_audio(SimpleNamespace(source_audio_bytes=None))
 
 
+def test_service_extracts_original_audio_through_unified_public_api(monkeypatch, tmp_path, trained):
+    service, inputs, *_ = trained
+    path = tmp_path / 'voice.wav'
+    signal = np.sin(2 * np.pi * 180 * np.arange(16000) / 16000)
+    sf.write(path, signal, 16000)
+    source_bytes = path.read_bytes()
+    path.unlink()
+    seen = []
+    expected = dict(zip(FEATURE_NAMES, inputs.iloc[0].to_numpy()))
+    def unified(waveform, sample_rate):
+        assert sample_rate == 16000 and len(waveform) == 16000
+        assert np.max(np.abs(waveform)) == pytest.approx(1)
+        seen.append(waveform)
+        return expected
+    monkeypatch.setattr(extraction, 'extract_feature_mapping', unified)
+    audio = SimpleNamespace(source_audio_bytes=source_bytes, source_audio_extension='.wav')
+    result = service.analyze(SimpleNamespace(acoustic_features=None, processed_audio=audio)).explanation
+    assert len(seen) == 1
+    precomputed = service.analyze(SimpleNamespace(acoustic_features=feature_row(list(expected.values())))).explanation
+    assert result.predicted_value == precomputed.predicted_value
+    assert result.feature_importance == precomputed.feature_importance
+
+
 def test_disvoice_loader_and_instance_remain_cached(monkeypatch, tmp_path):
+    from app.models.real import glottal_compat
     events = []
     class Glottal:
         def __init__(self):
@@ -196,19 +234,19 @@ def test_disvoice_loader_and_instance_remain_cached(monkeypatch, tmp_path):
         assert name == "_semantic_disvoice_glottal"
         assert path == tmp_path / "disvoice" / "glottal" / "glottal.py"
         return spec
-    monkeypatch.setattr(recipe, "importlib", SimpleNamespace(util=SimpleNamespace(
+    monkeypatch.setattr(extraction, "importlib", SimpleNamespace(util=SimpleNamespace(
         find_spec=find_spec, spec_from_file_location=module_spec,
         module_from_spec=lambda _: module,
     )))
-    monkeypatch.setattr(recipe, "apply_disvoice_compatibility_patches", lambda: events.append("compatibility"))
-    monkeypatch.setattr(recipe, "patch_disvoice_gci_numpy2_bug", lambda: events.append("gci"))
-    recipe.load_glottal_class.cache_clear()
-    recipe._get_glottal_extractor.cache_clear()
+    monkeypatch.setattr(glottal_compat, "apply_disvoice_compatibility_patches", lambda: events.append("compatibility"))
+    monkeypatch.setattr(glottal_compat, "patch_disvoice_gci_numpy2_bug", lambda: events.append("gci"))
+    extraction.load_glottal_class.cache_clear()
+    extraction._get_glottal_extractor.cache_clear()
     try:
-        first = recipe._get_glottal_extractor()
-        assert recipe._get_glottal_extractor() is first
-        assert recipe.load_glottal_class() is Glottal
+        first = extraction._get_glottal_extractor()
+        assert extraction._get_glottal_extractor() is first
+        assert extraction.load_glottal_class() is Glottal
         assert events == ["compatibility", "execute", "gci", "instance"]
     finally:
-        recipe._get_glottal_extractor.cache_clear()
-        recipe.load_glottal_class.cache_clear()
+        extraction._get_glottal_extractor.cache_clear()
+        extraction.load_glottal_class.cache_clear()

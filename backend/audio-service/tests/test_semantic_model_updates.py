@@ -12,7 +12,7 @@ from app.config.settings import Settings
 from app.voice_xai.semantic.artifact_loader import (
     SemanticArtifactCompatibilityError, load_production_semantic_artifacts, model_fingerprint,
 )
-from app.voice_xai.semantic.features import FeatureExtractionResult
+from app.voice_xai.semantic.feature_extraction import FeatureExtractionResult
 from app.voice_xai.semantic.schema import FEATURE_NAMES, FEATURE_EXTRACTION_VERSION
 from app.voice_xai.semantic.service import ProductionSemanticExplanationService
 from app.voice_xai.workflow.orchestrator import _configuration_hash

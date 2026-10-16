@@ -46,6 +46,15 @@ voice_xai/
 Model training runs separately from the runtime package. Semantic inference
 loads validated model exports from the configured fixed model directory.
 
+Semantic audio extraction lives in `semantic/feature_extraction.py`.
+`AcousticFeatureExtractor.extract_file()` decodes and cleans the original clip
+once, then `extract_feature_mapping()` writes the 165 ordered model inputs through
+Praat, cepstral, pitch, energy, spectral, CPP/pause and Glottal helpers. There is
+no separate 148-feature/20-feature assembly or merge stage. Selected Glottal
+validation and shared acoustic values retain the trained contract in `schema.py`.
+`service.py` then applies the fitted imputer, XGBoost regressor and Tree SHAP;
+`explainer.py` formats the semantic response.
+
 ## Current request and response flow
 
 1. `POST /api/v1/predictions` authenticates the user and calls

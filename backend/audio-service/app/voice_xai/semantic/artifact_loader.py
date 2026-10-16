@@ -168,7 +168,7 @@ def load_production_semantic_artifacts(model_dir: Path) -> LoadedSemanticArtifac
         metadata, threshold, directory, fingerprint,
     )
     # Validate one prediction/SHAP reconstruction before startup completes.
-    from app.voice_xai.semantic.features import FeatureExtractionResult
+    from app.voice_xai.semantic.feature_extraction import FeatureExtractionResult
     from app.voice_xai.semantic.service import XgboostShapEvidenceProvider
     XgboostShapEvidenceProvider(artifacts).extract_features(FeatureExtractionResult(
         FEATURE_NAMES, statistics.copy(), 16000, 1.0, FEATURE_EXTRACTION_VERSION, {},
