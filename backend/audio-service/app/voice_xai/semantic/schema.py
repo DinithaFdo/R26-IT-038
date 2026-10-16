@@ -1,7 +1,7 @@
 """Ordered feature names and version identifiers for semantic model inputs.
 
-Define the 165-feature inference contract and selected 20 Glottal names shared
-by feature extraction, artifact validation, and explanation serialization.
+Define the single ordered 165-feature inference contract shared by extraction,
+artifact validation and explanation serialization, plus preprocessing metadata.
 """
 FEATURE_EXTRACTION_VERSION = "shared-clean-fullclip-audio-v2"
 FEATURE_SCHEMA_VERSION = "shared-clean-fullclip-165-v2"
@@ -169,26 +169,6 @@ FEATURE_NAMES = ('jitter',
  'pause_max_duration',
  'shimmer_local',
  'hnr_std',
- 'f0_min',
- 'jitter_local',
- 'glottal_global_avg_avg_h1h2',
- 'glottal_global_avg_avg_naq',
- 'glottal_global_avg_std_h1h2',
- 'glottal_global_skewness_std_hrf',
- 'glottal_global_avg_std_qoq',
- 'glottal_global_std_avg_naq',
- 'glottal_global_kurtosis_avg_hrf',
- 'glottal_global_kurtosis_std_h1h2',
- 'glottal_global_skewness_avg_qoq',
- 'glottal_global_skewness_std_qoq',
- 'glottal_global_skewness_avg_h1h2',
- 'glottal_global_kurtosis_avg_naq',
- 'glottal_global_kurtosis_std_naq')
-SELECTED20 = ('spectral_centroid_mean',
- 'shimmer_local',
- 'spectral_centroid_std',
- 'hnr_std',
- 'f0_std',
  'f0_min',
  'jitter_local',
  'glottal_global_avg_avg_h1h2',

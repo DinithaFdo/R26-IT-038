@@ -18,7 +18,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from app.ingestion.audio import ProcessedAudio
-from .schema import FEATURE_NAMES, FEATURE_EXTRACTION_VERSION, PREPROCESSING_CONTRACT, SELECTED20
+from .schema import FEATURE_NAMES, FEATURE_EXTRACTION_VERSION, PREPROCESSING_CONTRACT
 
 TARGET_SR = 16000
 _LOCK = Lock()
@@ -442,21 +442,35 @@ def _write_cpp_and_pauses(out, y, sr, rms):
     ))
 
 
-# Validate selected Glottal values and write additions without replacing shared acoustic values.
+# Extraction rules, not a second model schema: True writes the Glottal value;
+# False validates it while retaining the value measured by an acoustic helper.
+# Keep this validation order so the first reported missing/invalid value is
+# unchanged. DisVoice outputs are selected directly from the final feature schema.
+_GLOTTAL_WRITE_POLICY = {
+    'spectral_centroid_mean': False,
+    'shimmer_local': True,
+    'spectral_centroid_std': False,
+    'hnr_std': True,
+    'f0_std': False,
+    'f0_min': True,
+    'jitter_local': True,
+    **{name: True for name in FEATURE_NAMES if name.startswith('glottal_')},
+}
+
+
+# Validate required Glottal measurements and write only their designated model inputs.
 def _write_glottal(out, y, sr):
-    # Retain validation of all selected values, including the three overlapping
-    # values that the trained recipe validates but does not use in its output.
+    # All 20 source measurements remain mandatory; three are validation-only.
     measured = extract_complete_glottal_features_exact(y, sr)
-    shared_acoustic_names = {'f0_std', 'spectral_centroid_mean', 'spectral_centroid_std'}
     validated = set()
-    for name in SELECTED20:
+    for name, write_to_output in _GLOTTAL_WRITE_POLICY.items():
         if name not in measured:
             raise KeyError(f'Missing selected Glottal feature: {name}')
         value = float(measured[name])
         if not np.isfinite(value):
             raise ValueError(f'Non-finite selected Glottal feature: {name}={value}')
         validated.add(name)
-        if name not in shared_acoustic_names:
+        if write_to_output:
             out[name] = value
     if len(validated) != 20:
         raise RuntimeError(f'Expected 20 selected Glottal features, got {len(validated)}')

@@ -10,7 +10,7 @@ from app.config.settings import Settings
 from app.ingestion import audio as ingestion
 from app.voice_xai.semantic import feature_extraction as extraction
 from app.voice_xai.semantic.feature_extraction import AcousticFeatureExtractor, FeatureExtractionResult
-from app.voice_xai.semantic.schema import FEATURE_NAMES, FEATURE_EXTRACTION_VERSION, SELECTED20
+from app.voice_xai.semantic.schema import FEATURE_NAMES, FEATURE_EXTRACTION_VERSION
 from app.voice_xai.semantic.service import ProductionSemanticExplanationService
 from tests.semantic_support import write_model_export
 
@@ -99,10 +99,10 @@ def test_every_feature_group_receives_same_waveform_once(monkeypatch, tmp_path):
         return dict(zip(FEATURE_NAMES[:148], range(148)))
     def voice(y, rate):
         seen.append(y)
-        return {name: 999.0 for name in SELECTED20 if not name.startswith("glottal_")}
+        return dict.fromkeys(('shimmer_local', 'hnr_std', 'f0_std', 'f0_min', 'jitter_local'), 999.0)
     def spectral(y, rate):
         seen.append(y)
-        return {}
+        return dict.fromkeys(('spectral_centroid_mean', 'spectral_centroid_std'), 999.0)
     def disvoice(y, rate):
         seen.append(y)
         return np.arange(36, dtype=float)
@@ -174,7 +174,7 @@ def test_unified_summary_includes_audio_outside_old_center_crop(monkeypatch):
     source[9 * sr:] *= 0.1
     cleaned, sr = extraction.prepare_audio(source, sr)
     monkeypatch.setattr(extraction, 'extract_complete_glottal_features_exact',
-                        lambda *args: dict.fromkeys(SELECTED20, 123.0))
+                        lambda *args: dict.fromkeys(FEATURE_NAMES, 123.0))
     features = extraction.extract_feature_mapping(cleaned, sr)
     assert len(features) == 165
     assert features["rms_mean"] < 0.5

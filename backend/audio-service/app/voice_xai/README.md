@@ -49,9 +49,11 @@ loads validated model exports from the configured fixed model directory.
 Semantic audio extraction lives in `semantic/feature_extraction.py`.
 `AcousticFeatureExtractor.extract_file()` decodes and cleans the original clip
 once, then `extract_feature_mapping()` writes the 165 ordered model inputs through
-Praat, cepstral, pitch, energy, spectral, CPP/pause and Glottal helpers. There is
-no separate 148-feature/20-feature assembly or merge stage. Selected Glottal
-validation and shared acoustic values retain the trained contract in `schema.py`.
+Praat, cepstral, pitch, energy, spectral, CPP/pause and Glottal helpers. `schema.py` defines
+the single ordered feature list. Glottal selection, validation and acoustic-value
+precedence rules live in `feature_extraction.py`; DisVoice output names are
+selected from the final schema. The trained calculations and error handling
+are retained, including validation of the three shared acoustic names.
 `service.py` then applies the fitted imputer, XGBoost regressor and Tree SHAP;
 `explainer.py` formats the semantic response.
 
