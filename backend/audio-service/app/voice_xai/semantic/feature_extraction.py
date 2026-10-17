@@ -159,26 +159,78 @@ def summarize_track(x, prefix, out):
     out[f'{prefix}_std'] = float(np.std(x)) if len(x) else np.nan
 
 
-# Compute LFCC tracks using the trained linear-filterbank and frame parameters.
-def compute_lfcc(y, sr, n_lfcc=20, n_filters=40, n_fft=512, hop_length=160, win_length=400):
+# Cache the immutable trained LFCC filterbank for reuse across clips and windows.
+@lru_cache(maxsize=4)
+def lfcc_filterbank(sample_rate, n_fft=512, n_filters=40):
+    freqs = np.linspace(0.0, sample_rate / 2.0, 1 + n_fft // 2)
+    edges = np.linspace(0.0, sample_rate / 2.0, n_filters + 2)
+    bank = np.zeros((n_filters, len(freqs)), dtype=np.float64)
+    for index in range(n_filters):
+        left, center, right = edges[index:index + 3]
+        rising = (freqs >= left) & (freqs <= center)
+        falling = (freqs >= center) & (freqs <= right)
+        if center > left:
+            bank[index, rising] = (freqs[rising] - left) / (center - left)
+        if right > center:
+            bank[index, falling] = (right - freqs[falling]) / (right - center)
+    bank.setflags(write=False)
+    return bank
+
+
+# Compute matching LFCC/MFCC/spectral values from one shared Hann STFT.
+def write_shared_spectra(out, y, sr):
     import librosa
     from scipy.fft import dct
-    S = np.abs(librosa.stft(y, n_fft=n_fft, hop_length=hop_length, win_length=win_length, window='hann', center=True)) ** 2
-    freqs = np.linspace(0.0, sr / 2.0, S.shape[0])
-    edges = np.linspace(0.0, sr / 2.0, n_filters + 2)
-    fb = np.zeros((n_filters, len(freqs)), dtype=np.float64)
-    for i in range(n_filters):
-        left, center, right = (edges[i], edges[i + 1], edges[i + 2])
-        li = (freqs >= left) & (freqs <= center)
-        ri = (freqs >= center) & (freqs <= right)
-        if center > left:
-            fb[i, li] = (freqs[li] - left) / (center - left)
-        if right > center:
-            fb[i, ri] = (right - freqs[ri]) / (right - center)
-    energies = fb @ S
-    log_e = np.log(np.maximum(energies, 1e-12))
-    coeff = dct(log_e, type=2, axis=0, norm='ortho')
-    return coeff[1:n_lfcc + 1]
+
+    magnitude = np.abs(librosa.stft(
+        y, n_fft=512, hop_length=160, win_length=400,
+        window='hann', center=True,
+    ))
+    power = magnitude ** 2
+    coefficients = dct(
+        np.log(np.maximum(lfcc_filterbank(sr) @ power, 1e-12)),
+        type=2, axis=0, norm='ortho',
+    )[1:21]
+    for index in range(20):
+        out[f'lfcc_{index + 1}'] = float(np.nanmean(coefficients[index]))
+
+    mel = librosa.feature.melspectrogram(
+        S=power, sr=sr, n_fft=512, n_mels=40,
+        fmin=20.0, fmax=min(7600.0, sr / 2 - 1),
+    )
+    mfcc = librosa.feature.mfcc(S=librosa.power_to_db(mel), n_mfcc=14)[1:14]
+    width = 9 if mfcc.shape[1] >= 9 else max(3, mfcc.shape[1] // 2 * 2 + 1)
+    if width > mfcc.shape[1]:
+        width = mfcc.shape[1] if mfcc.shape[1] % 2 else mfcc.shape[1] - 1
+    if width < 3:
+        delta, delta2 = np.zeros_like(mfcc), np.zeros_like(mfcc)
+    else:
+        delta = librosa.feature.delta(mfcc, width=width, order=1, mode='nearest')
+        delta2 = librosa.feature.delta(mfcc, width=width, order=2, mode='nearest')
+    for family, matrix in (('mfcc', mfcc), ('dmfcc', delta), ('ddmfcc', delta2)):
+        for index in range(13):
+            summarize_track(matrix[index], f'{family}_{index + 1}', out)
+
+    tracks = {
+        'spectral_centroid': librosa.feature.spectral_centroid(S=magnitude, sr=sr)[0],
+        'spectral_bandwidth': librosa.feature.spectral_bandwidth(S=magnitude, sr=sr)[0],
+        'spectral_rolloff': librosa.feature.spectral_rolloff(S=magnitude, sr=sr, roll_percent=0.85)[0],
+        'spectral_flatness': librosa.feature.spectral_flatness(S=magnitude)[0],
+    }
+    for name, track in tracks.items():
+        summarize_track(track, name, out)
+    normalized = magnitude / (np.linalg.norm(magnitude, axis=0, keepdims=True) + 1e-12)
+    flux = (np.sqrt(np.sum(np.diff(normalized, axis=1) ** 2, axis=0))
+            if normalized.shape[1] > 1 else np.array([0.0]))
+    summarize_track(flux, 'spectral_flux', out)
+    try:
+        contrast = librosa.feature.spectral_contrast(S=magnitude, sr=sr, n_bands=5, fmin=200.0)
+        for band in range(contrast.shape[0]):
+            summarize_track(contrast[band], f'spectral_contrast_band{band + 1}', out)
+    except Exception:
+        for band in range(6):
+            out[f'spectral_contrast_band{band + 1}_mean'] = np.nan
+            out[f'spectral_contrast_band{band + 1}_std'] = np.nan
 
 
 # Measure cepstral peak prominence across frames of the entire cleaned clip.
@@ -289,10 +341,11 @@ def normalize_disvoice_name(name):
 DISVOICE_FEATURE_NAMES = [normalize_disvoice_name(name) for name in DISVOICE_RAW_NAMES]
 
 
-# Reuse one cached DisVoice extractor instance across audio extractions.
+# Reuse one private CPU-optimized DisVoice instance under the extraction lock.
 @lru_cache(maxsize=1)
 def _get_glottal_extractor():
-    return load_glottal_class()()
+    from .glottal_dsp import private_batched_glottal_extractor
+    return private_batched_glottal_extractor()
 
 
 # Measure Praat voice-quality values required by selected-feature validation.
@@ -395,35 +448,6 @@ def extract_complete_glottal_features_exact(y, sr=TARGET_SR):
     return features
 
 
-# Write LFCC, MFCC and first/second MFCC derivative summaries into the final mapping.
-def _write_cepstra(out, y, sr):
-    import librosa
-    hop, n_fft, win = 160, 512, 400
-    lfcc = compute_lfcc(
-        y, sr, n_lfcc=20, n_filters=40, n_fft=n_fft,
-        hop_length=hop, win_length=win,
-    )
-    for i in range(20):
-        out[f'lfcc_{i + 1}'] = float(np.nanmean(lfcc[i])) if i < len(lfcc) else np.nan
-    mfcc_all = librosa.feature.mfcc(
-        y=y, sr=sr, n_mfcc=14, n_fft=n_fft, hop_length=hop,
-        win_length=win, n_mels=40, fmin=20.0, fmax=min(7600.0, sr / 2 - 1),
-    )
-    mfcc = mfcc_all[1:14]
-    width = 9 if mfcc.shape[1] >= 9 else max(3, mfcc.shape[1] // 2 * 2 + 1)
-    if width > mfcc.shape[1]:
-        width = mfcc.shape[1] if mfcc.shape[1] % 2 == 1 else mfcc.shape[1] - 1
-    if width < 3:
-        d1 = np.zeros_like(mfcc)
-        d2 = np.zeros_like(mfcc)
-    else:
-        d1 = librosa.feature.delta(mfcc, width=width, order=1, mode='nearest')
-        d2 = librosa.feature.delta(mfcc, width=width, order=2, mode='nearest')
-    for family, mat in [('mfcc', mfcc), ('dmfcc', d1), ('ddmfcc', d2)]:
-        for i in range(13):
-            summarize_track(mat[i], f'{family}_{i + 1}', out)
-
-
 # Write pYIN pitch summaries; retain NaNs for unavailable base pitch measurements.
 def _write_pitch(out, y, sr):
     import librosa
@@ -459,38 +483,6 @@ def _write_energy(out, y):
         np.percentile(rms_db, 95) - np.percentile(rms_db, 5)
     )
     return rms
-
-
-# Write spectral shape, flux and contrast summaries using trained STFT parameters.
-def _write_spectra(out, y, sr):
-    import librosa
-    magnitude = np.abs(librosa.stft(
-        y, n_fft=512, hop_length=160, win_length=400, window='hann',
-    ))
-    tracks = {
-        'spectral_centroid': librosa.feature.spectral_centroid(S=magnitude, sr=sr)[0],
-        'spectral_bandwidth': librosa.feature.spectral_bandwidth(S=magnitude, sr=sr)[0],
-        'spectral_rolloff': librosa.feature.spectral_rolloff(S=magnitude, sr=sr, roll_percent=0.85)[0],
-        'spectral_flatness': librosa.feature.spectral_flatness(S=magnitude)[0],
-    }
-    for name, track in tracks.items():
-        summarize_track(track, name, out)
-    normalized = magnitude / (np.linalg.norm(magnitude, axis=0, keepdims=True) + 1e-12)
-    flux = (
-        np.sqrt(np.sum(np.diff(normalized, axis=1) ** 2, axis=0))
-        if normalized.shape[1] > 1 else np.array([0.0])
-    )
-    summarize_track(flux, 'spectral_flux', out)
-    try:
-        contrast = librosa.feature.spectral_contrast(
-            S=magnitude, sr=sr, n_bands=5, fmin=200.0,
-        )
-        for band in range(contrast.shape[0]):
-            summarize_track(contrast[band], f'spectral_contrast_band{band + 1}', out)
-    except Exception:
-        for band in range(6):
-            out[f'spectral_contrast_band{band + 1}_mean'] = np.nan
-            out[f'spectral_contrast_band{band + 1}_std'] = np.nan
 
 
 # Write CPP and pause summaries, reusing the already computed RMS track.
@@ -544,10 +536,9 @@ def extract_feature_mapping(y, sr=TARGET_SR):
         raise ValueError('Expected a finite, prepared mono waveform at 16 kHz.')
     out = dict.fromkeys(FEATURE_NAMES, np.nan)
     out.update(praat_voice_features(y, sr))
-    _write_cepstra(out, y, sr)
+    write_shared_spectra(out, y, sr)
     _write_pitch(out, y, sr)
     rms = _write_energy(out, y)
-    _write_spectra(out, y, sr)
     _write_cpp_and_pauses(out, y, sr, rms)
     _write_glottal(out, y, sr)
     return {

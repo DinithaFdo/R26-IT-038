@@ -330,8 +330,7 @@ prediction/SHAP behavior. Model identity is derived from file contents;
 decision threshold and optional fidelity R² come from metadata. R² targets
 never gate runtime.
 
-`XAI_MODE` supports only `disabled` and `real`. There is no mock semantic
-pipeline or generated SHAP fallback. A semantic service that has not been
+`XAI_MODE` supports only `disabled` and `real`. A semantic service that has not been
 initialized is reported as unavailable; a run records `semantic_service_unavailable`
 without replacing real evidence with synthetic values.
 

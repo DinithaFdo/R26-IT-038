@@ -117,7 +117,7 @@ def test_every_feature_group_receives_same_waveform_once(monkeypatch, tmp_path):
     monkeypatch.setattr(sf, "read", read)
     monkeypatch.setattr(extraction, "prepare_audio", prepare)
     monkeypatch.setattr(extraction, "praat_voice_features", base)
-    for name in ("_write_cepstra", "_write_pitch", "_write_spectra"):
+    for name in ("write_shared_spectra", "_write_pitch"):
         monkeypatch.setattr(extraction, name, write_group)
     monkeypatch.setattr(extraction, "_write_energy", energy)
     monkeypatch.setattr(extraction, "_write_cpp_and_pauses", cpp_and_pauses)
@@ -126,7 +126,7 @@ def test_every_feature_group_receives_same_waveform_once(monkeypatch, tmp_path):
     monkeypatch.setattr(extraction, "extract_disvoice_glottal_exact", disvoice)
     result = AcousticFeatureExtractor().extract_file(path)
     assert len(decoded) == len(prepared) == 1
-    assert len(seen) == 9 and all(y is prepared[0] for y in seen)
+    assert len(seen) == 8 and all(y is prepared[0] for y in seen)
     assert len(prepared[0]) == 12 * sr
     assert result.duration_seconds == 12
     assert result.metadata["acoustic_crop_seconds"] is None
@@ -221,6 +221,7 @@ def test_service_extracts_original_audio_through_unified_public_api(monkeypatch,
 
 def test_disvoice_loader_and_instance_remain_cached(monkeypatch, tmp_path):
     from app.models.real import glottal_compat
+    from app.voice_xai.semantic import glottal_dsp
     events = []
     class Glottal:
         def __init__(self):
@@ -242,6 +243,7 @@ def test_disvoice_loader_and_instance_remain_cached(monkeypatch, tmp_path):
     monkeypatch.setattr(glottal_compat, "patch_disvoice_gci_numpy2_bug", lambda: events.append("gci"))
     extraction.load_glottal_class.cache_clear()
     extraction._get_glottal_extractor.cache_clear()
+    monkeypatch.setattr(glottal_dsp, "private_batched_glottal_extractor", lambda: extraction.load_glottal_class()())
     try:
         first = extraction._get_glottal_extractor()
         assert extraction._get_glottal_extractor() is first
