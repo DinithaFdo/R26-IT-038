@@ -22,3 +22,5 @@ postman/
 !app/voice_xai/semantic/artifacts/feature_columns.json
 !app/voice_xai/semantic/artifacts/imputer.joblib
 !app/voice_xai/semantic/artifacts/training_metadata.json
+
+app/voice_xai/benchmarks/results/*
