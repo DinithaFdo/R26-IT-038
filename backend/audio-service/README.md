@@ -312,6 +312,12 @@ All semantic features use one full cleaned waveform with no six-second crop.
 `app/voice_xai/semantic/feature_extraction.py` owns preprocessing, the unified
 165-feature helpers and the public `AcousticFeatureExtractor`. Its ordered
 output feeds the existing imputer, surrogate and Tree SHAP pipeline directly.
+When original-pass temporal evidence is available, semantic localization also
+measures unpadded 2-second windows with a 1-second hop inside all analyzed spans.
+Absolute SHAP activity selects regions independently of temporal attention;
+temporal/semantic IoU uses only common valid coverage. Window-model validity is
+experimental unless matching held-out validation metadata is supplied.
+See [window configuration and validation](docs/semantic-window-localization.md).
 This requires a retrained `shared-clean-fullclip-audio-v2` model; the previous
 model is rejected. Train the replacement outside the backend using the same
 feature order and preprocessing contract defined in `app/voice_xai/semantic/schema.py`.

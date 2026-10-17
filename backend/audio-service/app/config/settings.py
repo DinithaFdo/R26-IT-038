@@ -124,8 +124,7 @@ class Settings(BaseSettings):
     # persistent OS thread to avoid unsafe GPU/Mongo event-loop concurrency.
     xai_max_workers: int = Field(default=1, ge=1)
     xai_max_queued_jobs: int = Field(default=8, ge=0)
-    # Temporal attention extraction runs XLS-R over several sliding windows;
-    # the established pipeline can legitimately take longer than a standard
+    # Clip/window DSP and explanation work can take longer than a standard
     # request on a CPU-only development machine.
     xai_job_timeout_seconds: float = Field(default=600.0, gt=0.0)
     xai_artifact_retention_seconds: int = Field(default=604800, ge=60)
@@ -144,6 +143,12 @@ class Settings(BaseSettings):
     xai_spectrogram_hop_length: int = Field(default=160, ge=1, le=4096)
     xai_spectrogram_max_frames: int = Field(default=900, ge=32, le=2000)
     xai_semantic_model_dir: str = "app/voice_xai/semantic/artifacts"
+    xai_semantic_windows_enabled: bool = True
+    xai_semantic_window_seconds: float = Field(default=2.0, ge=0.2, allow_inf_nan=False)
+    xai_semantic_hop_seconds: float = Field(default=1.0, ge=1 / 16000, allow_inf_nan=False)
+    xai_semantic_max_windows: int = Field(default=32, ge=1, le=256)
+    xai_semantic_window_budget_seconds: float = Field(default=120.0, gt=0.0, allow_inf_nan=False)
+    xai_semantic_activity_percentile: float = Field(default=90.0, ge=0.0, le=100.0, allow_inf_nan=False)
     # Optional post-processing only: this client receives compact validated
     # XAI evidence, never raw audio or classifier inputs. It is disabled by
     # default so normal prediction and deterministic-report behaviour stays
@@ -569,6 +574,8 @@ class Settings(BaseSettings):
             raise ValueError("MAX_INPUT_SAMPLE_RATE must be greater than or equal to TARGET_SAMPLE_RATE.")
         if self.model_window_overlap_seconds >= self.model_window_duration_seconds:
             raise ValueError("MODEL_WINDOW_OVERLAP_SECONDS must be smaller than MODEL_WINDOW_DURATION_SECONDS.")
+        if self.xai_semantic_hop_seconds > self.xai_semantic_window_seconds:
+            raise ValueError('XAI_SEMANTIC_HOP_SECONDS must not exceed XAI_SEMANTIC_WINDOW_SECONDS.')
         if (
             self.xai_temporal_window_stride_seconds
             > self.ssl_waveform_config.target_duration_seconds

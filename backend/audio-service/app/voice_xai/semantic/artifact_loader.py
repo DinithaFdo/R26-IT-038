@@ -19,6 +19,7 @@ from app.voice_xai.semantic.schema import (
     FEATURE_NAMES, FEATURE_EXTRACTION_VERSION, FEATURE_SCHEMA_VERSION,
     PREPROCESSING_CONTRACT,
 )
+from app.voice_xai.semantic.contracts import WINDOW_PREPROCESSING_CONTRACT
 
 REQUIRED_FILES = {"surrogate_xgboost.json", "feature_columns.json", "imputer.joblib", "training_metadata.json"}
 _EXPLAINER_LOCK = RLock()
@@ -38,6 +39,15 @@ class LoadedSemanticArtifacts:
     threshold: float
     directory: Path
     fingerprint: str
+
+    # A full-clip fidelity metric never establishes window-level model validity.
+    def window_validation(self, options):
+        validation = self.metadata.get('window_validation')
+        if not validation:
+            return False, 'This model has no held-out window-level validation evidence.', None
+        if validation['contract'] != options.model_contract():
+            return False, 'Window settings differ from the model validation contract.', None
+        return True, 'Held-out window validation metadata matches this measurement contract.', validation
 
     def fidelity(self):
         """Read the current model's metric without gating runtime on its value."""
@@ -99,12 +109,46 @@ def _validate_training_contract(metadata):
         )
 
 
+# Validate optional window evidence without inferring it from whole-clip metrics.
+def _validate_window_validation(metadata):
+    validation = metadata.get('window_validation')
+    if validation is None:
+        return
+    if not isinstance(validation, dict):
+        raise SemanticArtifactCompatibilityError('Invalid window validation metadata.')
+    contract = validation.get('contract', {})
+    if not isinstance(contract, dict):
+        raise SemanticArtifactCompatibilityError('Invalid window validation contract.')
+    valid = (isinstance(contract, dict)
+             and {key: contract.get(key) for key in WINDOW_PREPROCESSING_CONTRACT} == WINDOW_PREPROCESSING_CONTRACT
+             and set(contract) == set(WINDOW_PREPROCESSING_CONTRACT) | {'window_seconds', 'hop_seconds'}
+             and validation.get('split_unit') in {'recording', 'speaker'}
+             and validation.get('target') == 'teacher_window_spoof_probability')
+    for field in ('n_recordings', 'n_windows'):
+        value = validation.get(field)
+        valid = valid and isinstance(value, int) and not isinstance(value, bool) and value > 1
+    for field in ('r2', 'mae', 'rmse'):
+        value = validation.get(field)
+        valid = valid and isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+        if isinstance(value, (int, float)):
+            valid = valid and (value <= 1 if field == 'r2' else value >= 0)
+    window, hop = contract.get('window_seconds'), contract.get('hop_seconds')
+    if not all(isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+               for value in (window, hop)):
+        valid = False
+    else:
+        valid = valid and window >= 0.2 and 1 / 16000 <= hop <= window
+    if not valid:
+        raise SemanticArtifactCompatibilityError('Window validation must declare matching preprocessing, grouped held-out metrics and targets.')
+
+
 def _validate_model_files(files: dict[str, bytes]):
     columns = _read_json(files, "feature_columns.json")
     if not isinstance(columns, list) or tuple(columns) != FEATURE_NAMES:
         raise SemanticArtifactCompatibilityError("Expected the exact semantic model 165-feature order.")
     metadata = _read_json(files, "training_metadata.json")
     _validate_training_contract(metadata)
+    _validate_window_validation(metadata)
     if (metadata.get("model_type") != "XGBRegressor"
             or metadata.get("target") != "teacher_fused_spoof_probability"
             or metadata.get("ground_truth_used_as_training_target") is not False

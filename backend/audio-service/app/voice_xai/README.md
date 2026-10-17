@@ -57,6 +57,23 @@ are retained, including validation of the three shared acoustic names.
 `service.py` then applies the fitted imputer, XGBoost regressor and Tree SHAP;
 `explainer.py` formats the semantic response.
 
+Optional semantic localization uses `SemanticWindowOptions` (defaults: 2-second
+windows, 1-second hop) over the temporal visualization's complete `analyzed_spans`.
+The extractor retains source trim offsets, decodes once for combined analysis,
+and never trims, normalizes or pads a window again. End-anchored final windows
+cover tails; spans shorter than the window use real samples only when at least
+0.2 seconds remain. The frozen full-clip predictor stays separate from the
+explicit window input contract.
+
+Window activity is the sum of absolute SHAP values. Overlaps are averaged on
+exact window boundaries, and the percentile uses duration weighting. Failed or
+budget-skipped window supports are removed conservatively, including overlap
+with successful windows. IoU intersects both region sets with common valid
+coverage and remains unavailable for missing coverage or an empty region union.
+Research eligibility is not granted by a high IoU or window-validation metadata.
+Detailed contracts and validation procedure are in
+`docs/semantic-window-localization.md` at the service root.
+
 ## Current request and response flow
 
 1. `POST /api/v1/predictions` authenticates the user and calls

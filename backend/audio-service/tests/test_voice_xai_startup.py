@@ -38,6 +38,7 @@ async def test_default_orchestrator_loads_real_service_or_rejects_startup(
         Settings(
             _env_file=None, xai_enabled=True, xai_mode="real",
             xai_artifact_root=str(tmp_path / "private"),
+            xai_semantic_window_seconds=3.0, xai_semantic_hop_seconds=0.5,
         ),
         dependencies=ApplicationDependencies(voice_service=SimpleNamespace()),
         lifespan_dependencies=LifespanDependencies(
@@ -56,3 +57,5 @@ async def test_default_orchestrator_loads_real_service_or_rejects_startup(
             assert app.state.xai_orchestrator.readiness()["ready"] is True
     assert len(calls) == 1
     assert calls[0]["model_dir"].name == "artifacts"
+    assert calls[0]['window_options'].window_seconds == 3.0
+    assert calls[0]['window_options'].hop_seconds == 0.5

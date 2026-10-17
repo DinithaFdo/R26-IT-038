@@ -110,7 +110,7 @@ class XaiJobTimedOutError(RuntimeError):
 
 
 class SemanticExplanationService(Protocol):
-    def analyze(self, inference: ClassifierInferenceBundle): ...
+    def analyze(self, inference: ClassifierInferenceBundle, *, analyzed_spans=None, deadline=None): ...
 
 
 class NarrativeExplanationService(Protocol):
@@ -798,7 +798,9 @@ class VoiceXaiOrchestrator:
             )
             if self._semantic_service is None:
                 raise SemanticServiceUnavailableError("Real semantic model is not initialized.")
-            semantic_result = self._semantic_service.analyze(bundle)
+            semantic_spans = (temporal_result.visualization.analyzed_spans
+                              if temporal is not None and temporal_result is not None else ())
+            semantic_result = self._semantic_service.analyze(bundle, analyzed_spans=semantic_spans, deadline=deadline)
             self._raise_if_timed_out(deadline)
             semantic = semantic_result.explanation
             await status_service.complete_component(
@@ -826,7 +828,10 @@ class VoiceXaiOrchestrator:
                 status_service, explanation_id, bundle.owner_user_id, ExplanationComponent.semantic
             )
 
-        quality = quality_for_analysis(temporal, semantic)
+        quality = quality_for_analysis(
+            temporal, semantic, temporal_spans=(temporal_result.visualization.analyzed_spans
+                                               if temporal is not None and temporal_result is not None else ()),
+        )
         eligibility = evaluate_research_eligibility(
             classifier=classifier_snapshot_from_prediction(bundle.prediction),
             temporal=temporal,
@@ -1219,6 +1224,7 @@ _CONFIGURATION_HASH_INPUTS = (
     "semantic_model_identity",
     "semantic_extractor_version",
     "semantic_feature_schema_version",
+    "semantic_window_configuration",
     "mode",
     "temporal_method_version",
     "temporal_threshold_mode",
@@ -1238,6 +1244,7 @@ _CONFIGURATION_HASH_INPUTS = (
 def _configuration_hash_payload(settings: Settings) -> dict[str, object]:
     from app.voice_xai.semantic.artifact_loader import model_fingerprint
     from app.voice_xai.semantic.schema import FEATURE_EXTRACTION_VERSION, FEATURE_SCHEMA_VERSION
+    from app.voice_xai.semantic.contracts import SemanticWindowOptions, WINDOW_LOCALIZATION_VERSION
     try:
         model_identity = model_fingerprint(settings.resolve_xai_artifact_path(settings.xai_semantic_model_dir))
     except (OSError, ValueError):
@@ -1247,6 +1254,14 @@ def _configuration_hash_payload(settings: Settings) -> dict[str, object]:
         "semantic_model_identity": model_identity,
         "semantic_extractor_version": FEATURE_EXTRACTION_VERSION,
         "semantic_feature_schema_version": FEATURE_SCHEMA_VERSION,
+        "semantic_window_configuration": {
+            **SemanticWindowOptions.from_settings(settings).model_contract(),
+            'enabled': settings.xai_semantic_windows_enabled,
+            'max_windows': settings.xai_semantic_max_windows,
+            'budget_seconds': settings.xai_semantic_window_budget_seconds,
+            'activity_percentile': settings.xai_semantic_activity_percentile,
+            'method_version': WINDOW_LOCALIZATION_VERSION,
+        },
         "mode": settings.xai_mode,
         "temporal_method_version": TEMPORAL_METHOD_VERSION,
         "temporal_threshold_mode": TEMPORAL_THRESHOLD_MODE,

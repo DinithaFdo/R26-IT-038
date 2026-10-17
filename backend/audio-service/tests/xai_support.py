@@ -4,7 +4,7 @@ from app.voice_xai.semantic.contracts import SemanticAnalysisResult
 from app.voice_xai.semantic.schema import FEATURE_EXTRACTION_VERSION, FEATURE_SCHEMA_VERSION
 
 class StaticSemanticService:
-    def analyze(self, inference):
+    def analyze(self, inference, *, analyzed_spans=None, deadline=None):
         return SemanticAnalysisResult(
             explanation=SemanticExplanation(status=ComponentStatus.completed,
                 target_type="classifier_surrogate", model_version="test-model-v1",

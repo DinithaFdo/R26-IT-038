@@ -297,6 +297,91 @@ class SemanticClipSummary(XaiSchemaModel):
         return self
 
 
+class SemanticTimeInterval(XaiSchemaModel):
+    start_seconds: float = Field(ge=0.0)
+    end_seconds: float = Field(gt=0.0)
+
+    # Keep public/persisted localization bounds finite and correctly ordered.
+    @model_validator(mode='after')
+    def validate_order(self):
+        if self.end_seconds <= self.start_seconds:
+            raise ValueError('Semantic interval end must be after its start.')
+        return self
+
+
+class SemanticWindowExplanation(SemanticTimeInterval):
+    window_id: int = Field(ge=1)
+    start_sample: int = Field(ge=0)
+    end_sample_exclusive: int = Field(gt=0)
+    status: Literal['completed', 'not_available']
+    reason: str | None = None
+    predicted_value: float | None = None
+    base_value: float | None = None
+    shap_activity: float | None = Field(default=None, ge=0.0)
+    imputed_feature_count: int = Field(default=0, ge=0, le=165)
+    processing_seconds: float = Field(default=0.0, ge=0.0)
+    feature_importance: list[SemanticFeatureContribution] = Field(default_factory=list)
+
+    # Failed windows cannot contain scores or be mistaken for available evidence.
+    @model_validator(mode='after')
+    def validate_evidence(self):
+        if self.end_sample_exclusive <= self.start_sample:
+            raise ValueError('Semantic window sample bounds are invalid.')
+        if self.status == 'completed':
+            if self.predicted_value is None or self.base_value is None or self.shap_activity is None:
+                raise ValueError('Completed semantic windows require prediction and SHAP evidence.')
+            if len(self.feature_importance) != 165:
+                raise ValueError('Completed semantic windows require all 165 contributions.')
+            if abs(sum(abs(item.shap_value) for item in self.feature_importance) - self.shap_activity) > 1e-6:
+                raise ValueError('Semantic activity must equal the absolute SHAP sum.')
+            if abs(self.base_value + sum(item.shap_value for item in self.feature_importance) - self.predicted_value) > 1e-4:
+                raise ValueError('Window SHAP must reconstruct its raw prediction.')
+        elif (not self.reason or self.predicted_value is not None or self.base_value is not None
+              or self.shap_activity is not None or self.feature_importance):
+            raise ValueError('Unavailable semantic windows require a reason and no evidence.')
+        return self
+
+
+class SemanticActivityBin(SemanticTimeInterval):
+    activity: float = Field(ge=0.0)
+    supporting_windows: int = Field(ge=1)
+
+
+class SemanticRegion(SemanticTimeInterval):
+    region_id: int = Field(ge=1)
+    peak_activity: float = Field(ge=0.0)
+    mean_activity: float = Field(ge=0.0)
+
+
+class SemanticLocalization(XaiSchemaModel):
+    status: Literal['completed', 'partial', 'not_available']
+    reason: str | None = None
+    method_version: str
+    extractor_version: str
+    model_version: str
+    model_validation_status: Literal['experimental', 'validated'] = 'experimental'
+    model_validation_reason: str | None = None
+    window_fidelity_r2: MetricEvidence | None = None
+    time_reference: Literal['source_audio'] = 'source_audio'
+    window_seconds: float = Field(ge=0.2)
+    hop_seconds: float = Field(gt=0.0)
+    sample_rate_hz: int = Field(gt=0)
+    trim_start_sample: int = Field(default=0, ge=0)
+    analyzed_spans: list[SemanticTimeInterval] = Field(default_factory=list)
+    valid_spans: list[SemanticTimeInterval] = Field(default_factory=list)
+    coverage_percentage: float = Field(default=0.0, ge=0.0, le=100.0)
+    activity_definition: Literal['sum_absolute_shap'] = 'sum_absolute_shap'
+    overlap_aggregation: Literal['mean_on_exact_window_boundaries'] = 'mean_on_exact_window_boundaries'
+    threshold_percentile: float = Field(ge=0.0, le=100.0)
+    threshold_method: Literal['duration_weighted_inverse_cdf'] = 'duration_weighted_inverse_cdf'
+    activity_threshold: float | None = Field(default=None, ge=0.0)
+    flat_activity_map: bool | None = None
+    windows: list[SemanticWindowExplanation] = Field(default_factory=list)
+    timeline: list[SemanticActivityBin] = Field(default_factory=list)
+    regions: list[SemanticRegion] = Field(default_factory=list)
+    processing_seconds: float = Field(default=0.0, ge=0.0)
+
+
 class SemanticExplanation(XaiSchemaModel):
     status: ComponentStatus
     target_type: Literal[SemanticTargetType.classifier_surrogate]
@@ -311,6 +396,7 @@ class SemanticExplanation(XaiSchemaModel):
     clip_summary: SemanticClipSummary | None = None
     feature_importance: list[SemanticFeatureContribution] = Field(default_factory=list)
     fidelity_r2: MetricEvidence | None = None
+    localization: SemanticLocalization | None = None
     warning: str | None = None
 
 

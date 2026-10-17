@@ -59,16 +59,16 @@ def evaluate_research_eligibility(
       - A semantic component result must exist for this run.
       - ``semantic.research_eligible`` must be True. Even
         ``ProductionSemanticExplanationService`` (a real loaded XGBoost/SHAP
-        artifact) hardcodes this False today: whole-clip evidence lacks time
-        localization, and the 28-feature acoustic recipe (including GCI) has
-        not been parity-validated against the training pipeline.
+        artifact) keeps this False today: the 165-feature clip explanation and
+        optional window-surrogate activity do not establish validated localization.
+        Optional window fidelity metadata does not automatically grant eligibility.
 
     Combined
       - Not yet evaluated here pending the above. A versioned rule for
         temporal/semantic overlap agreement (e.g. an IoU threshold) must be
-        defined before it can factor into eligibility; ``quality.py``
-        computes the raw interval IoU today but no eligibility threshold is
-        defined on it yet.
+        defined before it can factor into eligibility. ``consistency.py`` computes
+        descriptive interval IoU on common valid coverage; this value never grants
+        research eligibility by itself.
 
     Returns ``eligible=True`` only when every requirement is satisfied, with
     specific unmet requirement names for diagnostics/logging otherwise.

@@ -54,6 +54,7 @@ from app.voice_xai.persistence.mongodb import MongoXaiExplanationRepository
 from app.voice_xai.workflow.recovery import recover_stale_explanations
 from app.voice_xai.workflow.replay import StoredAudioReplayService
 from app.voice_xai.semantic.service import ProductionSemanticExplanationService
+from app.voice_xai.semantic.contracts import SemanticWindowOptions
 from app.voice_xai.temporal.xlsr_attention_service import XLSRTemporalAttentionService
 
 logger = logging.getLogger(__name__)
@@ -176,6 +177,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             and app.state.load_xai_semantic_on_startup
         ):
             semantic_service = ProductionSemanticExplanationService.load_once(
+                window_options=SemanticWindowOptions.from_settings(app_settings),
                 model_dir=app_settings.resolve_xai_artifact_path(app_settings.xai_semantic_model_dir),
             )
             app.state.xai_orchestrator.set_semantic_service(semantic_service)

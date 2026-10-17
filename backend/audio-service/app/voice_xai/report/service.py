@@ -121,7 +121,16 @@ def _semantic_sentence(semantic: SemanticExplanation | None) -> str:
     features = ", ".join(
         contribution.display_name for contribution in semantic.feature_importance[:2]
     )
-    return f"The largest semantic {semantic.target_type.value} contributions were {features}."
+    sentence = f"The largest semantic {semantic.target_type.value} contributions were {features}."
+    localization = semantic.localization
+    if localization is not None:
+        sentence += (f" Window SHAP activity has {localization.coverage_percentage:.1f}% valid coverage "
+                     f"of the temporal evidence spans; window model validation is {localization.model_validation_status}.")
+        if localization.regions:
+            regions = ', '.join(f'{region.start_seconds:.2f}-{region.end_seconds:.2f}s' for region in localization.regions)
+            sentence += f' High semantic activity occurred at {regions}.'
+        sentence += ' Window activity and temporal overlap describe agreement, not verified fake-audio boundaries.'
+    return sentence
 
 
 def _quality_checks(quality: ExplanationQuality | None) -> str:
@@ -379,6 +388,17 @@ def _narrative_evidence(
                 }
             )
     if semantic is not None and semantic.status == ComponentStatus.completed:
+        if semantic.localization is not None:
+            allowed.add('semantic:localization')
+            evidence['semantic_localization'] = {
+                'reference': 'semantic:localization',
+                'status': semantic.localization.status,
+                'validation_status': semantic.localization.model_validation_status,
+                'coverage_percentage': semantic.localization.coverage_percentage,
+                'activity_definition': semantic.localization.activity_definition,
+                'regions': [region.model_dump(mode='json') for region in semantic.localization.regions],
+                'limitation': 'Window-surrogate activity is distinct from the full-clip prediction and is not ground-truth localization.',
+            }
         for feature in semantic.feature_importance[:max_semantic_features]:
             reference = f"semantic:{feature.rank}"
             allowed.add(reference)

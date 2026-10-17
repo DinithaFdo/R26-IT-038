@@ -19,6 +19,8 @@ from numpy.typing import NDArray
 
 from app.ingestion.audio import ProcessedAudio
 from .schema import FEATURE_NAMES, FEATURE_EXTRACTION_VERSION, PREPROCESSING_CONTRACT
+from .contracts import WINDOW_EXTRACTION_VERSION, WINDOW_PREPROCESSING_CONTRACT, SemanticWindowOptions
+from app.voice_xai.evaluation.intervals import union_spans
 
 TARGET_SR = 16000
 _LOCK = Lock()
@@ -61,6 +63,27 @@ def safe_float(v, default=np.nan):
 # Downmix, resample, clean and normalize the full clip once for all feature helpers.
 def prepare_audio(y, sr):
     """Clean a full decoded clip once; never crop or pad the source duration."""
+    prepared = prepare_audio_with_timing(y, sr)
+    return prepared.waveform, prepared.sample_rate
+
+
+@dataclass(frozen=True)
+class PreparedSemanticAudio:
+    waveform: NDArray[np.float32]
+    sample_rate: int
+    source_sample_count: int
+    trim_start_sample: int
+    trim_end_sample: int
+
+
+@dataclass(frozen=True)
+class SemanticWindow:
+    start_sample: int
+    end_sample: int
+
+
+# Preserve source offsets while applying exactly the full-clip cleaning recipe.
+def prepare_audio_with_timing(y, sr):
     import librosa
     y = np.asarray(y, dtype=np.float32)
     if y.ndim == 2:
@@ -72,15 +95,16 @@ def prepare_audio(y, sr):
         y = librosa.resample(y, orig_sr=sr, target_sr=TARGET_SR, res_type='kaiser_fast')
         sr = TARGET_SR
     y = np.nan_to_num(y, nan=0.0, posinf=0.0, neginf=0.0)
+    source_sample_count = len(y)
     y = y - np.mean(y)
-    y, _ = librosa.effects.trim(y, top_db=PREPROCESSING_CONTRACT['silence_trim_top_db'])
+    y, bounds = librosa.effects.trim(y, top_db=PREPROCESSING_CONTRACT['silence_trim_top_db'])
     if len(y) < int(PREPROCESSING_CONTRACT['minimum_clean_duration_seconds'] * sr):
         raise ValueError('audio too short after preprocessing')
     peak = float(np.max(np.abs(y)))
     if not np.isfinite(peak) or peak <= 1e-8:
         raise ValueError('Audio is silent after preprocessing.')
     y = np.ascontiguousarray(y / peak, dtype=np.float32)
-    return y, sr
+    return PreparedSemanticAudio(y, sr, source_sample_count, int(bounds[0]), int(bounds[1]))
 
 
 # Decode the original audio file and apply the shared preprocessing contract.
@@ -88,6 +112,43 @@ def load_audio_path(path):
     import soundfile as sf
     y, sr = sf.read(str(path), dtype='float32', always_2d=False)
     return prepare_audio(y, sr)
+
+
+# Decode once and retain the original source time coordinates for window analysis.
+def load_audio_path_with_timing(path):
+    import soundfile as sf
+    y, sr = sf.read(str(path), dtype='float32', always_2d=False)
+    return prepare_audio_with_timing(y, sr)
+
+
+# Plan windows over every covered span, with no padding or bridging of evidence gaps.
+def build_semantic_windows(prepared, analyzed_spans, *, window_seconds, hop_seconds, max_windows):
+    SemanticWindowOptions(window_seconds=window_seconds, hop_seconds=hop_seconds, max_windows=max_windows)
+    sr = prepared.sample_rate
+    size, hop = int(round(window_seconds * sr)), int(round(hop_seconds * sr))
+    minimum = int(PREPROCESSING_CONTRACT['minimum_clean_duration_seconds'] * sr)
+    if size < minimum or not 1 <= hop <= size or max_windows < 1:
+        raise ValueError('Invalid semantic window configuration.')
+    windows = []
+    for start, end in union_spans(analyzed_spans):
+        # Ceil/floor keep real samples strictly inside evidence and cleaned bounds.
+        left = max(prepared.trim_start_sample, int(np.ceil(start * sr)))
+        right = min(prepared.trim_end_sample, prepared.source_sample_count, int(np.floor(end * sr)))
+        if right - left < minimum:
+            continue
+        if right - left <= size:
+            starts = [left]
+        else:
+            starts = range(left, right - size + 1, hop)
+        for position in starts:
+            windows.append(SemanticWindow(position, min(position + size, right)))
+            if len(windows) > max_windows:
+                raise ValueError('Semantic window limit exceeded.')
+        if windows[-1].end_sample < right:
+            windows.append(SemanticWindow(right - size, right))
+            if len(windows) > max_windows:
+                raise ValueError('Semantic window limit exceeded.')
+    return tuple(windows)
 
 
 # Write the mean and standard deviation of finite measurements in a track.
@@ -528,6 +589,48 @@ class AcousticFeatureExtractor:
                  "preprocessing_scope": "shared_full_cleaned_clip",
                  "acoustic_crop_seconds": None, "glottal_scope": "full_cleaned_clip"},
             )
+
+    # Package a prepared waveform without repeating decoding, trimming or normalization.
+    def extract_prepared_audio(self, prepared):
+        with _LOCK:
+            mapping = self._extract_mapping(prepared.waveform, prepared.sample_rate)
+            values = np.asarray([mapping[name] for name in FEATURE_NAMES], dtype=np.float64)
+            values[~np.isfinite(values)] = np.nan
+            return FeatureExtractionResult(
+                FEATURE_NAMES, values, prepared.sample_rate,
+                len(prepared.waveform) / prepared.sample_rate, FEATURE_EXTRACTION_VERSION,
+                {'feature_count': len(FEATURE_NAMES), 'analysis_scope': 'whole_clip',
+                 'preprocessing_scope': 'shared_full_cleaned_clip', 'acoustic_crop_seconds': None,
+                 'glottal_scope': 'full_cleaned_clip'},
+            )
+
+    # Measure one source-aligned slice using the existing 165-feature calculations.
+    def extract_prepared_window(self, prepared, window):
+        left = window.start_sample - prepared.trim_start_sample
+        right = window.end_sample - prepared.trim_start_sample
+        if left < 0 or right > len(prepared.waveform) or right <= left:
+            raise FeatureExtractionError('Semantic window lies outside cleaned source audio.')
+        with _LOCK:
+            mapping = self._extract_mapping(prepared.waveform[left:right], prepared.sample_rate)
+            values = np.asarray([mapping[name] for name in FEATURE_NAMES], dtype=np.float64)
+            values[~np.isfinite(values)] = np.nan
+            return FeatureExtractionResult(
+                FEATURE_NAMES, values, prepared.sample_rate, (right - left) / prepared.sample_rate,
+                WINDOW_EXTRACTION_VERSION, {**WINDOW_PREPROCESSING_CONTRACT, 'analysis_scope': 'window',
+                                           'start_sample': window.start_sample, 'end_sample_exclusive': window.end_sample},
+            )
+
+    # Decode retained source bytes once for combined full-clip and window analysis.
+    def prepare_processed_audio(self, audio):
+        if not audio.source_audio_bytes:
+            raise FeatureExtractionError('Semantic feature extraction requires original source audio bytes.')
+        extension = audio.source_audio_extension or '.wav'
+        if extension not in {'.wav', '.flac', '.ogg', '.mp3', '.m4a', '.aac', '.opus', '.webm'}:
+            raise FeatureExtractionError('Unsupported source audio extension.')
+        with tempfile.TemporaryDirectory(prefix='semantic-audio-') as directory:
+            path = Path(directory) / ('source' + extension)
+            path.write_bytes(audio.source_audio_bytes)
+            return load_audio_path_with_timing(path)
 
     # Extract retained original source bytes through a temporary file with the source extension.
     def extract_processed_audio(self, audio: ProcessedAudio) -> FeatureExtractionResult:

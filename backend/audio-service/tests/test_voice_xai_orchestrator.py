@@ -757,8 +757,39 @@ class SlowTemporalService(StaticTemporalService):
 
 
 class FailingSemanticService:
-    def analyze(self, inference):
+    def analyze(self, inference, *, analyzed_spans=None, deadline=None):
         raise RuntimeError(r"C:\research\private\semantic-model.json traceback details")
+
+
+@pytest.mark.anyio
+async def test_semantic_receives_all_analyzed_spans_and_job_deadline(tmp_path):
+    from dataclasses import replace
+
+    class CoveredTemporalService(StaticTemporalService):
+        def analyze(self, inference):
+            result = super().analyze(inference)
+            return replace(result, visualization=replace(result.visualization, analyzed_spans=((0.2, 1.8),)))
+
+    class RecordingSemanticService(StaticSemanticService):
+        def analyze(self, inference, *, analyzed_spans=None, deadline=None):
+            self.received = (analyzed_spans, deadline)
+            return super().analyze(inference)
+
+    settings = Settings(_env_file=None, xai_enabled=True, xai_mode='real')
+    repository = MongoXaiExplanationRepository(FakeDatabase('semantic_window_coverage'))
+    prediction = _prediction()
+    bundle = _bundle(prediction, processed_audio=_audio(2.0))
+    semantic_service = RecordingSemanticService()
+    orchestrator = VoiceXaiOrchestrator(
+        repository=repository, prediction_repository=PredictionLookup(_document(prediction)),
+        queue=PausedQueue(), app_settings=settings,
+        artifact_store=LocalExplanationArtifactStore(tmp_path / 'private'),
+        temporal_service=CoveredTemporalService(), semantic_service=semantic_service,
+    )
+    explanation_id = await _create(repository, bundle, settings)
+    await orchestrator._run(explanation_id, bundle)
+    assert semantic_service.received[0] == ((0.2, 1.8),)
+    assert semantic_service.received[1] > time.monotonic()
 
 
 class FailingTemporalService:
