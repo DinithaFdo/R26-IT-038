@@ -4,12 +4,12 @@ import pytest
 
 from app.schemas.common import SourceType
 from app.schemas.xai import ComponentStatus, ExplanationStatus
-from app.voice_xai.orchestrator import classifier_snapshot_from_prediction
+from app.voice_xai.workflow.orchestrator import classifier_snapshot_from_prediction
 from app.voice_xai.persistence.mongodb import (
     MongoXaiExplanationRepository,
     XaiPersistenceConsistencyError,
 )
-from app.voice_xai.recovery import (
+from app.voice_xai.workflow.recovery import (
     STALE_RUN_ERROR_CODE,
     recover_stale_explanations,
 )
@@ -70,8 +70,8 @@ async def test_stale_running_run_is_recovered_to_failed() -> None:
 
 
 @pytest.mark.anyio
-async def test_legacy_narrative_component_status_does_not_break_recovery() -> None:
-    repository = MongoXaiExplanationRepository(FakeDatabase("recovery_legacy_narrative"))
+async def test_recovery_fails_queued_narrative_with_unfinished_components() -> None:
+    repository = MongoXaiExplanationRepository(FakeDatabase("recovery_queued_narrative"))
     explanation_id = await _create_explanation(
         repository, status="running", age_seconds=600
     )
@@ -91,8 +91,9 @@ async def test_legacy_narrative_component_status_does_not_break_recovery() -> No
         "temporal": ComponentStatus.failed.value,
         "semantic": ComponentStatus.failed.value,
         "report": ComponentStatus.failed.value,
-        "narrative": "queued",
+        "narrative": ComponentStatus.failed.value,
     }
+    assert document["component_errors"]["narrative"]["code"] == STALE_RUN_ERROR_CODE
 
 
 @pytest.mark.anyio

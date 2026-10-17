@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import base64
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import logging
 from pathlib import Path
 from tempfile import SpooledTemporaryFile
@@ -12,8 +13,12 @@ from uuid import uuid4
 from fastapi import HTTPException, UploadFile
 from starlette.datastructures import Headers
 
+# Auth must initialize before repositories: app.auth re-exports API-key dependencies.
+from mcp_server.auth import MCPAuthError, authenticate_mcp_token
 from app.config.settings import Settings, settings
+from app.core.rate_limit import InMemoryRateLimiter
 from app.core.request_context import normalize_request_id, reset_request_id, set_request_id
+from app.database.mongodb import build_dedicated_async_mongo_client
 from app.repositories.mongodb import MongoApiKeyRepository, MongoPredictionRepository
 from app.repositories.protocols import ApiKeyRepository, PredictionRepository
 from app.schemas.common import PredictionLabel, PredictionStatus, SourceType
@@ -28,8 +33,11 @@ from app.storage.factory import get_audio_storage
 from app.storage.protocols import AudioStorage
 from app.voice_xai.artifacts.service import LocalExplanationArtifactStore
 from app.voice_xai.persistence.mongodb import MongoXaiExplanationRepository
+from app.voice_xai.workflow.orchestrator import VoiceXaiOrchestrator
+from app.voice_xai.workflow.queue import AsynchronousExplanationQueue
+from app.voice_xai.workflow.replay import StoredAudioReplayService
+from app.voice_xai.temporal.xlsr_attention_service import XLSRTemporalAttentionService
 
-from mcp_server.auth import MCPAuthError, authenticate_mcp_token
 from mcp_server.schemas import (
     MCPCreatePredictionInput,
     MCPDeletePredictionInput,
@@ -54,6 +62,13 @@ class MCPToolContext:
     submission_service: PredictionSubmissionService
     history_service: PredictionHistoryService
     voice_service: VoiceService
+    app_settings: Settings = field(default_factory=lambda: settings)
+    rate_limiter: InMemoryRateLimiter = field(default_factory=InMemoryRateLimiter)
+    xai_orchestrator: VoiceXaiOrchestrator | None = None
+    xai_repository: MongoXaiExplanationRepository | None = None
+    xai_artifact_store: LocalExplanationArtifactStore | None = None
+    xai_queue: AsynchronousExplanationQueue | None = None
+    artifact_cleanup_task: asyncio.Task | None = None
 
 
 def create_default_context(app_settings: Settings = settings) -> MCPToolContext:
@@ -72,6 +87,23 @@ def create_default_context(app_settings: Settings = settings) -> MCPToolContext:
         app_settings.resolve_xai_artifact_path(app_settings.xai_artifact_root),
         retention_seconds=app_settings.xai_artifact_retention_seconds,
     )
+    xai_queue = AsynchronousExplanationQueue(
+        max_workers=app_settings.xai_max_workers,
+        max_queued_jobs=app_settings.xai_max_queued_jobs,
+        mongodb_client_factory=lambda: build_dedicated_async_mongo_client(app_settings),
+    )
+    xai_orchestrator = VoiceXaiOrchestrator(
+        repository=xai_repository,
+        prediction_repository=prediction_repository,
+        queue=xai_queue,
+        app_settings=app_settings,
+        artifact_store=xai_artifact_store,
+        temporal_service=XLSRTemporalAttentionService(app_settings=app_settings),
+        replay_service=StoredAudioReplayService(storage=storage, app_settings=app_settings),
+        worker_repository_factory=lambda: MongoXaiExplanationRepository(
+            xai_queue.worker_database
+        ),
+    )
     return MCPToolContext(
         api_key_repository=api_key_repository,
         prediction_repository=prediction_repository,
@@ -84,6 +116,7 @@ def create_default_context(app_settings: Settings = settings) -> MCPToolContext:
             storage=storage,
             voice_service=voice_service,
             job_runner=job_runner,
+            xai_orchestrator=xai_orchestrator,
             app_settings=app_settings,
         ),
         history_service=PredictionHistoryService(
@@ -93,6 +126,11 @@ def create_default_context(app_settings: Settings = settings) -> MCPToolContext:
             xai_artifact_store=xai_artifact_store,
         ),
         voice_service=voice_service,
+        app_settings=app_settings,
+        xai_orchestrator=xai_orchestrator,
+        xai_repository=xai_repository,
+        xai_artifact_store=xai_artifact_store,
+        xai_queue=xai_queue,
     )
 
 
@@ -583,6 +621,8 @@ def _http_error_code(error: HTTPException) -> str:
         return "unsupported_media_type"
     if error.status_code == 422:
         return "validation_error"
+    if error.status_code == 429:
+        return "rate_limited"
     if error.status_code == 503:
         return "service_unavailable"
     return "http_error"

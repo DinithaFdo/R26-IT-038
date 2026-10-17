@@ -1,226 +1,157 @@
-"""Convert ordered SHAP-style evidence to the public semantic schema."""
+"""Build the semantic API response from raw regression and Tree SHAP evidence.
 
-from __future__ import annotations
-
-import math
-
+Rank all 165 signed feature contributions, clip the score for the probability
+summary, format display labels, and attach the model's threshold and fidelity metadata.
+"""
 import numpy as np
-
-from app.schemas.xai import (
-    ComponentStatus,
-    SemanticExplanation,
-    SemanticClipSummary,
-    SemanticFeatureContribution,
-    SemanticEvidenceWindow,
-    SemanticTargetType,
-    ShapDirection,
-)
 from app.schemas.common import PredictionLabel
-from app.voice_xai.semantic.contracts import (
-    SemanticEvidence,
-    SemanticExplanationConfig,
+from app.schemas.xai import (
+    ComponentStatus, MetricEvidence, MetricStatus, SemanticClipSummary,
+    SemanticExplanation, SemanticFeatureContribution, SemanticTargetType, ShapDirection,
+    SemanticWindowExplanation, SemanticLocalization, SemanticActivityBin, SemanticRegion,
 )
-from app.voice_xai.semantic.feature_labels import label_for_feature
-from app.voice_xai.semantic.windows import SemanticWindow
+from app.voice_xai.semantic.schema import FEATURE_NAMES, FEATURE_EXTRACTION_VERSION, FEATURE_SCHEMA_VERSION
+from app.voice_xai.semantic.contracts import WINDOW_EXTRACTION_VERSION, WINDOW_LOCALIZATION_VERSION
+from app.voice_xai.evaluation.consistency import union_spans, intersect_spans, subtract_spans, span_duration
 
 
-def build_semantic_explanation(
-    evidence: SemanticEvidence,
-    config: SemanticExplanationConfig,
-) -> SemanticExplanation:
-    """Rank the notebook's sample-level contributions by absolute SHAP value."""
-
-    contributions = build_semantic_contributions(evidence, config)
-    return SemanticExplanation(
-        status=ComponentStatus.completed,
-        target_type=config.target_type,
-        model_version=config.model_version,
-        feature_schema_version=config.feature_schema_version,
-        extractor_version=evidence.extractor_version,
-        output_space=config.output_space,
-        base_value=evidence.base_value,
-        predicted_value=evidence.predicted_value,
-        feature_importance=contributions,
-        warning=_warning_with_imputation(
-            config.contribution_warning,
-            evidence.imputed_feature_count,
-        ),
-    )
+def label_for_feature(name: str) -> str:
+    if name not in FEATURE_NAMES:
+        raise ValueError(f"Unknown semantic feature: {name}")
+    return name.replace("_", " ").capitalize()
 
 
-def _warning_with_imputation(
-    warning: str | None,
-    imputed_feature_count: int,
-) -> str | None:
-    if not imputed_feature_count:
-        return warning
-    detail = (
-        f"{imputed_feature_count} unavailable feature value(s) were replaced with "
-        "training median values before XGBoost and SHAP."
-    )
-    return f"{warning} {detail}" if warning else detail
-
-
-def build_semantic_contributions(
-    evidence: SemanticEvidence,
-    config: SemanticExplanationConfig,
-    *,
-    start_seconds: float | None = None,
-    end_seconds: float | None = None,
-) -> list[SemanticFeatureContribution]:
-    """Return one window's strongest SHAP contributions with optional timing."""
-
-    if (start_seconds is None) != (end_seconds is None):
-        raise ValueError("Semantic contribution timestamps must be supplied together.")
-    order = np.argsort(-np.abs(evidence.shap_values), kind="stable")[: config.top_k]
-    contributions: list[SemanticFeatureContribution] = []
-    for rank, index in enumerate(order, start=1):
-        feature_name = evidence.feature_names[int(index)]
-        label = label_for_feature(feature_name)
-        shap_value = float(evidence.shap_values[index])
-        contributions.append(
-            SemanticFeatureContribution(
-                rank=rank,
-                feature_name=feature_name,
-                display_name=label.display_name,
-                value=float(evidence.feature_values[index]),
-                unit=label.unit,
-                reference_summary=config.reference_summaries.get(
-                    feature_name,
-                    "Reference distribution is unavailable in mock mode.",
-                ),
-                shap_value=shap_value,
-                direction=(
-                    ShapDirection.toward_spoof
-                    if shap_value > 0.0
-                    else ShapDirection.toward_bonafide
-                ),
-                start_seconds=start_seconds,
-                end_seconds=end_seconds,
-            )
-        )
+# Rank all signed feature contributions with the same stable order for clips and windows.
+def feature_contributions(evidence):
+    contributions = []
+    for rank, index in enumerate(np.argsort(-np.abs(evidence.shap_values), kind="stable"), 1):
+        name = FEATURE_NAMES[index]
+        value = float(evidence.shap_values[index])
+        contributions.append(SemanticFeatureContribution(
+            rank=rank, feature_name=name, display_name=label_for_feature(name),
+            value=float(evidence.feature_values[index]), shap_value=value,
+            direction=ShapDirection.toward_spoof if value > 0 else ShapDirection.toward_bonafide if value < 0 else ShapDirection.neutral,
+        ))
     return contributions
 
 
-def build_windowed_semantic_explanation(
-    windows: tuple[SemanticWindow, ...],
-    config: SemanticExplanationConfig,
-    *,
-    extractor_version: str,
-) -> SemanticExplanation:
-    """Expose the strongest timestamped evidence without averaging raw margins.
-
-    Per-window raw margins have different baselines and must not be summed or
-    averaged into a fabricated clip-level model score.  The complete window
-    set is retained by the service result; this public summary remains bounded
-    by the normal ``top_k`` contract.
-    """
-
-    if not windows:
-        raise ValueError("At least one semantic window is required.")
-    candidates = [
-        contribution
-        for window in windows
-        for contribution in window.contributions
-    ]
-    ranked = sorted(
-        candidates,
-        key=lambda item: (
-            -abs(item.shap_value),
-            item.start_seconds if item.start_seconds is not None else -1.0,
-            item.feature_name,
-        ),
-    )[: config.top_k]
-    top_contributions = [
-        contribution.model_copy(update={"rank": rank})
-        for rank, contribution in enumerate(ranked, start=1)
-    ]
+# Preserve the existing full-clip explanation and its raw-score interpretation.
+def build_semantic_explanation(evidence, artifacts):
+    probability = float(np.clip(evidence.predicted_value, 0, 1))
+    contributions = feature_contributions(evidence)
+    fidelity = artifacts.fidelity()
+    # Eligibility covers real clip-level SHAP with recorded fidelity; window
+    # localization retains its own independent experimental/validated status.
+    metric = MetricEvidence(status=MetricStatus.available, value=fidelity[0], scope="offline_validation", dataset_version=f"Current model test export (n={fidelity[1]})") if fidelity else MetricEvidence(status=MetricStatus.not_computed, scope="offline_validation", reason="This model export has no valid test fidelity metadata.")
+    warning = "Tree SHAP explains the surrogate raw score before clipping. It approximates the teacher and provides no time localisation."
+    if evidence.imputed_feature_count:
+        warning += f" {evidence.imputed_feature_count} missing features used training medians."
     return SemanticExplanation(
-        status=ComponentStatus.completed,
-        target_type=config.target_type,
-        model_version=config.model_version,
-        feature_schema_version=config.feature_schema_version,
-        extractor_version=extractor_version,
-        output_space=config.output_space,
-        base_value=None,
-        predicted_value=None,
-        clip_summary=_build_clip_summary(windows, config),
-        feature_importance=top_contributions,
-        windows=[
-            SemanticEvidenceWindow(
-                start_seconds=window.start_seconds,
-                end_seconds=window.end_seconds,
-                feature_importance=list(window.contributions),
-            )
-            for window in windows
-        ],
-        warning=_windowed_warning(config),
+        status=ComponentStatus.completed, target_type=SemanticTargetType.classifier_surrogate,
+        model_version=artifacts.model_version, feature_schema_version=FEATURE_SCHEMA_VERSION,
+        extractor_version=FEATURE_EXTRACTION_VERSION, output_space="raw_regression",
+        development_placeholder=False, research_eligible=fidelity is not None,
+        base_value=evidence.base_value, predicted_value=evidence.predicted_value,
+        clip_summary=SemanticClipSummary(spoof_probability=probability, bonafide_probability=1-probability,
+            decision_threshold=artifacts.threshold, predicted_label=PredictionLabel.spoof if probability >= artifacts.threshold else PredictionLabel.bonafide),
+        feature_importance=contributions, fidelity_r2=metric, warning=warning,
     )
 
 
-def _build_clip_summary(
-    windows: tuple[SemanticWindow, ...],
-    config: SemanticExplanationConfig,
-) -> SemanticClipSummary | None:
-    """Aggregate window model probabilities without counting overlap twice.
-
-    The XGBoost binary-logistic score is converted to P(spoof) per window.
-    Each score represents the time nearest to that window's centre, so the
-    midpoint boundaries between centres provide a deterministic coverage
-    weight. This avoids giving overlapped audio twice the influence of the
-    clip edges while retaining the model's threshold selected during training.
-    """
-
-    if config.decision_threshold is None:
-        return None
-    if any(
-        later.start_seconds <= earlier.start_seconds
-        or later.start_seconds > earlier.end_seconds
-        for earlier, later in zip(windows, windows[1:])
-    ):
-        raise ValueError(
-            "Semantic windows must be ordered and cover the clip continuously."
-        )
-    centres = [
-        (window.start_seconds + window.end_seconds) / 2.0 for window in windows
-    ]
-    boundaries = [windows[0].start_seconds]
-    boundaries.extend(
-        (left + right) / 2.0 for left, right in zip(centres, centres[1:])
-    )
-    boundaries.append(windows[-1].end_seconds)
-    weights = np.diff(np.asarray(boundaries, dtype=np.float64))
-    if not np.isfinite(weights).all() or np.any(weights <= 0.0):
-        raise ValueError("Semantic window coverage weights are invalid.")
-    probabilities = np.asarray(
-        [window.spoof_probability for window in windows], dtype=np.float64
-    )
-    spoof_probability = float(np.average(probabilities, weights=weights))
-    if not math.isfinite(spoof_probability) or not 0.0 <= spoof_probability <= 1.0:
-        raise ValueError("Semantic clip spoof probability is invalid.")
-    return SemanticClipSummary(
-        spoof_probability=spoof_probability,
-        bonafide_probability=1.0 - spoof_probability,
-        decision_threshold=config.decision_threshold,
-        predicted_label=(
-            PredictionLabel.spoof
-            if spoof_probability >= config.decision_threshold
-            else PredictionLabel.bonafide
-        ),
-        window_count=len(windows),
+# Record one window's source boundaries and its complete additive SHAP evidence.
+def build_window_explanation(window, evidence, *, window_id, sample_rate, processing_seconds):
+    return SemanticWindowExplanation(
+        window_id=window_id, start_sample=window.start_sample,
+        end_sample_exclusive=window.end_sample,
+        start_seconds=window.start_sample / sample_rate, end_seconds=window.end_sample / sample_rate,
+        status='completed', predicted_value=evidence.predicted_value, base_value=evidence.base_value,
+        shap_activity=float(np.abs(evidence.shap_values).sum()),
+        imputed_feature_count=evidence.imputed_feature_count, processing_seconds=processing_seconds,
+        feature_importance=feature_contributions(evidence),
     )
 
 
-def _windowed_warning(config: SemanticExplanationConfig) -> str:
-    base_warning = (
-        "Sliding-window SHAP contributions are timestamped. Per-window raw "
-        "margins are not aggregated into a clip-level model score."
-    )
-    if config.decision_threshold is None:
-        return base_warning
-    return (
-        f"{base_warning} clip_summary is a coverage-weighted mean of per-window "
-        "XGBoost P(spoof), compared with this model's validation-selected "
-        "decision threshold; it is auxiliary semantic evidence and does not "
-        "change the primary classifier decision."
+# Aggregate only available window supports on exact boundaries, excluding failed overlaps.
+def aggregate_window_activity(windows, analyzed_spans):
+    completed = [window for window in windows if window.status == 'completed']
+    successful = [(window.start_seconds, window.end_seconds) for window in completed]
+    failed = [(window.start_seconds, window.end_seconds) for window in windows if window.status != 'completed']
+    valid = subtract_spans(intersect_spans(successful, analyzed_spans), failed)
+    timeline = []
+    for start, end in valid:
+        bounds = sorted({start, end} | {
+            bound for window in completed for bound in (window.start_seconds, window.end_seconds)
+            if start < bound < end
+        })
+        for left, right in zip(bounds, bounds[1:]):
+            active = [window.shap_activity for window in completed
+                      if window.start_seconds <= left and window.end_seconds >= right]
+            if active:
+                timeline.append(SemanticActivityBin(start_seconds=left, end_seconds=right,
+                                                    activity=float(np.mean(active)), supporting_windows=len(active)))
+    return timeline, valid
+
+
+# Select a percentile by duration, rather than by an arbitrary plotting resolution.
+def activity_percentile(timeline, percentile):
+    ordered = sorted(timeline, key=lambda item: item.activity)
+    target = sum(item.end_seconds - item.start_seconds for item in ordered) * percentile / 100
+    duration = 0.0
+    for item in ordered:
+        duration += item.end_seconds - item.start_seconds
+        if duration >= target:
+            return item.activity
+    return ordered[-1].activity
+
+
+# Merge adjacent high-activity bins without filling evidence gaps or failed windows.
+def semantic_regions(timeline, threshold):
+    groups = []
+    for item in timeline:
+        if item.activity <= 0 or item.activity < threshold:
+            continue
+        if groups and abs(groups[-1][-1].end_seconds - item.start_seconds) < 1e-9:
+            groups[-1].append(item)
+        else:
+            groups.append([item])
+    return [SemanticRegion(
+        region_id=index, start_seconds=group[0].start_seconds, end_seconds=group[-1].end_seconds,
+        peak_activity=max(item.activity for item in group),
+        mean_activity=sum(item.activity * (item.end_seconds - item.start_seconds) for item in group)
+                      / sum(item.end_seconds - item.start_seconds for item in group),
+    ) for index, group in enumerate(groups, 1)]
+
+
+# Describe coverage and experimental validity separately from measured agreement.
+def build_semantic_localization(windows, analyzed_spans, *, options, artifacts,
+                                sample_rate=16000, trim_start_sample=0, reason=None, processing_seconds=0.0):
+    analyzed_spans = union_spans(analyzed_spans)
+    timeline, valid = aggregate_window_activity(windows, analyzed_spans)
+    threshold = activity_percentile(timeline, options.activity_percentile) if timeline else None
+    validated, validation_reason, validation = artifacts.window_validation(options)
+    fidelity = (MetricEvidence(status=MetricStatus.available, value=validation['r2'], scope='offline_validation',
+                              dataset_version=f"Held-out windows (n={validation['n_windows']}, groups={validation['n_recordings']})")
+                if validated else MetricEvidence(status=MetricStatus.not_computed, scope='offline_validation', reason=validation_reason))
+    available = bool(timeline)
+    requested_duration = span_duration(analyzed_spans)
+    valid_duration = span_duration(valid)
+    incomplete_coverage = valid_duration < requested_duration - 1e-9
+    partial = any(window.status != 'completed' for window in windows) or reason is not None or incomplete_coverage
+    if reason is None and available and incomplete_coverage:
+        reason = 'Some temporal evidence has no valid semantic window support.'
+    return SemanticLocalization(
+        status=('partial' if partial else 'completed') if available else 'not_available',
+        reason=reason or (None if available else 'No valid semantic window coverage is available.'),
+        method_version=WINDOW_LOCALIZATION_VERSION, extractor_version=WINDOW_EXTRACTION_VERSION,
+        model_version=artifacts.model_version, model_validation_status='validated' if validated else 'experimental',
+        model_validation_reason=validation_reason, window_fidelity_r2=fidelity,
+        window_seconds=options.window_seconds, hop_seconds=options.hop_seconds,
+        sample_rate_hz=sample_rate, trim_start_sample=trim_start_sample,
+        analyzed_spans=[{'start_seconds': start, 'end_seconds': end} for start, end in analyzed_spans],
+        valid_spans=[{'start_seconds': start, 'end_seconds': end} for start, end in valid],
+        coverage_percentage=min(100.0, 100 * valid_duration / requested_duration) if requested_duration else 0.0,
+        threshold_percentile=options.activity_percentile, activity_threshold=threshold,
+        flat_activity_map=bool(len({item.activity for item in timeline}) == 1) if timeline else None,
+        windows=windows, timeline=timeline, regions=semantic_regions(timeline, threshold) if timeline else [],
+        processing_seconds=processing_seconds,
     )

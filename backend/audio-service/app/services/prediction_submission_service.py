@@ -35,9 +35,8 @@ from app.services.prediction_persistence_service import (
 )
 from app.services.voice_service import VoiceService
 from app.storage.protocols import AudioStorage
-from app.voice_xai.contracts import ClassifierInferenceBundle
-from app.voice_xai.capture.contracts import ExtractionBundle
-from app.voice_xai.orchestrator import VoiceXaiOrchestrator
+from app.voice_xai.integration.contracts import ClassifierInferenceBundle
+from app.voice_xai.workflow.orchestrator import VoiceXaiOrchestrator
 from app.voice_xai.temporal.contracts import TemporalAttentionWindowInput
 
 logger = logging.getLogger(__name__)
@@ -226,7 +225,6 @@ class PredictionSubmissionService:
             (
                 prediction,
                 processed_audio,
-                extraction,
                 temporal_evidence,
             ) = await self._job_runner.run_blocking(
                 lambda: _predict_without_upload_cleanup(
@@ -234,9 +232,6 @@ class PredictionSubmissionService:
                     upload_metadata=upload_metadata,
                     request_id=request_id,
                     storage_metadata=storage_metadata,
-                    capture_extraction=(
-                        self._settings.xai_enabled and self._settings.xai_capture_enabled
-                    ),
                 )
             )
             with stage_timer(
@@ -273,7 +268,6 @@ class PredictionSubmissionService:
                     source_type=source_type,
                     prediction=prediction,
                     processed_audio=processed_audio,
-                    extraction=extraction,
                     temporal_evidence=temporal_evidence,
                 )
 
@@ -366,7 +360,6 @@ class PredictionSubmissionService:
         source_type: SourceType,
         prediction: VoicePredictionResponse,
         processed_audio: ProcessedAudio | None = None,
-        extraction: ExtractionBundle | None = None,
         temporal_evidence: tuple[TemporalAttentionWindowInput, ...] | None = None,
     ) -> None:
         """XAI is post-persistence best effort and cannot fail the prediction."""
@@ -383,12 +376,7 @@ class PredictionSubmissionService:
                     prediction=prediction,
                     # Reuses the exact ProcessedAudio instance the classifier
                     # already decoded/normalised for this request -- XAI never
-                    # re-reads or re-decodes the upload. `extraction` stays
-                    # The optional bundle contains only bounded tensors captured
-                    # during the exact classifier forward pass. It remains
-                    # internal; the XAI worker serializes it as a private
-                    # artifact rather than exposing it through prediction APIs.
-                    extraction=extraction,
+                    # re-reads or re-decodes the upload.
                     temporal_evidence=temporal_evidence,
                     processed_audio=processed_audio,
                 )
@@ -421,11 +409,9 @@ def _predict_without_upload_cleanup(
     upload_metadata: AudioUploadMetadata,
     request_id: str,
     storage_metadata: AudioStorageMetadata,
-    capture_extraction: bool = False,
 ) -> tuple[
     VoicePredictionResponse,
     ProcessedAudio | None,
-    ExtractionBundle | None,
     tuple[TemporalAttentionWindowInput, ...] | None,
 ]:
     """Run classifier inference, returning the processed audio alongside it.
@@ -435,8 +421,7 @@ def _predict_without_upload_cleanup(
     a second decode. Falls back to the plain public method (returning
     ``processed_audio=None``) for any voice-service test double/fake that
     only implements the original method -- the classifier prediction path
-    itself is identical either way. Capture is passed only to implementations
-    that opt into the additive internal argument.
+    itself is identical either way.
     """
 
     with_audio = getattr(
@@ -446,13 +431,10 @@ def _predict_without_upload_cleanup(
         kwargs = {"request_id": request_id, "storage_metadata": storage_metadata}
         if "cleanup_upload" in inspect.signature(with_audio).parameters:
             kwargs["cleanup_upload"] = False
-        if "capture_extraction" in inspect.signature(with_audio).parameters:
-            kwargs["capture_extraction"] = capture_extraction
         result = with_audio(upload_metadata, **kwargs)
         return (
             result.prediction,
             result.processed_audio,
-            getattr(result, "extraction", None),
             getattr(result, "temporal_evidence", None),
         )
 
@@ -463,7 +445,7 @@ def _predict_without_upload_cleanup(
     }
     if "cleanup_upload" in inspect.signature(predict).parameters:
         kwargs["cleanup_upload"] = False
-    return predict(upload_metadata, **kwargs), None, None, None
+    return predict(upload_metadata, **kwargs), None, None
 
 
 def _require_successful_storage(

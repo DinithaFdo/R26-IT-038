@@ -15,7 +15,7 @@ from app.schemas.xai import (
     TemporalExplanation,
     XaiExplanationResponse,
 )
-from app.voice_xai.orchestrator import (
+from app.voice_xai.workflow.orchestrator import (
     VoiceXaiOrchestrator,
     XaiArtifactUnavailableError,
     XaiNarrativeRetryError,
@@ -23,7 +23,7 @@ from app.voice_xai.orchestrator import (
     XaiReplayUnavailableError,
     XaiRetryRequiredError,
 )
-from app.voice_xai.status import XaiExplanationNotFoundError
+from app.voice_xai.workflow.status import XaiExplanationNotFoundError
 
 router = APIRouter(prefix="/me/predictions", tags=["Explainability / XAI"])
 

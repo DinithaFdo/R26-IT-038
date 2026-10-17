@@ -1,111 +1,99 @@
-"""Per-analysis Voice XAI quality calculations with explicit availability."""
+"""Source-audio interval operations and descriptive temporal/semantic agreement."""
+import math
 
-from __future__ import annotations
-
-from app.schemas.xai import (
-    ExplanationQuality,
-    MetricEvidence,
-    MetricStatus,
-    SemanticExplanation,
-    TemporalExplanation,
-)
-from app.voice_xai.evaluation.offline_metrics import surrogate_fidelity_for_model
-
-TOP_SHAP_FEATURE_COUNT = 3
+from app.schemas.xai import ExplanationQuality, MetricEvidence, MetricStatus
+from app.voice_xai.evaluation.eligibility import OFFLINE_SEMANTIC_AOPC, OFFLINE_TEMPORAL_AOPC
 
 
-def quality_for_analysis(
-    temporal: TemporalExplanation | None,
-    semantic: SemanticExplanation | None,
-) -> ExplanationQuality:
-    """Compare attention regions with exactly the top-three SHAP windows.
-
-    The sliding semantic-window grid is intentionally not used here: it often
-    spans nearly the whole clip and would make overlap a coverage statistic,
-    rather than agreement between the strongest semantic evidence and the
-    attention rollout.
-    """
-
-    surrogate_fidelity = surrogate_fidelity_for_model(
-        semantic.model_version if semantic is not None else None
-    )
-    if temporal is None or semantic is None:
-        return ExplanationQuality(
-            surrogate_fidelity_r2=surrogate_fidelity,
-            temporal_semantic_iou=MetricEvidence(
-                status=MetricStatus.not_computed,
-                scope="per_analysis",
-                reason="Temporal or semantic explanation is unavailable.",
-            )
-        )
-    if not temporal.high_attention_regions:
-        return ExplanationQuality(
-            surrogate_fidelity_r2=surrogate_fidelity,
-            temporal_semantic_iou=MetricEvidence(
-                status=MetricStatus.not_computed,
-                scope="per_analysis",
-                reason="No temporal high-attention regions were selected.",
-            )
-        )
-    top_shap = sorted(
-        semantic.feature_importance,
-        key=lambda contribution: contribution.rank,
-    )[:TOP_SHAP_FEATURE_COUNT]
-    if len(top_shap) != TOP_SHAP_FEATURE_COUNT:
-        return ExplanationQuality(
-            surrogate_fidelity_r2=surrogate_fidelity,
-            temporal_semantic_iou=MetricEvidence(
-                status=MetricStatus.not_computed,
-                scope="per_analysis",
-                reason="Three timestamped top-ranked SHAP contributions are unavailable.",
-            )
-        )
-    if any(
-        contribution.start_seconds is None or contribution.end_seconds is None
-        for contribution in top_shap
-    ):
-        return ExplanationQuality(
-            surrogate_fidelity_r2=surrogate_fidelity,
-            temporal_semantic_iou=MetricEvidence(
-                status=MetricStatus.not_computed,
-                scope="per_analysis",
-                reason="A top-three SHAP contribution has no timestamped time window.",
-            )
-        )
-    temporal_intervals = [
-        (region.start_seconds, region.end_seconds)
-        for region in temporal.high_attention_regions
-    ]
-    semantic_intervals = [
-        (float(contribution.start_seconds), float(contribution.end_seconds))
-        for contribution in top_shap
-    ]
-    intersection = _measure(_intersections(temporal_intervals, semantic_intervals))
-    union = _measure(temporal_intervals) + _measure(semantic_intervals) - intersection
-    return ExplanationQuality(
-        surrogate_fidelity_r2=surrogate_fidelity,
-        temporal_semantic_iou=MetricEvidence(
-            status=MetricStatus.available,
-            value=intersection / union if union else 0.0,
-            scope="per_analysis",
-        )
-    )
-
-
-def _intersections(left: list[tuple[float, float]], right: list[tuple[float, float]]):
-    return [
-        (max(a_start, b_start), min(a_end, b_end))
-        for a_start, a_end in left
-        for b_start, b_end in right
-        if max(a_start, b_start) < min(a_end, b_end)
-    ]
-
-
-def _measure(intervals: list[tuple[float, float]]) -> float:
-    merged: list[list[float]] = []
-    for start, end in sorted(intervals):
-        if not merged or start > merged[-1][1]:
-            merged.append([start, end])
+# Merge overlapping/touching half-open spans without filling unknown gaps.
+def union_spans(spans):
+    ordered = sorted((float(start), float(end)) for start, end in spans)
+    result = []
+    for start, end in ordered:
+        if not math.isfinite(start) or not math.isfinite(end) or start < 0 or end <= start:
+            raise ValueError('Expected finite, positive source-audio intervals.')
+        if result and start <= result[-1][1]:
+            result[-1] = (result[-1][0], max(end, result[-1][1]))
         else:
-            merged[-1][1] = max(merged[-1][1], end)
-    return sum(end - start for start, end in merged)
+            result.append((start, end))
+    return tuple(result)
+
+
+# Intersect interval unions so evidence is compared only on common coverage.
+def intersect_spans(left, right):
+    left, right = union_spans(left), union_spans(right)
+    result = []
+    i = j = 0
+    while i < len(left) and j < len(right):
+        start, end = max(left[i][0], right[j][0]), min(left[i][1], right[j][1])
+        if end > start:
+            result.append((start, end))
+        if left[i][1] <= right[j][1]:
+            i += 1
+        else:
+            j += 1
+    return union_spans(result)
+
+
+# Remove failed or unprocessed window supports, including overlapping portions.
+def subtract_spans(spans, excluded):
+    result = []
+    excluded = union_spans(excluded)
+    for start, end in union_spans(spans):
+        cursor = start
+        for cut_start, cut_end in excluded:
+            if cut_end <= cursor:
+                continue
+            if cut_start >= end:
+                break
+            if cut_start > cursor:
+                result.append((cursor, min(cut_start, end)))
+            cursor = max(cursor, cut_end)
+            if cursor >= end:
+                break
+        if cursor < end:
+            result.append((cursor, end))
+    return tuple(result)
+
+
+# Measure union duration once, avoiding double-counted overlapping windows.
+def span_duration(spans):
+    return sum(end - start for start, end in union_spans(spans))
+
+
+# Compute interval IoU without counting missing evidence, failed windows or padding.
+def temporal_semantic_iou(temporal, semantic, temporal_spans=None):
+    localization = getattr(semantic, 'localization', None)
+    if localization is None:
+        return MetricEvidence(status=MetricStatus.not_applicable, scope='per_analysis',
+                              reason='Clip-level SHAP has no temporal intervals for IoU.')
+    if temporal is None:
+        return MetricEvidence(status=MetricStatus.not_computed, scope='per_analysis', reason='Temporal evidence is unavailable.')
+    if temporal_spans is None:
+        temporal_spans = [(span.start_seconds, span.end_seconds) for span in localization.analyzed_spans]
+    common = intersect_spans(temporal_spans, [(span.start_seconds, span.end_seconds) for span in localization.valid_spans])
+    duration = span_duration(common)
+    if not duration:
+        return MetricEvidence(status=MetricStatus.not_computed, scope='per_analysis', reason='No common valid temporal/semantic coverage.')
+    left = intersect_spans([(region.start_seconds, region.end_seconds) for region in temporal.high_attention_regions], common)
+    right = intersect_spans([(region.start_seconds, region.end_seconds) for region in localization.regions], common)
+    denominator = span_duration(union_spans((*left, *right)))
+    if not denominator:
+        return MetricEvidence(status=MetricStatus.not_computed, scope='per_analysis', reason='Neither method selects a region within common valid coverage; IoU is undefined.')
+    value = span_duration(intersect_spans(left, right)) / denominator
+    return MetricEvidence(status=MetricStatus.available, scope='per_analysis', value=min(1.0, max(0.0, value)),
+                          reason=f'Descriptive overlap agreement over {duration:.6f}s of common valid coverage; '
+                                 f'window model is {localization.model_validation_status}. This is not localization accuracy.')
+
+
+# Preserve full-clip fidelity while exposing independently scoped interval agreement.
+def quality_for_analysis(temporal, semantic, *, temporal_spans=None):
+    fidelity = semantic.fidelity_r2 if semantic is not None else None
+    if fidelity is None:
+        fidelity = MetricEvidence(status=MetricStatus.not_computed, scope="offline_validation", reason="Current model fidelity metadata is unavailable.")
+    return ExplanationQuality(
+        surrogate_fidelity_r2=fidelity,
+        temporal_semantic_iou=temporal_semantic_iou(temporal, semantic, temporal_spans),
+        semantic_aopc=OFFLINE_SEMANTIC_AOPC.metric_evidence(),
+        temporal_aopc=OFFLINE_TEMPORAL_AOPC.metric_evidence(),
+    )

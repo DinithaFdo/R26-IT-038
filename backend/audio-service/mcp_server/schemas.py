@@ -67,3 +67,12 @@ class MCPDeletePredictionInput(BaseModel):
 
 class MCPModelStatusInput(BaseModel):
     api_token: str = Field(min_length=1)
+
+
+class MCPExplanationInput(BaseModel):
+    api_token: str = Field(min_length=1)
+    prediction_id: str = Field(min_length=1, max_length=160)
+
+
+class MCPExplanationArtifactInput(MCPExplanationInput):
+    artifact_id: str = Field(min_length=1, max_length=160)

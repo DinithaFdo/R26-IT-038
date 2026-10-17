@@ -45,6 +45,7 @@ class TemporalAttentionWindowInput:
             ) from error
         if (
             not np.isfinite(start)
+            or start < 0.0
             or not np.isfinite(end)
             or end <= start
             or not np.isfinite(probability)
@@ -97,26 +98,60 @@ class TemporalVisualization:
     threshold: float
     high_attention_mask: NDArray[np.bool_]
     title: str = "XLS-R attention rollout density"
-    evaluation_threshold: float | None = None
-    evaluation_high_attention_mask: NDArray[np.bool_] | None = None
     visualization_quantile: float | None = None
+    # Source-audio bounds of real evidence; scores outside these spans are absent.
+    analyzed_spans: tuple[tuple[float, float], ...] = ()
+    duration_seconds: float | None = None
+    # high_attention_mask retains its existing raw-p90 meaning.
+    final_region_mask: NDArray[np.bool_] | None = None
+    regions: tuple[dict[str, object], ...] = ()
+    sample_rate_hz: int | None = None
+    audio_sample_count: int | None = None
+    highlighted_samples: int | None = None
+    highlighted_duration_seconds: float | None = None
+    highlighted_coverage_percentage: float | None = None
+    raw_high_attention_bin_percentage: float | None = None
+    flat_attention_map: bool | None = None
 
     def as_json_dict(self) -> dict[str, object]:
         return {
             "title": self.title,
             "time_seconds": self.time_seconds.tolist(),
-            "attention_scores": self.attention_scores.tolist(),
+            "attention_scores": [
+                float(score) if np.isfinite(score) else None
+                for score in self.attention_scores
+            ],
+            "attention_available_mask": np.isfinite(self.attention_scores).tolist(),
+            "analyzed_spans": [
+                {"start_seconds": start, "end_seconds": end}
+                for start, end in self.analyzed_spans
+            ],
+            "duration_seconds": self.duration_seconds,
+            "time_reference": "source_audio",
             "threshold": self.threshold,
             "high_attention_mask": self.high_attention_mask.astype(int).tolist(),
-            "evaluation_threshold": self.evaluation_threshold,
-            "evaluation_high_attention_mask": (
-                self.evaluation_high_attention_mask.astype(int).tolist()
-                if self.evaluation_high_attention_mask is not None
-                else None
+            "raw_high_attention_mask": self.high_attention_mask.astype(int).tolist(),
+            "final_region_mask": (
+                self.final_region_mask.astype(int).tolist()
+                if self.final_region_mask is not None else None
+            ),
+            "regions": list(self.regions),
+            "sample_rate_hz": self.sample_rate_hz,
+            "audio_sample_count": self.audio_sample_count,
+            "sample_reference": "classifier_preprocessed_mono_waveform",
+            "highlighted_samples": self.highlighted_samples,
+            "highlighted_duration_seconds": self.highlighted_duration_seconds,
+            "highlighted_coverage_percentage": self.highlighted_coverage_percentage,
+            "raw_high_attention_bin_percentage": self.raw_high_attention_bin_percentage,
+            "raw_high_attention_bin_percentage_denominator": "attention_available_bins",
+            "flat_attention_map": self.flat_attention_map,
+            "coverage_definition": (
+                "Union of merged/filtered intervals rounded to preprocessed sample boundaries; "
+                "gaps within merged intervals count; denominator is the full audio sample count."
             ),
             "visualization_quantile": self.visualization_quantile,
             "threshold_role": (
-                "per_clip_visualization"
+                "per_clip_percentile"
                 if self.visualization_quantile is not None
                 else "unspecified"
             ),

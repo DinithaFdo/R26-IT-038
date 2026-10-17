@@ -268,6 +268,48 @@ def test_original_forward_attention_is_reduced_to_a_compact_timeline() -> None:
     assert float(window.attention_density.mean()) == pytest.approx(1.0)
 
 
+@pytest.mark.parametrize("sample_count", [16000, 96000, 320000, 320001])
+def test_original_pass_crop_timestamps_preserve_classifier_input_and_score(monkeypatch, sample_count) -> None:
+    import torch
+    from types import SimpleNamespace
+    from app.models.preprocessing.ssl_waveform import SSLWaveformConfig, SSLWaveformFrontEnd
+    from app.models.real import ssl_sequence_inference as inference
+
+    class FakeClassifier:
+        def __init__(self):
+            self.calls = []
+
+        def __call__(self, values, mask, *, output_attentions):
+            self.calls.append((values.clone(), mask.clone()))
+            logits = torch.tensor([[0.2, 0.8]])
+            if output_attentions:
+                attention = torch.full((1, 2, 3, 3), 1.0 / 3.0)
+                return logits, (attention,), torch.ones((1, 3), dtype=torch.bool)
+            return logits
+
+    waveform = np.linspace(-0.8, 0.9, sample_count, dtype=np.float32)
+    audio = processed_audio(waveform)
+    module = FakeClassifier()
+    front_end = SSLWaveformFrontEnd(SSLWaveformConfig())
+    runtime = SimpleNamespace(
+        module=module, front_end=front_end, device="cpu",
+        preprocessing={"sample_rate": 16000}, spoof_index=1, bonafide_index=0,
+    )
+    config = SimpleNamespace(branch_name="ssl_sequence", model_name="ssl_wavlm_xlsr", display_name="SSL")
+    monkeypatch.setattr(inference, "_prediction_metadata", lambda runtime: {})
+    plain, _ = inference._classify_ssl(audio, runtime_model=runtime, config=config, output_attentions=False)
+    captured, evidence = inference._classify_ssl(audio, runtime_model=runtime, config=config, output_attentions=True)
+    assert len(module.calls) == 2  # One forward pass per prediction.
+    torch.testing.assert_close(module.calls[0][0], module.calls[1][0])
+    torch.testing.assert_close(module.calls[0][1], module.calls[1][1])
+    assert plain.probabilities == captured.probabilities
+    assert plain.prediction == captured.prediction
+    expected_start = max(0, (sample_count - 96000) // 2) / 16000
+    assert evidence[0].start_seconds == expected_start
+    assert evidence[0].end_seconds == expected_start + min(sample_count, 96000) / 16000
+    assert evidence[0].token_times_seconds[-1] < min(sample_count, 96000) / 16000
+
+
 # --------------------------------------------------------------------------
 # Artifact / loader failure isolation (hermetic -- constructs bad artifacts
 # in-memory rather than touching the real checkpoint file).

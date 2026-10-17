@@ -1,3 +1,7 @@
+from dataclasses import asdict
+
+import pytest
+
 from app.schemas.common import BranchStatus, ModelMode, PredictionLabel
 from app.schemas.xai import (
     CanonicalXaiBranch,
@@ -10,6 +14,8 @@ from app.schemas.xai import (
 )
 from app.voice_xai.evaluation.eligibility import (
     RESEARCH_ELIGIBILITY_POLICY_VERSION,
+    OFFLINE_SEMANTIC_AOPC,
+    OFFLINE_TEMPORAL_AOPC,
     evaluate_research_eligibility,
 )
 
@@ -42,20 +48,20 @@ def _temporal(*, eligible: bool) -> TemporalExplanation:
         development_placeholder=not eligible,
         research_eligible=eligible,
         attention_score_peak=0.9,
-        threshold_percentile=80.0,
-        regions=[],
-        combined_region_duration_seconds=0.0,
+        attention_threshold=0.8,
+        high_attention_regions=[],
+        high_attention_combined_duration_seconds=0.0,
     )
 
 
 def _semantic(*, eligible: bool) -> SemanticExplanation:
     return SemanticExplanation(
         status=ComponentStatus.completed,
-        target_type=SemanticTargetType.independent_acoustic_evidence_model,
+        target_type=SemanticTargetType.classifier_surrogate,
         model_version="v1",
-        feature_schema_version="esvas-acoustic-28-v1",
+        feature_schema_version="fixture-features-v1",
         extractor_version="v1",
-        output_space="probability",
+        output_space="raw_regression",
         development_placeholder=not eligible,
         research_eligible=eligible,
         base_value=0.0,
@@ -110,3 +116,37 @@ def test_one_unmet_requirement_fails_the_whole_decision_closed() -> None:
 
     assert decision.eligible is False
     assert decision.unmet_requirements == ("semantic_not_research_eligible",)
+
+
+def test_selected_offline_metrics_preserve_source_and_negative_temporal_comparison():
+    decision = evaluate_research_eligibility(
+        classifier=_classifier(dummy=False, eligible=True),
+        temporal=_temporal(eligible=True), semantic=_semantic(eligible=True),
+    )
+    metrics = {metric['name']: metric for metric in asdict(decision)['offline_metrics']}
+    assert metrics['semantic_aopc']['value'] == pytest.approx(0.517231721941027)
+    assert metrics['temporal_aopc']['value'] == pytest.approx(0.1838843630005916)
+    assert all(metric['scope'] == 'offline_validation' and metric['n_audio'] == 1
+               and metric['fixed_reference'] and metric['audio_id'] == 'LA_D_2302632.wav'
+               for metric in metrics.values())
+    assert OFFLINE_SEMANTIC_AOPC.advantage_over_random > 0
+    assert OFFLINE_TEMPORAL_AOPC.advantage_over_random == pytest.approx(-0.0869459662780476)
+    assert decision.eligible is True  # Eligibility is separate from a ranking pass/fail test.
+
+
+@pytest.mark.parametrize('component', ['temporal', 'semantic'])
+@pytest.mark.parametrize('status', [ComponentStatus.running, ComponentStatus.failed])
+def test_fixed_offline_values_cannot_make_incomplete_components_eligible(component, status):
+    components = {'temporal': _temporal(eligible=True), 'semantic': _semantic(eligible=True)}
+    components[component] = components[component].model_copy(update={'status': status})
+    decision = evaluate_research_eligibility(classifier=_classifier(dummy=False, eligible=True), **components)
+    assert decision.eligible is False
+    assert f'{component}_not_research_eligible' in decision.unmet_requirements
+
+
+def test_placeholder_semantic_cannot_be_enabled_by_a_true_flag():
+    semantic = _semantic(eligible=True).model_copy(update={'development_placeholder': True})
+    decision = evaluate_research_eligibility(
+        classifier=_classifier(dummy=False, eligible=True), temporal=_temporal(eligible=True), semantic=semantic,
+    )
+    assert decision.eligible is False

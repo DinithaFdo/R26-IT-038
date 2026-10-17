@@ -1,4 +1,5 @@
 import pytest
+import numpy as np
 
 from app.models.runtime import CANONICAL_BRANCH_ORDER, PUBLIC_MODEL_NAMES
 from app.schemas.common import (
@@ -14,13 +15,13 @@ from app.schemas.prediction import (
     ProbabilityScores,
     VoicePredictionResponse,
 )
-from app.voice_xai.contracts import (
+from app.voice_xai.integration.contracts import (
     CANONICAL_XAI_BRANCHES,
     CLASSIFIER_XAI_CONTRACT_VERSION,
     PUBLIC_MODEL_NAME_BY_XAI_BRANCH,
     ClassifierInferenceBundle,
 )
-from app.voice_xai.capture.contracts import ExtractionBundle
+from app.voice_xai.semantic.feature_extraction import FeatureExtractionResult
 
 
 def test_classifier_xai_contract_freezes_branch_names_and_aliases() -> None:
@@ -42,9 +43,10 @@ def test_classifier_xai_contract_freezes_branch_names_and_aliases() -> None:
 
 def test_classifier_inference_bundle_accepts_matching_contracts() -> None:
     prediction = _prediction("request-123")
-    extraction = ExtractionBundle(
-        request_id="request-123",
-        branches={},
+    features = FeatureExtractionResult(
+        feature_names=("jitter",), values=np.array([0.1], dtype=np.float32),
+        sample_rate=16000, duration_seconds=1.0,
+        extractor_version="fixture-v1", metadata={},
     )
 
     bundle = ClassifierInferenceBundle(
@@ -53,11 +55,22 @@ def test_classifier_inference_bundle_accepts_matching_contracts() -> None:
         owner_user_id="user-123",
         source_type=SourceType.dashboard_upload,
         prediction=prediction,
-        extraction=extraction,
+        acoustic_features=features,
     )
 
     assert bundle.contract_version == CLASSIFIER_XAI_CONTRACT_VERSION
+    assert bundle.contract_version == "classifier-xai-v2"
+    assert bundle.acoustic_features is features
     assert bundle.prediction.fusion.probabilities.spoof == 0.8
+
+
+def test_classifier_bundle_rejects_the_removed_capture_contract_version() -> None:
+    with pytest.raises(ValueError, match="contract version"):
+        ClassifierInferenceBundle(
+            prediction_id="prediction-123", request_id="request-123",
+            owner_user_id="user-123", source_type=SourceType.dashboard_upload,
+            prediction=_prediction("request-123"), contract_version="classifier-xai-v1",
+        )
 
 
 def test_classifier_inference_bundle_rejects_mismatched_request_ids() -> None:
@@ -72,16 +85,6 @@ def test_classifier_inference_bundle_rejects_mismatched_request_ids() -> None:
             prediction=prediction,
         )
 
-    extraction = ExtractionBundle(request_id="request-other", branches={})
-    with pytest.raises(ValueError, match="Extraction bundle request_id"):
-        ClassifierInferenceBundle(
-            prediction_id="prediction-123",
-            request_id="request-123",
-            owner_user_id="user-123",
-            source_type=SourceType.dashboard_upload,
-            prediction=prediction,
-            extraction=extraction,
-        )
 
 
 def _prediction(request_id: str) -> VoicePredictionResponse:

@@ -189,6 +189,8 @@ class ProcessedAudio:
     model_window_duration_seconds: float = 6.0
     model_window_overlap_seconds: float = 1.0
     trim_applied: bool = False
+    source_audio_bytes: bytes | None = field(default=None, repr=False)
+    source_audio_extension: str | None = None
 
     def __post_init__(self) -> None:
         """Fill deterministic model windows for legacy/internal callers.
@@ -491,6 +493,8 @@ def preprocess_audio_file(
             decoded_audio.original_sample_rate != app_settings.target_sample_rate
         ),
         was_converted_to_mono=decoded_audio.original_channels > 1,
+        source_audio_bytes=path.read_bytes() if app_settings.xai_enabled else None,
+        source_audio_extension=path.suffix.lower(),
     )
 
 

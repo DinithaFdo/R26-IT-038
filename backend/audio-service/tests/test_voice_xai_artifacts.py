@@ -23,14 +23,15 @@ from app.schemas.prediction import (
     VoicePredictionResponse,
 )
 from app.voice_xai.artifacts.service import LocalExplanationArtifactStore
-from app.voice_xai.contracts import ClassifierInferenceBundle
-from app.voice_xai.orchestrator import (
+from app.voice_xai.integration.contracts import ClassifierInferenceBundle
+from app.voice_xai.workflow.orchestrator import (
     VoiceXaiOrchestrator,
     classifier_snapshot_from_prediction,
 )
 from app.voice_xai.persistence.mongodb import MongoXaiExplanationRepository
 from app.voice_xai.temporal.contracts import TemporalAnalysisResult, TemporalVisualization
 from tests.test_mongodb import FakeDatabase
+from tests.xai_support import StaticSemanticService
 
 
 def test_local_artifact_store_keeps_json_and_binary_bytes_outside_mongodb(tmp_path: Path) -> None:
@@ -42,7 +43,7 @@ def test_local_artifact_store_keeps_json_and_binary_bytes_outside_mongodb(tmp_pa
     npz_reference = store.store_bytes(
         explanation_id="explanation-123",
         content=b"npz-bytes",
-        kind="attention_tensor",
+        kind="other",
         content_type="application/x-npz",
     )
 
@@ -58,13 +59,13 @@ def test_deleting_one_explanation_removes_only_its_private_artifacts(tmp_path: P
     deleted_reference = store.store_bytes(
         explanation_id="explanation-delete",
         content=b"remove-me",
-        kind="attention_tensor",
+        kind="other",
         content_type="application/x-npz",
     )
     retained_reference = store.store_bytes(
         explanation_id="explanation-retain",
         content=b"keep-me",
-        kind="attention_tensor",
+        kind="other",
         content_type="application/x-npz",
     )
 
@@ -132,7 +133,7 @@ def test_owner_scoped_artifact_route_requires_the_persisted_reference(tmp_path: 
     document = _prediction_document()
     repository = MongoXaiExplanationRepository(FakeDatabase("xai_artifact_routes"))
     store = LocalExplanationArtifactStore(tmp_path / "private")
-    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="mock")
+    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="real")
     orchestrator = VoiceXaiOrchestrator(
         repository=repository,
         prediction_repository=PredictionRepository(document),
@@ -141,6 +142,7 @@ def test_owner_scoped_artifact_route_requires_the_persisted_reference(tmp_path: 
         artifact_store=store,
         temporal_service=object(),
         replay_service=ReplayService(),
+        semantic_service=StaticSemanticService(),
     )
 
     async def seed():
@@ -205,7 +207,7 @@ async def test_orchestrator_persists_only_a_temporal_json_reference(tmp_path: Pa
     prediction = _prediction_response(document)
     repository = MongoXaiExplanationRepository(FakeDatabase("xai_artifact_run"))
     store = LocalExplanationArtifactStore(tmp_path / "private")
-    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="mock")
+    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="real")
     orchestrator = VoiceXaiOrchestrator(
         repository=repository,
         prediction_repository=PredictionRepository(document),
@@ -213,6 +215,7 @@ async def test_orchestrator_persists_only_a_temporal_json_reference(tmp_path: Pa
         app_settings=settings,
         artifact_store=store,
         temporal_service=StaticTemporalService(),
+        semantic_service=StaticSemanticService(),
     )
     bundle = ClassifierInferenceBundle(
         prediction_id=document["id"],

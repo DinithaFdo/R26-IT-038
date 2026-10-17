@@ -10,6 +10,9 @@ class ApiKeyScope(str, Enum):
     prediction_list = "prediction:list"
     prediction_delete = "prediction:delete"
     audio_read = "audio:read"
+    xai_create = "xai:create"
+    xai_read = "xai:read"
+    xai_retry = "xai:retry"
 
 
 class ApiKeyCreateRequest(BaseModel):

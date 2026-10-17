@@ -25,7 +25,7 @@ PrecisionPolicy = Literal["float32", "float16", "bfloat16"]
 LoadStrategy = Literal["startup", "lazy"]
 FusionMethod = Literal["weighted_average", "simple_average", "majority_vote"]
 FusionModeSetting = Literal["convex_4branch_v3", "legacy_3branch"]
-XaiMode = Literal["disabled", "mock", "real"]
+XaiMode = Literal["disabled", "real"]
 
 
 class Settings(BaseSettings):
@@ -124,63 +124,31 @@ class Settings(BaseSettings):
     # persistent OS thread to avoid unsafe GPU/Mongo event-loop concurrency.
     xai_max_workers: int = Field(default=1, ge=1)
     xai_max_queued_jobs: int = Field(default=8, ge=0)
-    # Temporal attention extraction runs XLS-R over several sliding windows;
-    # the established pipeline can legitimately take longer than a standard
+    # Clip/window DSP and explanation work can take longer than a standard
     # request on a CPU-only development machine.
     xai_job_timeout_seconds: float = Field(default=600.0, gt=0.0)
     xai_artifact_retention_seconds: int = Field(default=604800, ge=60)
     xai_artifact_root: str = "private_xai_artifacts"
-    xai_temporal_threshold_config_path: str = (
-        "app/voice_xai/temporal/calibrations/partialspoof_v1_2_dev_attention_threshold.json"
-    )
-    # Must match the locked temporal-calibration artifact. This is separate
-    # from the shared-model segmentation settings used by other branches.
+    # Temporal selection is fixed to pure p90 in voice_xai.temporal.threshold.
+    # These timing settings are separate from shared classifier segmentation.
     xai_temporal_window_stride_seconds: float = Field(default=3.0, gt=0.0)
     xai_temporal_global_hop_seconds: float = Field(default=0.02, gt=0.0)
     xai_temporal_smoothing_ms: float = Field(default=80.0, ge=0.0)
     xai_temporal_minimum_region_duration_seconds: float = Field(default=0.04, ge=0.0)
     xai_temporal_merge_gap_seconds: float = Field(default=0.1, ge=0.0)
-    # Display-only selection. It deliberately does not replace the fixed
-    # PartialSpoof DEV-calibrated evaluation threshold.
-    xai_temporal_visualization_quantile: float = Field(
-        default=0.90, ge=0.50, le=0.99
-    )
-    xai_temporal_visualization_minimum_density: float = Field(
-        default=1.0, ge=0.0
-    )
     # Bounded display-only spectrogram generated from the same preprocessed
     # waveform as the classifier. These values do not alter model inference.
     xai_spectrogram_n_mels: int = Field(default=64, ge=16, le=128)
     xai_spectrogram_n_fft: int = Field(default=512, ge=128, le=4096)
     xai_spectrogram_hop_length: int = Field(default=160, ge=1, le=4096)
     xai_spectrogram_max_frames: int = Field(default=900, ge=32, le=2000)
-    xai_semantic_model_path: str = (
-        "app/voice_xai/semantic/artifacts/xgboost_surrogate_v4.json"
-    )
-    xai_semantic_manifest_path: str = (
-        "app/voice_xai/semantic/manifests/xgboost-surrogate-v4.json"
-    )
-    xai_semantic_feature_columns_path: str = (
-        "app/voice_xai/semantic/artifacts/feature_columns_v4.json"
-    )
-    xai_semantic_threshold_path: str = (
-        "app/voice_xai/semantic/artifacts/threshold_v4.json"
-    )
-    xai_semantic_training_metadata_path: str = (
-        "app/voice_xai/semantic/artifacts/training_metadata_v4.json"
-    )
-    xai_semantic_imputer_path: str = (
-        "app/voice_xai/semantic/artifacts/imputer_v4.joblib"
-    )
-    xai_semantic_shap_background_path: str = ""
-    xai_semantic_window_duration_seconds: float = Field(default=1.0, gt=0.0)
-    xai_semantic_window_overlap_seconds: float = Field(default=0.5, ge=0.0)
-    # Intermediate-tensor capture is opt-in even when XAI itself is enabled.
-    # Hooks necessarily run in the classifier worker, so keeping this false by
-    # default preserves the normal prediction latency profile.
-    xai_capture_enabled: bool = False
-    xai_capture_max_total_elements: int = Field(default=1_000_000, ge=1)
-
+    xai_semantic_model_dir: str = "app/voice_xai/semantic/artifacts"
+    xai_semantic_windows_enabled: bool = True
+    xai_semantic_window_seconds: float = Field(default=2.0, ge=0.2, allow_inf_nan=False)
+    xai_semantic_hop_seconds: float = Field(default=1.0, ge=1 / 16000, allow_inf_nan=False)
+    xai_semantic_max_windows: int = Field(default=32, ge=1, le=256)
+    xai_semantic_window_budget_seconds: float = Field(default=120.0, gt=0.0, allow_inf_nan=False)
+    xai_semantic_activity_percentile: float = Field(default=90.0, ge=0.0, le=100.0, allow_inf_nan=False)
     # Optional post-processing only: this client receives compact validated
     # XAI evidence, never raw audio or classifier inputs. It is disabled by
     # default so normal prediction and deterministic-report behaviour stays
@@ -561,17 +529,8 @@ class Settings(BaseSettings):
                     "OpenAI-compatible base URL ending in /compatible-mode/v1."
                 )
         if self.xai_enabled and self.xai_mode == "real":
-            if not self.xai_semantic_manifest_path.strip():
-                raise ValueError("XAI_SEMANTIC_MANIFEST_PATH is required for XAI_MODE=real.")
-            for field_name, value in {
-                "XAI_SEMANTIC_MODEL_PATH": self.xai_semantic_model_path,
-                "XAI_SEMANTIC_FEATURE_COLUMNS_PATH": self.xai_semantic_feature_columns_path,
-                "XAI_SEMANTIC_THRESHOLD_PATH": self.xai_semantic_threshold_path,
-                "XAI_SEMANTIC_TRAINING_METADATA_PATH": self.xai_semantic_training_metadata_path,
-                "XAI_SEMANTIC_IMPUTER_PATH": self.xai_semantic_imputer_path,
-            }.items():
-                if not value.strip():
-                    raise ValueError(f"{field_name} is required for XAI_MODE=real.")
+            if not self.xai_semantic_model_dir.strip():
+                raise ValueError("XAI_SEMANTIC_MODEL_DIR is required for real XAI.")
         if not self.xai_pipeline_version.strip():
             raise ValueError("XAI_PIPELINE_VERSION must be configured.")
         if not self.xai_artifact_root.strip():
@@ -615,6 +574,8 @@ class Settings(BaseSettings):
             raise ValueError("MAX_INPUT_SAMPLE_RATE must be greater than or equal to TARGET_SAMPLE_RATE.")
         if self.model_window_overlap_seconds >= self.model_window_duration_seconds:
             raise ValueError("MODEL_WINDOW_OVERLAP_SECONDS must be smaller than MODEL_WINDOW_DURATION_SECONDS.")
+        if self.xai_semantic_hop_seconds > self.xai_semantic_window_seconds:
+            raise ValueError('XAI_SEMANTIC_HOP_SECONDS must not exceed XAI_SEMANTIC_WINDOW_SECONDS.')
         if (
             self.xai_temporal_window_stride_seconds
             > self.ssl_waveform_config.target_duration_seconds
@@ -656,27 +617,10 @@ class Settings(BaseSettings):
                     "production/research until its preprocessing and class "
                     "mapping are verified."
                 )
-        if (
-            self.xai_semantic_window_overlap_seconds
-            >= self.xai_semantic_window_duration_seconds
-        ):
-            raise ValueError(
-                "XAI_SEMANTIC_WINDOW_OVERLAP_SECONDS must be smaller than "
-                "XAI_SEMANTIC_WINDOW_DURATION_SECONDS."
-            )
         step_seconds = self.model_window_duration_seconds - self.model_window_overlap_seconds
         max_segments = int((self.max_audio_duration_seconds / step_seconds) + 2)
         if max_segments > 500:
             raise ValueError("Windowing configuration creates too many segments.")
-        semantic_step_seconds = (
-            self.xai_semantic_window_duration_seconds
-            - self.xai_semantic_window_overlap_seconds
-        )
-        max_semantic_windows = int(
-            (self.max_audio_duration_seconds / semantic_step_seconds) + 2
-        )
-        if max_semantic_windows > 500:
-            raise ValueError("Semantic windowing configuration creates too many windows.")
         if "/" in self.cloudinary_audio_folder.strip("\\"):
             folder_parts = [part for part in self.cloudinary_audio_folder.split("/") if part]
         else:

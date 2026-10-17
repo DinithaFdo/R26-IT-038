@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.schemas.common import BranchStatus, ModelMode, PredictionLabel
 
-XAI_SCHEMA_VERSION = "voice-xai-api-v1"
+XAI_SCHEMA_VERSION = "voice-xai-api-v2"
 
 
 class XaiSchemaModel(BaseModel):
@@ -60,11 +60,11 @@ class MetricStatus(str, Enum):
 class ShapDirection(str, Enum):
     toward_spoof = "toward_spoof"
     toward_bonafide = "toward_bonafide"
+    neutral = "neutral"
 
 
 class SemanticTargetType(str, Enum):
     classifier_surrogate = "classifier_surrogate"
-    independent_acoustic_evidence_model = "independent_acoustic_evidence_model"
 
 
 class ReportDisposition(str, Enum):
@@ -90,19 +90,16 @@ class ClassifierBranchSnapshot(XaiSchemaModel):
 
 
 class ClassifierAuxiliaryEvidence(XaiSchemaModel):
-    """Evidence that informs explanations but never the primary fusion decision.
+    """Glottal score and its recorded role in the classifier's fusion result.
 
-    Currently just Glottal: per the final research detector contract
-    (``model_artifacts/fusion/final_detector_v1.json``), it is physiological/
-    XAI evidence only. ``glottal_spoof_probability`` is ``None`` whenever the
-    branch did not produce a score (disabled, failed, or not yet
-    implemented) -- absence here must never be read as a bonafide-leaning
-    score of 0. ``used_for_primary_decision`` is always ``False`` and exists
-    so a consumer never has to infer that fact from field absence.
+    ``used_for_primary_decision`` reflects membership in a successful
+    fusion's contributing branches. ``glottal_spoof_probability`` is ``None``
+    when the branch did not produce a score. The default flag keeps older
+    snapshots without this field readable.
     """
 
     glottal_spoof_probability: float | None = Field(default=None, ge=0.0, le=1.0)
-    used_for_primary_decision: Literal[False] = False
+    used_for_primary_decision: bool = False
 
 
 class ClassifierSnapshot(XaiSchemaModel):
@@ -159,8 +156,6 @@ class ExplanationArtifactReference(XaiSchemaModel):
         "temporal_evidence",
         "attention_visualization",
         "attention_spectrogram",
-        "attention_tensor",
-        "intermediate_representations",
         "semantic_values",
         "report",
         "other",
@@ -180,10 +175,24 @@ class TemporalRegion(XaiSchemaModel):
     # of 1.0, rather than being a probability.  A local concentration can
     # therefore legitimately exceed 1.0.
     attention_score: float = Field(ge=0.0)
+    # Optional for immutable explanations saved before region metadata existed.
+    duration_seconds: float | None = Field(default=None, gt=0.0)
+    percentage_of_audio: float | None = Field(default=None, ge=0.0, le=100.0)
+    mean_attention_density: float | None = Field(default=None, ge=0.0)
+    start_sample: int | None = Field(default=None, ge=0)
+    end_sample_exclusive: int | None = Field(default=None, ge=0)
+
     @model_validator(mode="after")
     def validate_time_order(self) -> "TemporalRegion":
         if self.end_seconds <= self.start_seconds:
             raise ValueError("Temporal region end must be after its start.")
+        if (self.start_sample is None) != (self.end_sample_exclusive is None):
+            raise ValueError("Temporal region sample boundaries must be supplied together.")
+        if (
+            self.start_sample is not None
+            and self.end_sample_exclusive < self.start_sample
+        ):
+            raise ValueError("Temporal region end sample must not precede its start.")
         return self
 
 
@@ -193,6 +202,16 @@ class TemporalExplanation(XaiSchemaModel):
     model_version: str | None = None
     development_placeholder: bool = True
     research_eligible: bool = False
+    research_blockers: list[str] = Field(default_factory=list)
+    # Samples refer to the preprocessed mono timeline, never the input file's
+    # possibly different sampling rate. Null defaults preserve legacy records.
+    sample_rate_hz: int | None = Field(default=None, gt=0)
+    audio_sample_count: int | None = Field(default=None, gt=0)
+    highlighted_samples: int | None = Field(default=None, ge=0)
+    highlighted_duration_seconds: float | None = Field(default=None, ge=0.0)
+    highlighted_coverage_percentage: float | None = Field(default=None, ge=0.0, le=100.0)
+    raw_high_attention_bin_percentage: float | None = Field(default=None, ge=0.0, le=100.0)
+    flat_attention_map: bool | None = None
     score_kind: Literal["high_attention"] = "high_attention"
     attention_score_peak: float | None = Field(default=None, ge=0.0)
     threshold_percentile: float | None = Field(default=None, ge=0.0, le=100.0)
@@ -202,8 +221,8 @@ class TemporalExplanation(XaiSchemaModel):
     high_attention_combined_duration_seconds: float | None = Field(
         default=None, ge=0.0
     )
-    # The fields above are the fixed PartialSpoof DEV-calibrated evaluation
-    # result. These fields are a separate per-clip display rule for the UI.
+    # Existing UI aliases: new results use the same pure-p90 threshold and
+    # regions as the fields above. Keep old persisted explanations readable.
     visualization_threshold_percentile: float | None = Field(
         default=None, ge=50.0, le=99.0
     )
@@ -220,6 +239,14 @@ class TemporalExplanation(XaiSchemaModel):
 
     @model_validator(mode="after")
     def fill_and_validate_high_attention_region_count(self) -> "TemporalExplanation":
+        if self.research_eligible and (self.development_placeholder or self.research_blockers):
+            raise ValueError("Temporal research eligibility requires non-placeholder, unblocked evidence.")
+        if (
+            self.audio_sample_count is not None
+            and self.highlighted_samples is not None
+            and self.highlighted_samples > self.audio_sample_count
+        ):
+            raise ValueError("Highlighted samples cannot exceed the audio sample count.")
         actual_high_attention_count = len(self.high_attention_regions)
         if self.high_attention_region_count is None:
             self.high_attention_region_count = actual_high_attention_count
@@ -250,81 +277,126 @@ class SemanticFeatureContribution(XaiSchemaModel):
     reference_summary: str | None = None
     shap_value: float
     direction: ShapDirection
-    start_seconds: float | None = Field(default=None, ge=0.0)
-    end_seconds: float | None = Field(default=None, gt=0.0)
-
-    @model_validator(mode="after")
-    def validate_optional_window(self) -> "SemanticFeatureContribution":
-        if (self.start_seconds is None) != (self.end_seconds is None):
-            raise ValueError("Semantic window start and end must be supplied together.")
-        if (
-            self.start_seconds is not None
-            and self.end_seconds is not None
-            and self.end_seconds <= self.start_seconds
-        ):
-            raise ValueError("Semantic window end must be after its start.")
-        return self
-
-
-class SemanticEvidenceWindow(XaiSchemaModel):
-    start_seconds: float = Field(ge=0.0)
-    end_seconds: float = Field(gt=0.0)
-    feature_importance: list[SemanticFeatureContribution] = Field(default_factory=list)
-
-    @model_validator(mode="after")
-    def validate_window(self) -> "SemanticEvidenceWindow":
-        if self.end_seconds <= self.start_seconds:
-            raise ValueError("Semantic window end must be after its start.")
-        return self
 
 
 class SemanticClipSummary(XaiSchemaModel):
-    """One clip-level decision from the independent semantic evidence model.
-
-    This is intentionally separate from ``ClassifierSnapshot``: semantic XAI
-    explains an auxiliary acoustic model and must never be presented as the
-    primary fused classifier decision.
-    """
-
+    """The surrogate model's approximation, separate from the teacher verdict."""
     spoof_probability: float = Field(ge=0.0, le=1.0)
     bonafide_probability: float = Field(ge=0.0, le=1.0)
     decision_threshold: float = Field(gt=0.0, lt=1.0)
     predicted_label: PredictionLabel
-    aggregation_method: Literal[
-        "coverage_weighted_mean_window_probability"
-    ] = "coverage_weighted_mean_window_probability"
-    window_count: int = Field(ge=1)
+    aggregation_method: Literal["whole_clip_surrogate"] = "whole_clip_surrogate"
 
     @model_validator(mode="after")
-    def validate_summary(self) -> "SemanticClipSummary":
-        if abs(self.spoof_probability + self.bonafide_probability - 1.0) > 0.01:
-            raise ValueError("Semantic clip probabilities must sum to one.")
-        expected_label = (
-            PredictionLabel.spoof
-            if self.spoof_probability >= self.decision_threshold
-            else PredictionLabel.bonafide
-        )
-        if self.predicted_label != expected_label:
-            raise ValueError(
-                "Semantic clip predicted_label must match the decision threshold."
-            )
+    def validate_summary(self):
+        if abs(self.spoof_probability + self.bonafide_probability - 1.0) > 1e-6:
+            raise ValueError("Surrogate probabilities must sum to one.")
+        expected = PredictionLabel.spoof if self.spoof_probability >= self.decision_threshold else PredictionLabel.bonafide
+        if self.predicted_label != expected:
+            raise ValueError("Surrogate predicted_label must match the decision threshold.")
         return self
+
+
+class SemanticTimeInterval(XaiSchemaModel):
+    start_seconds: float = Field(ge=0.0)
+    end_seconds: float = Field(gt=0.0)
+
+    # Keep public/persisted localization bounds finite and correctly ordered.
+    @model_validator(mode='after')
+    def validate_order(self):
+        if self.end_seconds <= self.start_seconds:
+            raise ValueError('Semantic interval end must be after its start.')
+        return self
+
+
+class SemanticWindowExplanation(SemanticTimeInterval):
+    window_id: int = Field(ge=1)
+    start_sample: int = Field(ge=0)
+    end_sample_exclusive: int = Field(gt=0)
+    status: Literal['completed', 'not_available']
+    reason: str | None = None
+    predicted_value: float | None = None
+    base_value: float | None = None
+    shap_activity: float | None = Field(default=None, ge=0.0)
+    imputed_feature_count: int = Field(default=0, ge=0, le=165)
+    processing_seconds: float = Field(default=0.0, ge=0.0)
+    feature_importance: list[SemanticFeatureContribution] = Field(default_factory=list)
+
+    # Failed windows cannot contain scores or be mistaken for available evidence.
+    @model_validator(mode='after')
+    def validate_evidence(self):
+        if self.end_sample_exclusive <= self.start_sample:
+            raise ValueError('Semantic window sample bounds are invalid.')
+        if self.status == 'completed':
+            if self.predicted_value is None or self.base_value is None or self.shap_activity is None:
+                raise ValueError('Completed semantic windows require prediction and SHAP evidence.')
+            if len(self.feature_importance) != 165:
+                raise ValueError('Completed semantic windows require all 165 contributions.')
+            if abs(sum(abs(item.shap_value) for item in self.feature_importance) - self.shap_activity) > 1e-6:
+                raise ValueError('Semantic activity must equal the absolute SHAP sum.')
+            if abs(self.base_value + sum(item.shap_value for item in self.feature_importance) - self.predicted_value) > 1e-4:
+                raise ValueError('Window SHAP must reconstruct its raw prediction.')
+        elif (not self.reason or self.predicted_value is not None or self.base_value is not None
+              or self.shap_activity is not None or self.feature_importance):
+            raise ValueError('Unavailable semantic windows require a reason and no evidence.')
+        return self
+
+
+class SemanticActivityBin(SemanticTimeInterval):
+    activity: float = Field(ge=0.0)
+    supporting_windows: int = Field(ge=1)
+
+
+class SemanticRegion(SemanticTimeInterval):
+    region_id: int = Field(ge=1)
+    peak_activity: float = Field(ge=0.0)
+    mean_activity: float = Field(ge=0.0)
+
+
+class SemanticLocalization(XaiSchemaModel):
+    status: Literal['completed', 'partial', 'not_available']
+    reason: str | None = None
+    method_version: str
+    extractor_version: str
+    model_version: str
+    model_validation_status: Literal['experimental', 'validated'] = 'experimental'
+    model_validation_reason: str | None = None
+    window_fidelity_r2: MetricEvidence | None = None
+    time_reference: Literal['source_audio'] = 'source_audio'
+    window_seconds: float = Field(ge=0.2)
+    hop_seconds: float = Field(gt=0.0)
+    sample_rate_hz: int = Field(gt=0)
+    trim_start_sample: int = Field(default=0, ge=0)
+    analyzed_spans: list[SemanticTimeInterval] = Field(default_factory=list)
+    valid_spans: list[SemanticTimeInterval] = Field(default_factory=list)
+    coverage_percentage: float = Field(default=0.0, ge=0.0, le=100.0)
+    activity_definition: Literal['sum_absolute_shap'] = 'sum_absolute_shap'
+    overlap_aggregation: Literal['mean_on_exact_window_boundaries'] = 'mean_on_exact_window_boundaries'
+    threshold_percentile: float = Field(ge=0.0, le=100.0)
+    threshold_method: Literal['duration_weighted_inverse_cdf'] = 'duration_weighted_inverse_cdf'
+    activity_threshold: float | None = Field(default=None, ge=0.0)
+    flat_activity_map: bool | None = None
+    windows: list[SemanticWindowExplanation] = Field(default_factory=list)
+    timeline: list[SemanticActivityBin] = Field(default_factory=list)
+    regions: list[SemanticRegion] = Field(default_factory=list)
+    processing_seconds: float = Field(default=0.0, ge=0.0)
 
 
 class SemanticExplanation(XaiSchemaModel):
     status: ComponentStatus
-    target_type: SemanticTargetType
+    target_type: Literal[SemanticTargetType.classifier_surrogate]
     model_version: str = Field(min_length=1)
     feature_schema_version: str = Field(min_length=1)
     extractor_version: str = Field(min_length=1)
-    output_space: Literal["raw_margin", "log_odds", "probability"]
+    output_space: Literal["raw_regression"]
     development_placeholder: bool = True
     research_eligible: bool = False
     base_value: float | None = None
     predicted_value: float | None = None
     clip_summary: SemanticClipSummary | None = None
     feature_importance: list[SemanticFeatureContribution] = Field(default_factory=list)
-    windows: list[SemanticEvidenceWindow] = Field(default_factory=list)
+    fidelity_r2: MetricEvidence | None = None
+    localization: SemanticLocalization | None = None
     warning: str | None = None
 
 
@@ -347,6 +419,8 @@ class MetricEvidence(XaiSchemaModel):
 class ExplanationQuality(XaiSchemaModel):
     surrogate_fidelity_r2: MetricEvidence | None = None
     temporal_semantic_iou: MetricEvidence | None = None
+    semantic_aopc: MetricEvidence | None = None
+    temporal_aopc: MetricEvidence | None = None
 
     @model_validator(mode="before")
     @classmethod

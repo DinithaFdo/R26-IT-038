@@ -47,14 +47,14 @@ from app.services.prediction_rerun_service import PredictionRerunService
 from app.services.prediction_submission_service import PredictionSubmissionService
 from app.services.voice_service import VoiceService
 from app.storage.factory import get_audio_storage, storage_readiness
-from app.voice_xai.jobs.queue import AsynchronousExplanationQueue
+from app.voice_xai.workflow.queue import AsynchronousExplanationQueue
 from app.voice_xai.artifacts.service import LocalExplanationArtifactStore
-from app.voice_xai.orchestrator import VoiceXaiOrchestrator
+from app.voice_xai.workflow.orchestrator import VoiceXaiOrchestrator
 from app.voice_xai.persistence.mongodb import MongoXaiExplanationRepository
-from app.voice_xai.recovery import recover_stale_explanations
-from app.voice_xai.replay import StoredAudioReplayService
+from app.voice_xai.workflow.recovery import recover_stale_explanations
+from app.voice_xai.workflow.replay import StoredAudioReplayService
 from app.voice_xai.semantic.service import ProductionSemanticExplanationService
-from app.voice_xai.semantic.windows import SemanticWindowConfig
+from app.voice_xai.semantic.contracts import SemanticWindowOptions
 from app.voice_xai.temporal.xlsr_attention_service import XLSRTemporalAttentionService
 
 logger = logging.getLogger(__name__)
@@ -171,33 +171,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 _artifact_cleanup_loop(app, app_settings),
                 name="voice-xai-artifact-cleanup",
             )
-        if app_settings.xai_enabled and app_settings.xai_mode == "real":
+        if (
+            app_settings.xai_enabled
+            and app_settings.xai_mode == "real"
+            and app.state.load_xai_semantic_on_startup
+        ):
             semantic_service = ProductionSemanticExplanationService.load_once(
-                manifest_path=app_settings.resolve_xai_artifact_path(
-                    app_settings.xai_semantic_manifest_path
-                ),
-                model_path=app_settings.resolve_xai_artifact_path(
-                    app_settings.xai_semantic_model_path
-                ),
-                feature_columns_path=app_settings.resolve_xai_artifact_path(
-                    app_settings.xai_semantic_feature_columns_path
-                ),
-                threshold_path=app_settings.resolve_xai_artifact_path(
-                    app_settings.xai_semantic_threshold_path
-                ),
-                training_metadata_path=app_settings.resolve_xai_artifact_path(
-                    app_settings.xai_semantic_training_metadata_path
-                ),
-                imputer_path=app_settings.resolve_xai_artifact_path(
-                    app_settings.xai_semantic_imputer_path
-                ),
-                shap_background_path=app_settings.resolve_xai_artifact_path(
-                    app_settings.xai_semantic_shap_background_path
-                ) if app_settings.xai_semantic_shap_background_path.strip() else None,
-                window_config=SemanticWindowConfig(
-                    duration_seconds=app_settings.xai_semantic_window_duration_seconds,
-                    overlap_seconds=app_settings.xai_semantic_window_overlap_seconds,
-                ),
+                window_options=SemanticWindowOptions.from_settings(app_settings),
+                model_dir=app_settings.resolve_xai_artifact_path(app_settings.xai_semantic_model_dir),
             )
             app.state.xai_orchestrator.set_semantic_service(semantic_service)
         yield
@@ -289,6 +270,8 @@ def create_app(
         mongodb_client_factory=lambda: build_dedicated_async_mongo_client(app_settings),
     )
     temporal_service = XLSRTemporalAttentionService(app_settings=app_settings)
+    # A supplied orchestrator owns its dependencies; the default loads real artifacts.
+    app.state.load_xai_semantic_on_startup = app_dependencies.xai_orchestrator is None
     app.state.xai_orchestrator = app_dependencies.xai_orchestrator or VoiceXaiOrchestrator(
         repository=app.state.xai_repository,
         prediction_repository=app.state.prediction_repository,

@@ -276,8 +276,8 @@ async def test_mcp_create_prediction_rejects_asset_reference_until_handoff_exist
     assert response["error"]["code"] == "unsupported_audio_reference"
 
 
-def test_mcp_server_declares_initial_tool_set() -> None:
-    assert MCP_TOOL_NAMES == (
+def test_mcp_server_preserves_classification_tools() -> None:
+    assert MCP_TOOL_NAMES[:5] == (
         "multiscope_create_prediction",
         "multiscope_get_prediction",
         "multiscope_list_predictions",

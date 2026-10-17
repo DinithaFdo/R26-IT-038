@@ -23,7 +23,7 @@ from app.schemas.xai import (
     TemporalExplanation,
     TemporalRegion,
 )
-from app.voice_xai.narrative.service import (
+from app.voice_xai.report.service import (
     AlibabaQwenNarrativeService,
     NarrativeGenerationError,
 )
@@ -32,7 +32,7 @@ from app.voice_xai.narrative.service import (
 def _settings(**overrides) -> Settings:
     values = {
         "xai_enabled": True,
-        "xai_mode": "mock",
+        "xai_mode": "real",
         "xai_narrative_enabled": True,
         "xai_narrative_api_key": "test-model-studio-key",
         "xai_narrative_base_url": (
@@ -196,7 +196,7 @@ def _temporal() -> TemporalExplanation:
     return TemporalExplanation(
         status=ComponentStatus.completed,
         method_version="attention-rollout-v1",
-        regions=[
+        high_attention_regions=[
             TemporalRegion(
                 region_id=1,
                 start_seconds=0.2,
@@ -210,11 +210,11 @@ def _temporal() -> TemporalExplanation:
 def _semantic() -> SemanticExplanation:
     return SemanticExplanation(
         status=ComponentStatus.completed,
-        target_type=SemanticTargetType.independent_acoustic_evidence_model,
+        target_type=SemanticTargetType.classifier_surrogate,
         model_version="semantic-v1",
         feature_schema_version="features-v1",
         extractor_version="extractor-v1",
-        output_space="probability",
+        output_space="raw_regression",
         feature_importance=[
             SemanticFeatureContribution(
                 rank=1,

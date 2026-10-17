@@ -323,7 +323,7 @@ def test_completed_rerun_automatically_enqueues_xai(monkeypatch, tmp_path) -> No
         storage=storage,
         voice=voice,
         xai_orchestrator=xai,
-        app_settings=Settings(_env_file=None, xai_enabled=True, xai_mode="mock"),
+        app_settings=Settings(_env_file=None, xai_enabled=True, xai_mode="real"),
         user_id="user_123",
     ) as client:
         response = client.post("/api/v1/me/predictions/prediction_1/rerun")
@@ -356,7 +356,7 @@ def test_rerun_xai_enqueue_failure_does_not_change_completed_prediction(
     with history_client(
         repository,
         xai_orchestrator=FailingXaiOrchestrator(),
-        app_settings=Settings(_env_file=None, xai_enabled=True, xai_mode="mock"),
+        app_settings=Settings(_env_file=None, xai_enabled=True, xai_mode="real"),
         user_id="user_123",
     ) as client:
         response = client.post("/api/v1/me/predictions/prediction_1/rerun")

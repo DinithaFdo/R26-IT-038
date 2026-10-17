@@ -16,7 +16,7 @@ from app.schemas.xai import (
     TemporalRegion,
 )
 from app.voice_xai.persistence.mongodb import MongoXaiExplanationRepository
-from app.voice_xai.status import (
+from app.voice_xai.workflow.status import (
     XaiExplanationNotFoundError,
     XaiStatusLifecycleError,
     XaiStatusService,
@@ -283,8 +283,8 @@ def _temporal_result() -> TemporalExplanation:
         status=ComponentStatus.completed,
         method_version="attention-rollout-v1",
         attention_score_peak=0.9,
-        threshold_percentile=80,
-        regions=[
+        attention_threshold=0.8,
+        high_attention_regions=[
             TemporalRegion(
                 region_id=1,
                 start_seconds=0.2,
@@ -292,7 +292,7 @@ def _temporal_result() -> TemporalExplanation:
                 attention_score=0.9,
             )
         ],
-        combined_region_duration_seconds=0.3,
+        high_attention_combined_duration_seconds=0.3,
     )
 
 

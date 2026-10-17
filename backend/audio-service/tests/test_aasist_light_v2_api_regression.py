@@ -283,7 +283,7 @@ async def test_phase6_xai_handoff_contract_preserves_processed_audio_and_failure
         lambda _file, **_kwargs: upload_metadata(upload_path, "sample.wav", "wav"),
     )
     xai = RecordingXaiOrchestrator(should_fail=True)
-    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="mock")
+    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="real")
     service = PredictionSubmissionService(
         repository=repository,
         persistence=PredictionPersistenceService(repository),
@@ -416,7 +416,7 @@ def _phase6_real_endpoint_settings(**overrides: Any) -> Settings:
         "model_load_strategy": "lazy",
         "storage_policy": "optional",
         "xai_enabled": False,
-        "xai_mode": "mock",
+        "xai_mode": "real",
     }
     values.update(overrides)
     return validation_settings(**values)
@@ -487,7 +487,6 @@ class ProcessedAudioVoiceService:
         request_id=None,
         storage_metadata=None,
         cleanup_upload=True,
-        capture_extraction=False,
     ):
         return PredictionExecutionResult(
             prediction=voice_prediction_with_branches(
@@ -496,7 +495,6 @@ class ProcessedAudioVoiceService:
                 storage_metadata=storage_metadata,
             ),
             processed_audio=self.PROCESSED_AUDIO,
-            extraction=None,
         )
 
 

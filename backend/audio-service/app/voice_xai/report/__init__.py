@@ -1,5 +1,13 @@
-"""Deterministic, template-based unified Voice XAI reports."""
+"""Deterministic Voice XAI reports and optional validated AI narration."""
 
-from app.voice_xai.report.service import DeterministicReportComposer
+from app.voice_xai.report.service import (
+    AlibabaQwenNarrativeService,
+    DeterministicReportComposer,
+    NarrativeGenerationError,
+)
 
-__all__ = ["DeterministicReportComposer"]
+__all__ = [
+    "AlibabaQwenNarrativeService",
+    "DeterministicReportComposer",
+    "NarrativeGenerationError",
+]

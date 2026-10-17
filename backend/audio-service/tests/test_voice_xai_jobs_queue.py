@@ -4,16 +4,16 @@ import threading
 
 import pytest
 
-from app.voice_xai.capture.contracts import ExtractionBundle
-from app.voice_xai.jobs.queue import AsynchronousExplanationQueue
+from app.voice_xai.workflow.queue import AsynchronousExplanationQueue
 
 
 def test_queue_runs_explanation_task_with_the_original_bundle() -> None:
     queue = AsynchronousExplanationQueue()
-    bundle = ExtractionBundle(request_id="request-123", branches={})
+    bundle = {"request_id": "request-123"}
 
-    async def task(captured: ExtractionBundle) -> str:
-        return captured.request_id
+    async def task(submitted: dict[str, str]) -> str:
+        assert submitted is bundle
+        return submitted["request_id"]
 
     try:
         future = queue.submit(bundle, task)
@@ -26,16 +26,16 @@ def test_queue_runs_explanation_task_with_the_original_bundle() -> None:
 
 def test_queue_returns_none_instead_of_blocking_when_full() -> None:
     queue = AsynchronousExplanationQueue(max_workers=1, max_queued_jobs=0)
-    bundle = ExtractionBundle(request_id="request-123", branches={})
+    bundle = {"request_id": "request-123"}
     release_first_task = threading.Event()
 
-    async def blocking_task(_bundle: ExtractionBundle) -> str:
+    async def blocking_task(_bundle: dict[str, str]) -> str:
         await asyncio.get_running_loop().run_in_executor(
             None, release_first_task.wait
         )
         return "done"
 
-    async def not_run(_bundle: ExtractionBundle) -> str:
+    async def not_run(_bundle: dict[str, str]) -> str:
         return "not-run"
 
     try:
@@ -63,10 +63,10 @@ def test_queue_reuses_one_persistent_loop_across_multiple_jobs() -> None:
     """No ``asyncio.run()`` per job: every job observes the same running loop."""
 
     queue = AsynchronousExplanationQueue()
-    bundle = ExtractionBundle(request_id="request-123", branches={})
+    bundle = {"request_id": "request-123"}
     observed_loop_ids: list[int] = []
 
-    async def record_loop(_bundle: ExtractionBundle) -> None:
+    async def record_loop(_bundle: dict[str, str]) -> None:
         observed_loop_ids.append(id(asyncio.get_running_loop()))
 
     try:
@@ -88,9 +88,9 @@ def test_queue_start_is_idempotent_and_submit_auto_starts() -> None:
         queue.start()
         assert queue._loop is loop_after_first_start  # noqa: SLF001
 
-        bundle = ExtractionBundle(request_id="request-123", branches={})
+        bundle = {"request_id": "request-123"}
 
-        async def task(_bundle: ExtractionBundle) -> str:
+        async def task(_bundle: dict[str, str]) -> str:
             return "ok"
 
         future = queue.submit(bundle, task)
@@ -110,9 +110,9 @@ def test_queue_close_stops_the_loop_and_rejects_further_submissions() -> None:
     assert thread is not None
     assert not thread.is_alive()
 
-    bundle = ExtractionBundle(request_id="request-123", branches={})
+    bundle = {"request_id": "request-123"}
 
-    async def task(_bundle: ExtractionBundle) -> str:
+    async def task(_bundle: dict[str, str]) -> str:
         return "should-not-run"
 
     assert queue.submit(bundle, task) is None
@@ -124,7 +124,7 @@ def test_queue_logs_unhandled_job_exceptions_and_still_releases_capacity() -> No
     # (via a dedicated handler + Event) instead of racing capsys/caplog
     # against `.result()` returning on the test's own thread.
     queue = AsynchronousExplanationQueue(max_workers=1, max_queued_jobs=0)
-    bundle = ExtractionBundle(request_id="request-123", branches={})
+    bundle = {"request_id": "request-123"}
     logged = threading.Event()
     records: list[logging.LogRecord] = []
 
@@ -133,14 +133,14 @@ def test_queue_logs_unhandled_job_exceptions_and_still_releases_capacity() -> No
             records.append(record)
             logged.set()
 
-    target_logger = logging.getLogger("app.voice_xai.jobs.queue")
+    target_logger = logging.getLogger("app.voice_xai.workflow.queue")
     handler = _RecordingHandler()
     target_logger.addHandler(handler)
 
-    async def failing_task(_bundle: ExtractionBundle) -> None:
+    async def failing_task(_bundle: dict[str, str]) -> None:
         raise RuntimeError("boom")
 
-    async def ok_task(_bundle: ExtractionBundle) -> str:
+    async def ok_task(_bundle: dict[str, str]) -> str:
         return "ok"
 
     try:

@@ -1,7 +1,7 @@
 import sys
 
 
-MINIMUM_PYTHON = (3, 11)
+MINIMUM_PYTHON = (3, 12)
 MAXIMUM_PYTHON_EXCLUSIVE = (3, 13)
 
 
@@ -15,7 +15,7 @@ def ensure_supported_python(version_info=None) -> None:
 
     detected_version = ".".join(str(part) for part in detected[:3])
     raise SystemExit(
-        "MULTI-SCOPE backend requires Python 3.11 or 3.12.\n"
+        "MULTI-SCOPE backend requires Python 3.12 (>=3.12,<3.13).\n"
         f"Detected Python {detected_version}.\n"
-        "Recreate backend/.venv using Python 3.11."
+        "Recreate backend/audio-service/.venv using Python 3.12."
     )

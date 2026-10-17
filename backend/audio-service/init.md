@@ -39,7 +39,7 @@ ESVAS is a non-invasive analytical explainability layer for deepfake voice detec
 
 
 ### Execution Requirements
-- **Python:** 3.11+
+- **Python:** 3.12 (`>=3.12,<3.13`; Python 3.11 and 3.13 are not supported)
 - **PyTorch:** 2.x
 - **Device:** CPU / CUDA / MPS (Default: CPU for small model efficiency)
 
@@ -151,8 +151,9 @@ Accounts for residual connections by adding identity matrix $I$.
 - 1D temporal density map aligned with audio time axis.
 - Maps model attention weight focus per 20ms frame.
 
-### Anomaly Candidate Thresholding
-- Top 20% highest attention values (80th percentile) marked as candidate fake regions.
+### High-Attention Region Thresholding
+- Pure per-clip 90th percentile of aggregated float32 attention density, using a linear quantile and `>=` comparison.
+- No density floor or label/probability gating; regions describe model focus, not established fake segments.
 - Output format: list of time interval tuples `[(t_start, t_end)]`.
 
 ### Frame-to-Time Mapping
@@ -173,9 +174,9 @@ Ensures millisecond-level precision in frontend player alignment.
 - 6.0s windows with 1.0s overlap.
 - Cosine taper applied at window boundaries prior to stitching ARS segments.
 
-### PartialSpoof Calibration
-- Calibrated using PartialSpoof v1.2 DEV set.
-- Fixed threshold JSON: `partialspoof_v1_2_dev_attention_threshold.json`.
+### Operational Threshold
+- The percentile is fixed to p90 in code; no threshold artifact is loaded.
+- Ties and region postprocessing can change final coverage from 10%; flat maps can select all bins.
 
 ### Short Utterance Handling
 - Minimum duration: 1.0s.
@@ -205,7 +206,7 @@ Ensures millisecond-level precision in frontend player alignment.
 
 ### XGBoost Surrogate Model
 - Trained to mimic primary classifier decisions on physical acoustic features.
-- Model version: `v4_semantic_xgboost`.
+- Model version follows the files in the configured model directory; retraining with the same feature contract requires no code edits.
 
 ### SHAP TreeExplainer Integration
 - Fast exact SHAP calculation for tree ensembles.
@@ -215,10 +216,13 @@ Ensures millisecond-level precision in frontend player alignment.
 - **Positive SHAP value (> 0):** Pushes prediction towards **Spoof**.
 - **Negative SHAP value (< 0):** Pushes prediction towards **Bonafide**.
 
-### 148 Acoustic Feature Vector
-- 19 LFCCs x (mean, std, delta, delta-delta) = 76
-- Spectral Centroid, Bandwidth, Contrast, Rolloff = 32
-- F0, Jitter, Shimmer, HNR, GCI stats = 40
+### Acoustic 165-Feature Contract
+- One shared full-clip waveform for acoustic and selected-20 Glottal extraction: mono/16 kHz, DC removal, silence trimming, and peak normalization.
+- 148 base acoustic features plus 17 additional selected-20 names (3 overlaps retained).
+- Full-clip XGBRegressor approximates the four-branch teacher spoof probability.
+- Tree SHAP explains raw regression output; reported probability is clipped to [0,1].
+- Stop the backend, replace matching model/imputer/feature-column/metadata files in `XAI_SEMANTIC_MODEL_DIR`, then restart.
+- Current model R² comes from its training metadata.
 
 ### Feature Importance Ranking
 - Top-N features ranked by absolute SHAP value $|\\phi_i|$.
@@ -370,7 +374,7 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 
 ### PartialSpoof v1.2 DEV
 - Partially spoofed audio files with mixed bonafide/spoof segments.
-- Calibrates attention rollout detection thresholds.
+- Previously used in threshold experiments; it is not needed for runtime p90 selection.
 
 ### Data Splitting Strategy
 - Train: 70% of ASVspoof 2019 LA train set.
@@ -410,7 +414,7 @@ Ranges from 0.0 (unreliable) to 1.0 (highly faithful).
 |---|---|---|
 | ASVspoof 2019 | Surrogate Train | R^2 > 0.91 |
 | FakeSound2 | ARS Eval | IoU > 0.75 |
-| PartialSpoof | Calibration | EER / Threshold |
+| PartialSpoof | Historical threshold experiments | Not required by runtime p90 |
 
 
 ## 7. API Integration & Service Architecture

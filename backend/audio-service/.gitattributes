@@ -1,0 +1,5 @@
+# Linux entrypoints must retain LF line endings.
+docker/*.sh text eol=lf
+
+# Model fingerprints use exact exported bytes, including JSON line endings.
+app/voice_xai/semantic/artifacts/** -text

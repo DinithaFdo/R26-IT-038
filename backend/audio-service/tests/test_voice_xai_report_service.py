@@ -41,8 +41,8 @@ def test_report_composer_is_deterministic_and_uses_controlled_evidence_text() ->
         status=ComponentStatus.completed,
         method_version="fixture-v1",
         attention_score_peak=0.9,
-        threshold_percentile=80,
-        regions=[
+        attention_threshold=0.8,
+        high_attention_regions=[
             TemporalRegion(
                 region_id=1,
                 start_seconds=1.82,
@@ -50,15 +50,15 @@ def test_report_composer_is_deterministic_and_uses_controlled_evidence_text() ->
                 attention_score=0.9,
             )
         ],
-        combined_region_duration_seconds=0.48,
+        high_attention_combined_duration_seconds=0.48,
     )
     semantic = SemanticExplanation(
         status=ComponentStatus.completed,
         target_type=SemanticTargetType.classifier_surrogate,
         model_version="fixture-v1",
-        feature_schema_version="esvas-acoustic-28-v1",
+        feature_schema_version="fixture-features-v1",
         extractor_version="fixture-v1",
-        output_space="raw_margin",
+        output_space="raw_regression",
         feature_importance=[
             SemanticFeatureContribution(
                 rank=1,

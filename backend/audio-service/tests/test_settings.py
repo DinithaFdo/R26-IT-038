@@ -6,6 +6,11 @@ from pydantic import ValidationError
 from app.config.settings import Settings
 
 
+def test_settings_reject_removed_mock_xai_mode() -> None:
+    with pytest.raises(ValidationError, match="xai_mode"):
+        Settings(_env_file=None, xai_enabled=True, xai_mode="mock")
+
+
 def test_settings_defaults_are_safe_for_development() -> None:
     settings = Settings(_env_file=None)
 
@@ -77,11 +82,6 @@ def test_settings_defaults_are_safe_for_development() -> None:
     assert settings.preprocessing_version == "audio-preprocessing-v2"
     assert settings.model_window_duration_seconds == 6.0
     assert settings.model_window_overlap_seconds == 1.0
-    assert settings.xai_semantic_window_duration_seconds == 1.0
-    assert settings.xai_semantic_window_overlap_seconds == 0.5
-    assert settings.xai_semantic_model_path.endswith("xgboost_surrogate_v4.json")
-    assert settings.xai_semantic_feature_columns_path.endswith("feature_columns_v4.json")
-    assert settings.xai_semantic_imputer_path.endswith("imputer_v4.joblib")
     assert settings.audio_padding_policy == "right_zero"
     assert settings.audio_trim_policy == "none"
     assert settings.allowed_origin_list == [
@@ -241,30 +241,9 @@ def test_settings_reject_invalid_model_mode() -> None:
         Settings(_env_file=None, cnn_model_mode="experimental")
 
 
-def test_settings_require_semantic_artifacts_for_real_xai_mode() -> None:
-    with pytest.raises(ValidationError, match="XAI_SEMANTIC_MODEL_PATH"):
-        Settings(
-            _env_file=None,
-            xai_enabled=True,
-            xai_mode="real",
-            xai_semantic_model_path="",
-        )
-
-    with pytest.raises(ValidationError, match="XAI_SEMANTIC_FEATURE_COLUMNS_PATH"):
-        Settings(
-            _env_file=None,
-            xai_enabled=True,
-            xai_mode="real",
-            xai_semantic_feature_columns_path="",
-        )
-
-    with pytest.raises(ValidationError, match="XAI_SEMANTIC_IMPUTER_PATH"):
-        Settings(
-            _env_file=None,
-            xai_enabled=True,
-            xai_mode="real",
-            xai_semantic_imputer_path="",
-        )
+def test_settings_require_semantic_model_directory_for_real_xai_mode():
+    with pytest.raises(ValidationError, match="XAI_SEMANTIC_MODEL_DIR"):
+        Settings(_env_file=None, xai_enabled=True, xai_mode="real", xai_semantic_model_dir="")
 
 
 def test_settings_reject_wildcard_origin_in_production() -> None:
@@ -317,14 +296,6 @@ def test_settings_reject_invalid_audio_window_overlap() -> None:
             model_window_overlap_seconds=6.0,
         )
 
-
-def test_settings_reject_invalid_semantic_window_overlap() -> None:
-    with pytest.raises(ValidationError, match="XAI_SEMANTIC_WINDOW_OVERLAP_SECONDS"):
-        Settings(
-            _env_file=None,
-            xai_semantic_window_duration_seconds=1.0,
-            xai_semantic_window_overlap_seconds=1.0,
-        )
 
 
 def test_settings_resolve_absolute_upload_dir(tmp_path: Path) -> None:

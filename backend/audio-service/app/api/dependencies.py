@@ -23,11 +23,11 @@ from app.services.prediction_persistence_service import PredictionPersistenceSer
 from app.services.prediction_rerun_service import PredictionRerunService
 from app.services.prediction_submission_service import PredictionSubmissionService
 from app.services.voice_service import VoiceService
-from app.voice_xai.jobs.queue import AsynchronousExplanationQueue
+from app.voice_xai.workflow.queue import AsynchronousExplanationQueue
 from app.voice_xai.artifacts.protocols import ExplanationArtifactStore
 from app.voice_xai.artifacts.service import LocalExplanationArtifactStore
-from app.voice_xai.orchestrator import VoiceXaiOrchestrator
-from app.voice_xai.replay import StoredAudioReplayService
+from app.voice_xai.workflow.orchestrator import VoiceXaiOrchestrator
+from app.voice_xai.workflow.replay import StoredAudioReplayService
 from app.voice_xai.persistence.mongodb import MongoXaiExplanationRepository
 from app.voice_xai.persistence.protocols import XaiExplanationRepository
 

@@ -1,22 +1,9 @@
-"""Feature-schema and SHAP-based semantic explanation services."""
+"""Public entry points for acoustic extraction and semantic explanations.
 
-from app.voice_xai.semantic.features import (
-    FEATURE_NAMES,
-    AcousticFeatureExtractor,
-    FeatureExtractionConfig,
-    FeatureExtractionResult,
-)
-
-from app.voice_xai.semantic.service import (
-    MockSemanticExplanationService,
-    ProductionSemanticExplanationService,
-)
-
-__all__ = [
-    "FEATURE_NAMES",
-    "AcousticFeatureExtractor",
-    "FeatureExtractionConfig",
-    "FeatureExtractionResult",
-    "MockSemanticExplanationService",
-    "ProductionSemanticExplanationService",
-]
+Expose the ordered feature contract, audio extractor, extraction result, and
+XGBoost explanation service used by the application.
+"""
+from app.voice_xai.semantic.feature_extraction import AcousticFeatureExtractor, FeatureExtractionResult
+from app.voice_xai.semantic.schema import FEATURE_NAMES
+from app.voice_xai.semantic.service import ProductionSemanticExplanationService
+__all__ = ["FEATURE_NAMES", "AcousticFeatureExtractor", "FeatureExtractionResult", "ProductionSemanticExplanationService"]

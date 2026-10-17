@@ -5,7 +5,7 @@
 .pytest_cache
 .ruff_cache
 .mypy_cache
-.venv
+.venv*
 __pycache__
 *.py[cod]
 *.egg-info
@@ -14,9 +14,9 @@ uploads
 htmlcov
 coverage.xml
 MULTI_SCOPE_Backend_*.md
-tests
 *.log
 
 private_xai_artifacts
 model_artifacts
 local-model-artifacts
+build

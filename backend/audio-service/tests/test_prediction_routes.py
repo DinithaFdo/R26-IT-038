@@ -535,7 +535,7 @@ async def test_xai_enqueue_failure_does_not_change_completed_prediction(
         "app.services.prediction_submission_service.save_validated_audio_upload_blocking",
         lambda _file, **_kwargs: upload_metadata(upload_path, "sample.wav", "wav"),
     )
-    app_settings = Settings(_env_file=None, xai_enabled=True, xai_mode="mock")
+    app_settings = Settings(_env_file=None, xai_enabled=True, xai_mode="real")
     service = PredictionSubmissionService(
         repository=repository,
         persistence=PredictionPersistenceService(repository),
@@ -590,7 +590,7 @@ async def test_completed_prediction_automatically_enqueues_xai(
         "app.services.prediction_submission_service.save_validated_audio_upload_blocking",
         lambda _file, **_kwargs: upload_metadata(upload_path, "sample.wav", "wav"),
     )
-    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="mock")
+    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="real")
     xai = RecordingXaiOrchestrator()
     service = PredictionSubmissionService(
         repository=repository,
@@ -621,7 +621,7 @@ async def test_completed_prediction_automatically_enqueues_xai(
     assert response.status.value == "completed"
     assert xai.bundle is not None
     assert xai.bundle.prediction_id == "prediction-1"
-    assert xai.bundle.extraction is None
+    assert xai.bundle.acoustic_features is None
 
 
 @pytest.mark.anyio
@@ -635,8 +635,7 @@ async def test_automatic_xai_handoff_reuses_the_same_processed_audio(
     (the real ``VoiceService`` does), the automatic post-persistence XAI
     handoff must receive the exact same ``ProcessedAudio`` instance used for
     classifier inference -- not None, and not a second decode -- while
-    ``extraction`` still correctly stays None until real model capture is
-    wired, and request IDs still match across prediction/bundle.
+    request IDs still match across prediction/bundle.
     """
 
     class RecordingXaiOrchestrator:
@@ -658,7 +657,7 @@ async def test_automatic_xai_handoff_reuses_the_same_processed_audio(
         "app.services.prediction_submission_service.save_validated_audio_upload_blocking",
         lambda _file, **_kwargs: upload_metadata(upload_path, "sample.wav", "wav"),
     )
-    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="mock")
+    settings = Settings(_env_file=None, xai_enabled=True, xai_mode="real")
     xai = RecordingXaiOrchestrator()
     service = PredictionSubmissionService(
         repository=repository,
@@ -688,7 +687,7 @@ async def test_automatic_xai_handoff_reuses_the_same_processed_audio(
 
     assert response.status.value == "completed"
     assert xai.bundle is not None
-    assert xai.bundle.extraction is None
+    assert xai.bundle.acoustic_features is None
     assert xai.bundle.processed_audio is FakeVoiceServiceWithProcessedAudio.PROCESSED_AUDIO
     assert xai.bundle.temporal_evidence is FakeVoiceServiceWithProcessedAudio.TEMPORAL_EVIDENCE
     assert xai.bundle.request_id == xai.bundle.prediction.request_id == "request-xai-handoff"
