@@ -113,7 +113,10 @@ class ProductionSemanticExplanationService:
                 full_features=features if measured_full_clip and prepared is not None else None)
             if explanation.localization.model_validation_status == 'experimental':
                 explanation.warning += ' Window localization uses an experimental application of the full-clip surrogate.'
-        return SemanticAnalysisResult(explanation)
+        return SemanticAnalysisResult(
+            explanation, development_placeholder=explanation.development_placeholder,
+            research_eligible=explanation.research_eligible,
+        )
 
     # Analyze each unpadded window, containing failures and checking cooperative deadlines.
     def _analyze_windows(self, prepared, analyzed_spans, *, deadline, preparation_reason=None, full_features=None):

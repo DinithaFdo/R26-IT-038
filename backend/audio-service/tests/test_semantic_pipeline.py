@@ -51,6 +51,23 @@ def test_old_precomputed_vectors_cannot_be_used(trained):
         service.analyze(SimpleNamespace(acoustic_features=features))
 
 
+def test_real_clip_with_fidelity_is_eligible_and_result_flags_match(trained):
+    service, inputs, *_ = trained
+    result = service.analyze(SimpleNamespace(acoustic_features=feature_row(inputs.iloc[0].to_numpy())))
+    assert result.research_eligible is True
+    assert result.explanation.research_eligible is True
+    assert result.development_placeholder is False
+    assert result.explanation.fidelity_r2.scope == 'offline_validation'
+
+
+def test_real_clip_without_recorded_fidelity_remains_ineligible(trained, monkeypatch):
+    service, inputs, *_ = trained
+    monkeypatch.setattr(type(service.artifacts), 'fidelity', lambda self: None)
+    result = service.analyze(SimpleNamespace(acoustic_features=feature_row(inputs.iloc[0].to_numpy())))
+    assert result.research_eligible is False
+    assert result.explanation.research_eligible is False
+
+
 def test_preprocessing_preserves_long_audio_and_trims_only_boundaries():
     sr = 16000
     active = 0.2 * np.sin(2 * np.pi * 180 * np.arange(12 * sr) / sr)

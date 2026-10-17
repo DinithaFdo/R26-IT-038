@@ -2,6 +2,7 @@
 import math
 
 from app.schemas.xai import ExplanationQuality, MetricEvidence, MetricStatus
+from app.voice_xai.evaluation.eligibility import OFFLINE_SEMANTIC_AOPC, OFFLINE_TEMPORAL_AOPC
 
 
 # Merge overlapping/touching half-open spans without filling unknown gaps.
@@ -93,4 +94,6 @@ def quality_for_analysis(temporal, semantic, *, temporal_spans=None):
     return ExplanationQuality(
         surrogate_fidelity_r2=fidelity,
         temporal_semantic_iou=temporal_semantic_iou(temporal, semantic, temporal_spans),
+        semantic_aopc=OFFLINE_SEMANTIC_AOPC.metric_evidence(),
+        temporal_aopc=OFFLINE_TEMPORAL_AOPC.metric_evidence(),
     )

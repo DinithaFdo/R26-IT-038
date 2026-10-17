@@ -124,6 +124,8 @@ def test_quality_reads_legacy_null_metrics_but_does_not_serialize_them() -> None
     assert quality.model_dump() == {
         "surrogate_fidelity_r2": None,
         "temporal_semantic_iou": None,
+        "semantic_aopc": None,
+        "temporal_aopc": None,
     }
 
 
@@ -233,6 +235,8 @@ def test_complete_xai_response_has_versioned_independent_status() -> None:
             "reason": "Temporal or semantic explanation is unavailable.",
             "dataset_version": None,
         },
+        "semantic_aopc": None,
+        "temporal_aopc": None,
     }
 
 

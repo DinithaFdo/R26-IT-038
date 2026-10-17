@@ -78,3 +78,8 @@ class SemanticAnalysisResult:
     development_placeholder: bool = False
     research_eligible: bool = False
     warnings: tuple[str, ...] = ()
+
+    def __post_init__(self):
+        if (self.development_placeholder != self.explanation.development_placeholder
+                or self.research_eligible != self.explanation.research_eligible):
+            raise ValueError('Semantic result and explanation eligibility flags differ.')

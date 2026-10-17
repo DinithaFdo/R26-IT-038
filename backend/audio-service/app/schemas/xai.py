@@ -419,6 +419,8 @@ class MetricEvidence(XaiSchemaModel):
 class ExplanationQuality(XaiSchemaModel):
     surrogate_fidelity_r2: MetricEvidence | None = None
     temporal_semantic_iou: MetricEvidence | None = None
+    semantic_aopc: MetricEvidence | None = None
+    temporal_aopc: MetricEvidence | None = None
 
     @model_validator(mode="before")
     @classmethod

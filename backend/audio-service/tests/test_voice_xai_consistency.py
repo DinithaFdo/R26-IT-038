@@ -12,3 +12,13 @@ def test_missing_model_metric_does_not_fabricate_r2():
     quality = quality_for_analysis(None, None)
     assert quality.surrogate_fidelity_r2.value is None
     assert quality.surrogate_fidelity_r2.status == MetricStatus.not_computed
+
+
+def test_aopc_values_are_fixed_offline_references_not_current_upload_measurements():
+    quality = quality_for_analysis(None, None)
+    assert quality.semantic_aopc.value == 0.517231721941027
+    assert quality.temporal_aopc.value == 0.1838843630005916
+    for metric in (quality.semantic_aopc, quality.temporal_aopc):
+        assert metric.scope == 'offline_validation'
+        assert 'LA_D_2302632.wav' in metric.dataset_version
+        assert 'not measured on the current upload' in metric.reason

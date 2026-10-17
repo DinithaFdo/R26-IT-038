@@ -40,6 +40,8 @@ def build_semantic_explanation(evidence, artifacts):
     probability = float(np.clip(evidence.predicted_value, 0, 1))
     contributions = feature_contributions(evidence)
     fidelity = artifacts.fidelity()
+    # Eligibility covers real clip-level SHAP with recorded fidelity; window
+    # localization retains its own independent experimental/validated status.
     metric = MetricEvidence(status=MetricStatus.available, value=fidelity[0], scope="offline_validation", dataset_version=f"Current model test export (n={fidelity[1]})") if fidelity else MetricEvidence(status=MetricStatus.not_computed, scope="offline_validation", reason="This model export has no valid test fidelity metadata.")
     warning = "Tree SHAP explains the surrogate raw score before clipping. It approximates the teacher and provides no time localisation."
     if evidence.imputed_feature_count:
@@ -48,7 +50,7 @@ def build_semantic_explanation(evidence, artifacts):
         status=ComponentStatus.completed, target_type=SemanticTargetType.classifier_surrogate,
         model_version=artifacts.model_version, feature_schema_version=FEATURE_SCHEMA_VERSION,
         extractor_version=FEATURE_EXTRACTION_VERSION, output_space="raw_regression",
-        development_placeholder=False, research_eligible=False,
+        development_placeholder=False, research_eligible=fidelity is not None,
         base_value=evidence.base_value, predicted_value=evidence.predicted_value,
         clip_summary=SemanticClipSummary(spoof_probability=probability, bonafide_probability=1-probability,
             decision_threshold=artifacts.threshold, predicted_label=PredictionLabel.spoof if probability >= artifacts.threshold else PredictionLabel.bonafide),

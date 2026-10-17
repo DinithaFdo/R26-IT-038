@@ -150,6 +150,23 @@ successful real SSL branch whose original prediction metadata records
 Otherwise `research_blockers` explains the missing evidence. Changing current
 settings does not retrospectively attest an old prediction. Overall XAI research
 eligibility still requires the classifier and semantic components to be eligible.
+Policy `voice-xai-research-eligibility-v2-clip-semantic` accepts completed real
+clip-level semantic inference with recorded held-out surrogate fidelity. The
+semantic result wrapper carries the same eligibility as its explanation.
+Experimental window localization keeps its own validation status and does not
+block clip-level eligibility. This flag does not certify localization accuracy
+or that attention/SHAP beats random under every perturbation protocol.
+
+`evaluation/eligibility.py` records selected fixed offline AOPC references from
+`LA_D_2302632.wav`: semantic raw SHAP MoRF AOPC at K=20 is
+`0.517231721941027`; temporal attention AOPC over 10–50% silence is
+`0.1838843630005916`. The source runs, audio hash, model fingerprints and random
+comparators are retained. Temporal random mean `0.2708303292786392` exceeds
+attention in this reference run; its negative advantage is preserved.
+New explanation `quality.semantic_aopc` and `quality.temporal_aopc` fields label
+these as `offline_validation` references, not measurements on the current upload.
+They do not override failed, missing, placeholder or unverified component gates.
+
 Previously the real temporal service hardcoded false even for verified evidence.
 Restart the backend after updating SSL verification flags and create a new
 prediction/explanation to record the verified provenance. Legacy explanations

@@ -179,7 +179,7 @@ def test_source_is_decoded_once_and_windows_keep_fullclip_prediction(monkeypatch
     assert len(result.localization.windows) == 5
     assert result.localization.coverage_percentage == 100
     assert result.localization.model_validation_status == 'experimental'
-    assert result.research_eligible is False
+    assert result.research_eligible is True  # Clip eligibility is independent of experimental windows.
     baseline = ProductionSemanticExplanationService(artifacts, window_options=SemanticWindowOptions(enabled=False)).analyze(inference).explanation
     assert result.predicted_value == baseline.predicted_value
     assert result.feature_importance == baseline.feature_importance
