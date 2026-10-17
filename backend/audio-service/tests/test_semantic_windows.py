@@ -11,8 +11,9 @@ import soundfile as sf
 
 from app.config.settings import Settings
 from app.schemas.xai import ComponentStatus, SemanticWindowExplanation, TemporalExplanation, TemporalRegion
-from app.voice_xai.evaluation.consistency import quality_for_analysis
-from app.voice_xai.evaluation.intervals import union_spans, intersect_spans, subtract_spans, span_duration
+from app.voice_xai.evaluation.consistency import (
+    quality_for_analysis, union_spans, intersect_spans, subtract_spans, span_duration,
+)
 from app.voice_xai.semantic import feature_extraction as extraction
 from app.voice_xai.semantic.artifact_loader import load_production_semantic_artifacts, SemanticArtifactCompatibilityError
 from app.voice_xai.semantic.contracts import SemanticWindowOptions, WINDOW_EXTRACTION_VERSION, WINDOW_PREPROCESSING_CONTRACT, SemanticEvidence

@@ -12,7 +12,7 @@ from app.schemas.xai import (
 )
 from app.voice_xai.semantic.schema import FEATURE_NAMES, FEATURE_EXTRACTION_VERSION, FEATURE_SCHEMA_VERSION
 from app.voice_xai.semantic.contracts import WINDOW_EXTRACTION_VERSION, WINDOW_LOCALIZATION_VERSION
-from app.voice_xai.evaluation.intervals import union_spans, intersect_spans, subtract_spans, span_duration
+from app.voice_xai.evaluation.consistency import union_spans, intersect_spans, subtract_spans, span_duration
 
 
 def label_for_feature(name: str) -> str:

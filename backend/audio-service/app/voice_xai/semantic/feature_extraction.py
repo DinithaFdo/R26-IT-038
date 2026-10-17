@@ -20,7 +20,7 @@ from numpy.typing import NDArray
 from app.ingestion.audio import ProcessedAudio
 from .schema import FEATURE_NAMES, FEATURE_EXTRACTION_VERSION, PREPROCESSING_CONTRACT
 from .contracts import WINDOW_EXTRACTION_VERSION, WINDOW_PREPROCESSING_CONTRACT, SemanticWindowOptions
-from app.voice_xai.evaluation.intervals import union_spans
+from app.voice_xai.evaluation.consistency import union_spans
 
 TARGET_SR = 16000
 _LOCK = Lock()

@@ -17,7 +17,7 @@ from app.voice_xai.semantic.contracts import (
 from app.voice_xai.semantic.feature_extraction import AcousticFeatureExtractor, build_semantic_windows
 from app.voice_xai.semantic.schema import FEATURE_NAMES, FEATURE_EXTRACTION_VERSION
 from app.voice_xai.semantic.explainer import build_semantic_explanation, build_window_explanation, build_semantic_localization
-from app.voice_xai.evaluation.intervals import union_spans
+from app.voice_xai.evaluation.consistency import union_spans
 
 logger = logging.getLogger(__name__)
 
