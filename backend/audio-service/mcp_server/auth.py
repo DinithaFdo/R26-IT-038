@@ -14,6 +14,15 @@ MCP_SCOPE_MAP = {
     "multiscope_list_predictions": ApiKeyScope.prediction_list,
     "multiscope_get_model_status": ApiKeyScope.prediction_read,
     "multiscope_delete_prediction": ApiKeyScope.prediction_delete,
+    "multiscope_create_explanation": ApiKeyScope.xai_create,
+    "multiscope_get_explanation": ApiKeyScope.xai_read,
+    "multiscope_get_temporal_explanation": ApiKeyScope.xai_read,
+    "multiscope_get_semantic_explanation": ApiKeyScope.xai_read,
+    "multiscope_get_explanation_report": ApiKeyScope.xai_read,
+    "multiscope_get_explanation_narrative": ApiKeyScope.xai_read,
+    "multiscope_get_explanation_artifact": ApiKeyScope.xai_read,
+    "multiscope_retry_explanation": ApiKeyScope.xai_retry,
+    "multiscope_retry_explanation_narrative": ApiKeyScope.xai_retry,
 }
 
 

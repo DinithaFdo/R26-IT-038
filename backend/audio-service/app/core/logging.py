@@ -55,8 +55,8 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, default=str)
 
 
-def configure_logging() -> None:
-    handler = logging.StreamHandler(sys.stdout)
+def configure_logging(*, stream=None) -> None:
+    handler = logging.StreamHandler(sys.stdout if stream is None else stream)
     handler.setFormatter(JsonFormatter())
     handler.addFilter(RequestIDFilter())
 

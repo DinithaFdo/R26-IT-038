@@ -381,7 +381,7 @@ The `mcp_server` package is a separate deployable adapter for controlled MCP
 integrations. Its tools call the same service layer used by FastAPI instead of
 duplicating prediction, history, validation, storage, model, or fusion logic.
 
-Initial MCP authentication uses existing MULTI-SCOPE API keys and maps MCP tool
+MCP authentication uses existing MULTI-SCOPE API keys and maps MCP tool
 access to the existing scopes:
 
 ```text
@@ -390,6 +390,16 @@ multiscope_get_prediction     -> prediction:read
 multiscope_list_predictions   -> prediction:list
 multiscope_get_model_status   -> prediction:read
 multiscope_delete_prediction  -> prediction:delete
+
+multiscope_create_explanation          -> xai:create
+multiscope_get_explanation             -> xai:read
+multiscope_get_temporal_explanation    -> xai:read
+multiscope_get_semantic_explanation    -> xai:read
+multiscope_get_explanation_report      -> xai:read
+multiscope_get_explanation_narrative   -> xai:read
+multiscope_get_explanation_artifact    -> xai:read
+multiscope_retry_explanation           -> xai:retry
+multiscope_retry_explanation_narrative -> xai:retry
 ```
 
 For the first controlled implementation, prediction creation supports only
@@ -410,7 +420,19 @@ The MCP process has its own startup and shutdown lifecycle. Startup requires
 `MONGODB_URI`, connects to MongoDB, applies the same collection/index policy,
 and creates one shared tool context containing reusable repositories, storage,
 model registry, voice service, job runner, and concurrency semaphore. Shutdown
-closes MongoDB and reusable prediction-runner resources.
+awaits prediction-runner shutdown, closes the XAI worker queue, unloads models,
+and closes MongoDB. The pinned MCP 1.2 SDK transport and runtime lifecycle run
+on the same event loop. Application logs go to stderr so stdout remains a valid
+stdio MCP protocol stream.
+
+When XAI is enabled, MCP startup also loads the validated real semantic artifacts,
+reconciles stale explanation runs, and schedules artifact cleanup. MCP prediction
+creation passes its original processed audio and XLS-R evidence to the same XAI
+orchestrator used by the HTTP application, after prediction persistence. An XAI
+enqueue failure does not change a completed classifier prediction.
+
+See [Voice XAI MCP setup and client configuration](docs/voice-xai-mcp.md) for API-key
+scopes, Docker/local launch settings, tool inputs, polling, and retry behavior.
 
 ## Documentation
 
