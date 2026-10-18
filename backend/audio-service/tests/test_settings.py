@@ -22,6 +22,8 @@ def test_settings_defaults_are_safe_for_development() -> None:
     assert settings.host == "127.0.0.1"
     assert settings.port == 8000
     assert settings.log_level == "INFO"
+    assert settings.xai_narrative_model == "qwen3.7-flash"
+    assert settings.xai_narrative_enable_thinking is False
     assert settings.max_request_body_mb == 27
     assert settings.max_upload_size_mb == 25
     assert settings.allowed_audio_extension_list == [

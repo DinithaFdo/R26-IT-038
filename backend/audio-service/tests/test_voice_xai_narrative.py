@@ -116,8 +116,22 @@ async def test_qwen_narrative_sends_only_bounded_evidence_and_validates_response
     assert narrative.status == ComponentStatus.completed
     assert captured["url"].endswith("/compatible-mode/v1/chat/completions")
     assert captured["authorization"] == "Bearer test-model-studio-key"
-    assert captured["body"]["response_format"] == {"type": "json_object"}
-    assert captured["body"]["enable_thinking"] is True
+    response_format = captured["body"]["response_format"]
+    assert response_format["type"] == "json_schema"
+    assert response_format["json_schema"]["name"] == "voice_xai_narrative"
+    assert response_format["json_schema"]["strict"] is True
+    provider_schema = response_format["json_schema"]["schema"]
+    assert provider_schema["additionalProperties"] is False
+    assert set(provider_schema["required"]) == {
+        "summary", "detailed_explanation", "evidence_references"
+    }
+    assert set(provider_schema["properties"]) == set(provider_schema["required"])
+    provider_refs = provider_schema["properties"]["evidence_references"]
+    assert provider_refs["minItems"] == 1
+    assert provider_refs["maxItems"] == 32
+    assert "uniqueItems" not in provider_refs
+    assert captured["body"]["enable_thinking"] is False
+    assert "thinking_budget" not in captured["body"]
     prompt = captured["body"]["messages"][0]["content"]
     assert "adult with no knowledge of audio engineering or machine learning" in prompt
     assert "summary must have no more than 80 words" in prompt
@@ -136,10 +150,33 @@ async def test_qwen_narrative_sends_only_bounded_evidence_and_validates_response
     assert reference_schema["uniqueItems"] is True
     assert "semantic:1" in reference_schema["items"]["enum"]
     assert "semantic:999" not in reference_schema["items"]["enum"]
+    assert provider_refs["items"] == reference_schema["items"]
+    assert provider_schema["properties"]["summary"] == schema["properties"]["summary"]
+    assert provider_schema["properties"]["detailed_explanation"] == schema["properties"]["detailed_explanation"]
     user_evidence = captured["body"]["messages"][1]["content"]
     assert "owner_user_id" not in user_evidence
     assert "sample.wav" not in user_evidence
     assert "temporal:1" in user_evidence
+
+
+@pytest.mark.anyio
+async def test_explicit_thinking_opt_in_sends_its_configured_budget() -> None:
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(json.loads(request.content))
+        return _completion(_valid_content())
+
+    service = AlibabaQwenNarrativeService(
+        _settings(xai_narrative_enable_thinking=True, xai_narrative_thinking_budget=2048),
+        http_client_factory=lambda **kwargs: httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), **kwargs
+        ),
+    )
+    await service.generate(**_generation_arguments())
+
+    assert requests[0]["enable_thinking"] is True
+    assert requests[0]["thinking_budget"] == 2048
 
 
 @pytest.mark.anyio
@@ -348,6 +385,10 @@ async def test_missing_references_are_corrected_once_with_the_same_evidence(capl
     assert narrative.evidence_references == ["classifier:verdict", "report:limitation"]
     assert len(requests) == 2
     assert requests[1]["messages"][:2] == requests[0]["messages"]
+    assert requests[1]["response_format"] == requests[0]["response_format"]
+    assert requests[1]["response_format"]["type"] == "json_schema"
+    assert all(request["enable_thinking"] is False for request in requests)
+    assert all("thinking_budget" not in request for request in requests)
     correction = requests[1]["messages"][2]["content"]
     assert "missing_required_fields" in correction
     assert "evidence_references" in correction
@@ -441,6 +482,7 @@ async def test_second_invalid_response_is_rejected_without_fabricating_reference
 
 @pytest.mark.anyio
 @pytest.mark.parametrize(("status_code", "error_code"), [
+    (400, "narrative_upstream_rejected"),
     (401, "narrative_upstream_rejected"),
     (429, "narrative_upstream_rejected"),
     (503, "narrative_upstream_unavailable"),
