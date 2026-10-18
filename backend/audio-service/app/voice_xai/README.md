@@ -122,9 +122,21 @@ Detailed contracts and validation procedure are in
 ## Optional AI narrative
 
 Optional AI narratives require `summary`, `detailed_explanation`, and a non-empty,
-unique `evidence_references` array. The prompt includes the response JSON schema
-and allowed reference strings; local validation still checks every response.
-Prompt `voice-xai-narrative-v4-plain-language-detail` writes for nontechnical readers:
+unique `evidence_references` array. Requests use native strict JSON Schema with
+all three fields required, no extra keys, and an enum of allowed evidence IDs.
+The prompt also includes the contract. Model Studio's native schema omits the
+unsupported `uniqueItems` keyword; local validation still rejects duplicates,
+unknown references, invalid fields and word-limit violations. There is no silent
+fallback to JSON Object mode if the provider rejects the schema.
+
+The default model is `qwen3.7-flash`, with
+`XAI_NARRATIVE_ENABLE_THINKING=false`; `thinking_budget` is omitted while thinking
+is disabled. Configure an endpoint/model supporting native strict schemas.
+Explicitly enabling thinking sends its configured budget and requires provider
+support for that combination. Schema compliance does not verify the factual
+correctness of the generated prose.
+
+Prompt `voice-xai-narrative-v5-strict-schema-plain-language-detail` writes for nontechnical readers:
 the summary is capped at 80 words and the detailed explanation at 500 words,
 or the configured word limits if lower. With the default detail budget, it aims
 for 300-450 words when enough evidence is available; sparse evidence can produce
