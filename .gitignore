@@ -1,9 +1,6 @@
 # ==========================================
 # Environment Variables & Secrets
 # ==========================================
-.env
-.env.*
-.env.local
 .env.development.local
 .env.test.local
 .env.production.local
@@ -84,7 +81,6 @@ pnpm-debug.log*
 .Trashes
 ehthumbs.db
 [Tt]humbs.db
-.vscode/
 .idea/
 *.suo
 *.sln
@@ -97,3 +93,4 @@ ehthumbs.db
 *.log
 *.sqlite3
 *.db
+config.bat

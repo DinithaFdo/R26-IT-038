@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+import asyncio
 import json
 
 import httpx
@@ -26,6 +27,7 @@ from app.schemas.xai import (
 from app.voice_xai.report.service import (
     AlibabaQwenNarrativeService,
     NarrativeGenerationError,
+    PROMPT_VERSION,
 )
 
 
@@ -65,6 +67,7 @@ async def test_qwen_narrative_sends_only_bounded_evidence_and_validates_response
     captured: dict = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
+        captured["requests"] = captured.get("requests", 0) + 1
         captured["url"] = str(request.url)
         captured["authorization"] = request.headers["authorization"]
         captured["body"] = json.loads(request.content)
@@ -108,15 +111,72 @@ async def test_qwen_narrative_sends_only_bounded_evidence_and_validates_response
     )
 
     assert narrative.model_id == "qwen3.6-flash-2026-04-16"
+    assert narrative.prompt_version == PROMPT_VERSION
+    assert captured["requests"] == 1
     assert narrative.status == ComponentStatus.completed
     assert captured["url"].endswith("/compatible-mode/v1/chat/completions")
     assert captured["authorization"] == "Bearer test-model-studio-key"
-    assert captured["body"]["response_format"] == {"type": "json_object"}
-    assert captured["body"]["enable_thinking"] is True
+    response_format = captured["body"]["response_format"]
+    assert response_format["type"] == "json_schema"
+    assert response_format["json_schema"]["name"] == "voice_xai_narrative"
+    assert response_format["json_schema"]["strict"] is True
+    provider_schema = response_format["json_schema"]["schema"]
+    assert provider_schema["additionalProperties"] is False
+    assert set(provider_schema["required"]) == {
+        "summary", "detailed_explanation", "evidence_references"
+    }
+    assert set(provider_schema["properties"]) == set(provider_schema["required"])
+    provider_refs = provider_schema["properties"]["evidence_references"]
+    assert provider_refs["minItems"] == 1
+    assert provider_refs["maxItems"] == 32
+    assert "uniqueItems" not in provider_refs
+    assert captured["body"]["enable_thinking"] is False
+    assert "thinking_budget" not in captured["body"]
+    prompt = captured["body"]["messages"][0]["content"]
+    assert "adult with no knowledge of audio engineering or machine learning" in prompt
+    assert "summary must have no more than 80 words" in prompt
+    assert "detailed_explanation no more than 500 words" in prompt
+    assert "Aim for 300-450 words" in prompt
+    assert "supplied display names" in prompt
+    assert "exact start/end intervals" in prompt
+    assert "separate approximation model's raw score" in prompt
+    assert "Respect each metric's scope separately" in prompt
+    schema = json.loads(captured["body"]["messages"][0]["content"].split(
+        "The complete response must follow this JSON schema: ", 1
+    )[1])
+    assert set(schema["required"]) == {"summary", "detailed_explanation", "evidence_references"}
+    reference_schema = schema["properties"]["evidence_references"]
+    assert reference_schema["minItems"] == 1
+    assert reference_schema["uniqueItems"] is True
+    assert "semantic:1" in reference_schema["items"]["enum"]
+    assert "semantic:999" not in reference_schema["items"]["enum"]
+    assert provider_refs["items"] == reference_schema["items"]
+    assert provider_schema["properties"]["summary"] == schema["properties"]["summary"]
+    assert provider_schema["properties"]["detailed_explanation"] == schema["properties"]["detailed_explanation"]
     user_evidence = captured["body"]["messages"][1]["content"]
     assert "owner_user_id" not in user_evidence
     assert "sample.wav" not in user_evidence
     assert "temporal:1" in user_evidence
+
+
+@pytest.mark.anyio
+async def test_explicit_thinking_opt_in_sends_its_configured_budget() -> None:
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(json.loads(request.content))
+        return _completion(_valid_content())
+
+    service = AlibabaQwenNarrativeService(
+        _settings(xai_narrative_enable_thinking=True, xai_narrative_thinking_budget=2048),
+        http_client_factory=lambda **kwargs: httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), **kwargs
+        ),
+    )
+    await service.generate(**_generation_arguments())
+
+    assert requests[0]["enable_thinking"] is True
+    assert requests[0]["thinking_budget"] == 2048
 
 
 @pytest.mark.anyio
@@ -169,6 +229,357 @@ def test_narrative_schema_rejects_duplicate_evidence_references() -> None:
             detailed_explanation="A detailed evidence summary requiring review.",
             evidence_references=["classifier:verdict", "classifier:verdict"],
         )
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("content", "reason"),
+    [
+        (None, "invalid_content_type"),
+        ("", "empty_content"),
+        ("private-evidence-invalid-json", "invalid_json"),
+        ("[]", "json_object_required"),
+        (json.dumps({"summary": "private-evidence-summary"}), "missing_required_fields"),
+        (
+            json.dumps({
+                "summary": "private-evidence-summary",
+                "detailed_explanation": "Review the deterministic evidence.",
+                "evidence_references": ["classifier:verdict", "classifier:verdict"],
+            }),
+            "duplicate_evidence_references",
+        ),
+        (
+            json.dumps({
+                "summary": {"private-evidence-summary": "invalid type"},
+                "detailed_explanation": "Review the deterministic evidence.",
+                "evidence_references": ["classifier:verdict"],
+            }),
+            "schema_validation_failed",
+        ),
+        (
+            json.dumps({
+                "summary": "private-evidence-summary " * 51,
+                "detailed_explanation": "Review the deterministic evidence.",
+                "evidence_references": ["classifier:verdict"],
+            }),
+            "summary_word_limit_exceeded",
+        ),
+        (
+            json.dumps({
+                "summary": "private-evidence-summary",
+                "detailed_explanation": "private-evidence-detail " * 101,
+                "evidence_references": ["classifier:verdict"],
+            }),
+            "detail_word_limit_exceeded",
+        ),
+        (
+            json.dumps({
+                "summary": "private-evidence-summary",
+                "detailed_explanation": "Review the deterministic evidence.",
+                "evidence_references": ["private-evidence-unknown-reference"],
+            }),
+            "unknown_evidence_references",
+        ),
+    ],
+)
+async def test_narrative_rejection_logs_specific_reason_without_evidence(
+    content, reason, caplog
+) -> None:
+    request_count = 0
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal request_count
+        request_count += 1
+        return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
+
+    service = AlibabaQwenNarrativeService(
+        _settings(xai_narrative_summary_max_words=50, xai_narrative_detailed_max_words=100),
+        http_client_factory=lambda **kwargs: httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), **kwargs
+        ),
+    )
+    with pytest.raises(NarrativeGenerationError) as caught:
+        await service.generate(
+            classifier=_classifier(), temporal=_temporal(), semantic=_semantic(),
+            quality=ExplanationQuality(), report=_report(), timeout_seconds=10,
+        )
+
+    assert caught.value.code == "narrative_invalid_response"
+    assert caught.value.reason == reason
+    assert request_count == 2
+    assert str(caught.value) == "The AI narrative service returned an invalid structured response."
+    assert f"reason={reason}" in caplog.text
+    assert "private-evidence" not in caplog.text
+    assert "test-model-studio-key" not in caplog.text
+    assert "private-evidence" not in str(caught.value)
+    if reason == "schema_validation_failed":
+        assert "fields=summary" in caplog.text
+    elif reason == "missing_required_fields":
+        assert "fields=detailed_explanation,evidence_references" in caplog.text
+
+
+@pytest.mark.anyio
+async def test_narrative_rejection_identifies_malformed_completion_envelope(caplog) -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"choices": []})
+
+    service = AlibabaQwenNarrativeService(
+        _settings(),
+        http_client_factory=lambda **kwargs: httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), **kwargs
+        ),
+    )
+    with pytest.raises(NarrativeGenerationError) as caught:
+        await service.generate(
+            classifier=_classifier(), temporal=_temporal(), semantic=_semantic(),
+            quality=ExplanationQuality(), report=_report(), timeout_seconds=10,
+        )
+
+    assert caught.value.reason == "invalid_completion_envelope"
+    assert "reason=invalid_completion_envelope" in caplog.text
+
+
+def _completion(content) -> httpx.Response:
+    return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
+
+
+def _valid_content() -> str:
+    return json.dumps({
+        "summary": "Validated evidence requires human review.",
+        "detailed_explanation": "Review the classifier result and deterministic report.",
+        "evidence_references": ["classifier:verdict", "report:limitation"],
+    })
+
+
+def _generation_arguments(**overrides) -> dict:
+    values = dict(
+        classifier=_classifier(), temporal=_temporal(), semantic=_semantic(),
+        quality=ExplanationQuality(), report=_report(), timeout_seconds=60,
+    )
+    values.update(overrides)
+    return values
+
+
+@pytest.mark.anyio
+async def test_missing_references_are_corrected_once_with_the_same_evidence(caplog) -> None:
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(json.loads(request.content))
+        if len(requests) == 1:
+            return _completion(json.dumps({
+                "summary": "private-invalid-summary",
+                "detailed_explanation": "private-invalid-detail",
+            }))
+        return _completion(_valid_content())
+
+    service = AlibabaQwenNarrativeService(
+        _settings(),
+        http_client_factory=lambda **kwargs: httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), **kwargs
+        ),
+    )
+    with caplog.at_level("INFO", logger="app.voice_xai.report.service"):
+        narrative = await service.generate(**_generation_arguments())
+
+    assert narrative.evidence_references == ["classifier:verdict", "report:limitation"]
+    assert len(requests) == 2
+    assert requests[1]["messages"][:2] == requests[0]["messages"]
+    assert requests[1]["response_format"] == requests[0]["response_format"]
+    assert requests[1]["response_format"]["type"] == "json_schema"
+    assert all(request["enable_thinking"] is False for request in requests)
+    assert all("thinking_budget" not in request for request in requests)
+    correction = requests[1]["messages"][2]["content"]
+    assert "missing_required_fields" in correction
+    assert "evidence_references" in correction
+    assert "private-invalid" not in json.dumps(requests[1])
+    assert "private-invalid" not in caplog.text
+    assert "recovered on attempt 2" in caplog.text
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(("field", "word_count", "reason"), [
+    ("summary", 81, "summary_word_limit_exceeded"),
+    ("detailed_explanation", 501, "detail_word_limit_exceeded"),
+])
+async def test_plain_language_limits_are_enforced_on_new_narratives(field, word_count, reason, caplog) -> None:
+    request_count = 0
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal request_count
+        request_count += 1
+        generated = json.loads(_valid_content())
+        if request_count == 1:
+            generated[field] = "word " * word_count
+        return _completion(json.dumps(generated))
+
+    service = AlibabaQwenNarrativeService(
+        _settings(),
+        http_client_factory=lambda **kwargs: httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), **kwargs
+        ),
+    )
+    narrative = await service.generate(**_generation_arguments())
+
+    assert request_count == 2
+    assert narrative.status == ComponentStatus.completed
+    assert f"reason={reason}" in caplog.text
+    assert len(narrative.summary.split()) <= 80
+    assert len(narrative.detailed_explanation.split()) <= 500
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(("configured_max", "word_count"), [(500, 450), (1000, 500)])
+async def test_fuller_detail_is_preserved_without_correction(configured_max, word_count) -> None:
+    requests = []
+    generated = json.loads(_valid_content())
+    generated["detailed_explanation"] = " ".join(["explanation"] * word_count)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(json.loads(request.content))
+        return _completion(json.dumps(generated))
+
+    service = AlibabaQwenNarrativeService(
+        _settings(xai_narrative_detailed_max_words=configured_max),
+        http_client_factory=lambda **kwargs: httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), **kwargs
+        ),
+    )
+    narrative = await service.generate(**_generation_arguments())
+
+    assert len(requests) == 1
+    assert narrative.detailed_explanation == generated["detailed_explanation"]
+    assert "detailed_explanation no more than 500 words" in requests[0]["messages"][0]["content"]
+
+
+@pytest.mark.anyio
+async def test_second_invalid_response_is_rejected_without_fabricating_references() -> None:
+    request_count = 0
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal request_count
+        request_count += 1
+        if request_count == 1:
+            return _completion(json.dumps({"summary": "Summary", "detailed_explanation": "Detail"}))
+        return _completion(json.dumps({
+            "summary": "Summary", "detailed_explanation": "Detail",
+            "evidence_references": ["temporal:999"],
+        }))
+
+    service = AlibabaQwenNarrativeService(
+        _settings(),
+        http_client_factory=lambda **kwargs: httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), **kwargs
+        ),
+    )
+    with pytest.raises(NarrativeGenerationError) as caught:
+        await service.generate(**_generation_arguments())
+
+    assert request_count == 2
+    assert caught.value.code == "narrative_invalid_response"
+    assert caught.value.reason == "unknown_evidence_references"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(("status_code", "error_code"), [
+    (400, "narrative_upstream_rejected"),
+    (401, "narrative_upstream_rejected"),
+    (429, "narrative_upstream_rejected"),
+    (503, "narrative_upstream_unavailable"),
+])
+async def test_provider_errors_do_not_trigger_response_correction(status_code, error_code) -> None:
+    request_count = 0
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal request_count
+        request_count += 1
+        return httpx.Response(status_code, json={"error": "private-provider-detail"})
+
+    service = AlibabaQwenNarrativeService(
+        _settings(),
+        http_client_factory=lambda **kwargs: httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), **kwargs
+        ),
+    )
+    with pytest.raises(NarrativeGenerationError) as caught:
+        await service.generate(**_generation_arguments())
+
+    assert request_count == 1
+    assert caught.value.code == error_code
+    assert "private-provider-detail" not in str(caught.value)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(("job_budget", "expected_timeouts"), [(40, [30, 15]), (600, [30, 30])])
+async def test_correction_shares_a_bounded_budget(monkeypatch, job_budget, expected_timeouts) -> None:
+    clock = [0.0]
+    monkeypatch.setattr("app.voice_xai.report.service.monotonic", lambda: clock[0])
+    timeouts = []
+    request_count = 0
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal request_count
+        request_count += 1
+        clock[0] = 25.0 if request_count == 1 else 30.0
+        return _completion("{}" if request_count == 1 else _valid_content())
+
+    def factory(**kwargs):
+        timeouts.append(kwargs["timeout"])
+        return httpx.AsyncClient(transport=httpx.MockTransport(handler), **kwargs)
+
+    service = AlibabaQwenNarrativeService(_settings(), http_client_factory=factory)
+    narrative = await service.generate(**_generation_arguments(timeout_seconds=job_budget))
+
+    assert narrative.status == ComponentStatus.completed
+    assert timeouts == expected_timeouts
+
+
+@pytest.mark.anyio
+async def test_correction_is_not_sent_after_the_job_budget_expires(monkeypatch) -> None:
+    clock = [0.0]
+    monkeypatch.setattr("app.voice_xai.report.service.monotonic", lambda: clock[0])
+    request_count = 0
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal request_count
+        request_count += 1
+        clock[0] = 10.0
+        return _completion("{}")
+
+    service = AlibabaQwenNarrativeService(
+        _settings(),
+        http_client_factory=lambda **kwargs: httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), **kwargs
+        ),
+    )
+    with pytest.raises(NarrativeGenerationError) as caught:
+        await service.generate(**_generation_arguments(timeout_seconds=10))
+
+    assert caught.value.code == "narrative_timeout"
+    assert request_count == 1
+
+
+@pytest.mark.anyio
+async def test_request_has_a_wall_clock_timeout_and_does_not_retry() -> None:
+    request_count = 0
+
+    async def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal request_count
+        request_count += 1
+        await asyncio.Event().wait()
+        return _completion(_valid_content())
+
+    service = AlibabaQwenNarrativeService(
+        _settings(xai_narrative_timeout_seconds=0.05),
+        http_client_factory=lambda **kwargs: httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), **kwargs
+        ),
+    )
+    with pytest.raises(NarrativeGenerationError) as caught:
+        await asyncio.wait_for(service.generate(**_generation_arguments()), timeout=2)
+
+    assert caught.value.code == "narrative_upstream_timeout"
+    assert request_count == 1
 
 
 def _classifier() -> ClassifierSnapshot:

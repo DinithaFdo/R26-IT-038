@@ -156,9 +156,9 @@ class Settings(BaseSettings):
     xai_narrative_enabled: bool = False
     xai_narrative_api_key: str = ""
     xai_narrative_base_url: str = ""
-    xai_narrative_model: str = "qwen3.6-flash"
+    xai_narrative_model: str = "qwen3.7-flash"
     xai_narrative_timeout_seconds: float = Field(default=30.0, gt=0.0, le=120.0)
-    xai_narrative_enable_thinking: bool = True
+    xai_narrative_enable_thinking: bool = False
     xai_narrative_thinking_budget: int = Field(default=1024, ge=128, le=32768)
     xai_narrative_summary_max_words: int = Field(default=200, ge=50, le=500)
     xai_narrative_detailed_max_words: int = Field(default=500, ge=100, le=1000)
