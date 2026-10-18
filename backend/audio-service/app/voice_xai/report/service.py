@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 from hashlib import sha256
 import json
+import logging
 from time import monotonic
 from typing import Any, Callable
 
@@ -177,15 +179,40 @@ def _limitations(
     return " ".join(limitations)
 
 
-PROMPT_VERSION = "voice-xai-narrative-v1"
+PROMPT_VERSION = "voice-xai-narrative-v2"
+NARRATIVE_MAX_RESPONSE_ATTEMPTS = 2
+_NARRATIVE_RESPONSE_FIELDS = ("summary", "detailed_explanation", "evidence_references")
+
+
+def narrative_generation_timeout_seconds(app_settings: Settings) -> float:
+    """Allow one request timeout per attempt, bounded further by the job deadline."""
+    return app_settings.xai_narrative_timeout_seconds * NARRATIVE_MAX_RESPONSE_ATTEMPTS
 
 
 class NarrativeGenerationError(RuntimeError):
     """An upstream narrative failure represented by a safe public error code."""
 
-    def __init__(self, code: str, message: str) -> None:
+    def __init__(self, code: str, message: str, *, reason: str | None = None) -> None:
         super().__init__(message)
         self.code = code
+        self.reason = reason
+
+
+def _invalid_narrative_response(
+    reason: str, *, fields: tuple[str, ...] = ()
+) -> NarrativeGenerationError:
+    # Log only fixed reason codes and schema field names, never generated text,
+    # evidence values, credentials, or Pydantic errors containing input data.
+    logging.getLogger(__name__).warning(
+        "Voice XAI narrative response rejected: reason=%s; fields=%s",
+        reason,
+        ",".join(fields) or "-",
+    )
+    return NarrativeGenerationError(
+        "narrative_invalid_response",
+        "The AI narrative service returned an invalid structured response.",
+        reason=reason,
+    )
 
 
 class AlibabaQwenNarrativeService:
@@ -225,6 +252,9 @@ class AlibabaQwenNarrativeService:
             raise NarrativeGenerationError(
                 "narrative_timeout", "The AI narrative time budget was exhausted."
             )
+        deadline = monotonic() + min(
+            timeout_seconds, narrative_generation_timeout_seconds(self._settings)
+        )
 
         evidence, allowed_references = _narrative_evidence(
             classifier=classifier,
@@ -259,25 +289,86 @@ class AlibabaQwenNarrativeService:
             "enable_thinking": self._settings.xai_narrative_enable_thinking,
             "thinking_budget": self._settings.xai_narrative_thinking_budget,
         }
-        effective_timeout = min(
-            timeout_seconds, self._settings.xai_narrative_timeout_seconds
-        )
-        started_at = monotonic()
-        try:
-            async with self._http_client_factory(timeout=effective_timeout) as client:
-                response = await client.post(
-                    self._endpoint(),
-                    headers={
-                        "Authorization": (
-                            f"Bearer {self._settings.xai_narrative_api_key}"
-                        ),
-                        "Content-Type": "application/json",
-                    },
-                    json=payload,
+        attempt = 1
+        while True:
+            remaining = deadline - monotonic()
+            if remaining <= 0:
+                raise NarrativeGenerationError(
+                    "narrative_timeout", "The AI narrative time budget was exhausted."
                 )
-                response.raise_for_status()
-                response_payload = response.json()
-        except httpx.TimeoutException as error:
+            response_payload = await self._request(
+                payload,
+                timeout_seconds=min(remaining, self._settings.xai_narrative_timeout_seconds),
+            )
+            if monotonic() >= deadline:
+                raise NarrativeGenerationError(
+                    "narrative_timeout", "The AI narrative time budget was exhausted."
+                )
+            try:
+                narrative = _parse_narrative_response(
+                    response_payload,
+                    configured_model=self._settings.xai_narrative_model,
+                    input_sha256=input_sha256,
+                    allowed_references=allowed_references,
+                    summary_max_words=self._settings.xai_narrative_summary_max_words,
+                    detailed_max_words=self._settings.xai_narrative_detailed_max_words,
+                )
+            except NarrativeGenerationError as error:
+                if (
+                    error.code != "narrative_invalid_response"
+                    or attempt >= NARRATIVE_MAX_RESPONSE_ATTEMPTS
+                ):
+                    raise
+                if monotonic() >= deadline:
+                    raise NarrativeGenerationError(
+                        "narrative_timeout", "The AI narrative time budget was exhausted."
+                    ) from error
+                attempt += 1
+                logging.getLogger(__name__).info(
+                    "Voice XAI narrative response retrying: attempt=%s; reason=%s",
+                    attempt,
+                    error.reason,
+                )
+                # Keep the same validated evidence. Never echo untrusted model
+                # output into a correction prompt or fabricate missing references.
+                payload["messages"].append({
+                    "role": "user",
+                    "content": (
+                        f"The previous response failed validation: {error.reason}. "
+                        "Generate a complete replacement JSON object from the same evidence. "
+                        "All three keys summary, detailed_explanation, evidence_references "
+                        "are mandatory. Include a non-empty, unique evidence_references "
+                        "array using only allowed references supporting your explanation. "
+                        "Follow the response schema and word limits in the system message."
+                    ),
+                })
+                continue
+            if monotonic() >= deadline:
+                raise NarrativeGenerationError(
+                    "narrative_timeout", "The AI narrative time budget was exhausted."
+                )
+            if attempt > 1:
+                logging.getLogger(__name__).info(
+                    "Voice XAI narrative response recovered on attempt %s", attempt
+                )
+            return narrative
+
+    async def _request(self, payload: dict[str, Any], *, timeout_seconds: float) -> Any:
+        try:
+            # HTTPX phase timeouts alone do not bound the total request duration.
+            async with asyncio.timeout(timeout_seconds):
+                async with self._http_client_factory(timeout=timeout_seconds) as client:
+                    response = await client.post(
+                        self._endpoint(),
+                        headers={
+                            "Authorization": f"Bearer {self._settings.xai_narrative_api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json=payload,
+                    )
+                    response.raise_for_status()
+                    return response.json()
+        except (httpx.TimeoutException, TimeoutError) as error:
             raise NarrativeGenerationError(
                 "narrative_upstream_timeout",
                 "The AI narrative service timed out.",
@@ -298,40 +389,57 @@ class AlibabaQwenNarrativeService:
                 "The AI narrative service is unavailable.",
             ) from error
 
-        if monotonic() - started_at > timeout_seconds:
-            raise NarrativeGenerationError(
-                "narrative_timeout", "The AI narrative time budget was exhausted."
-            )
-        content = _response_content(response_payload)
-        try:
-            generated = json.loads(content)
-            narrative = NarrativeExplanation(
-                status=ComponentStatus.completed,
-                provider=self.provider,
-                model_id=_response_model_id(
-                    response_payload, self._settings.xai_narrative_model
-                ),
-                prompt_version=PROMPT_VERSION,
-                input_sha256=input_sha256,
-                summary=generated["summary"],
-                detailed_explanation=generated["detailed_explanation"],
-                evidence_references=generated["evidence_references"],
-            )
-        except (KeyError, TypeError, json.JSONDecodeError, ValidationError) as error:
-            raise NarrativeGenerationError(
-                "narrative_invalid_response",
-                "The AI narrative service returned an invalid structured response.",
-            ) from error
-        _validate_narrative(
-            narrative,
-            allowed_references=allowed_references,
-            summary_max_words=self._settings.xai_narrative_summary_max_words,
-            detailed_max_words=self._settings.xai_narrative_detailed_max_words,
-        )
-        return narrative
-
     def _endpoint(self) -> str:
         return self._settings.xai_narrative_base_url.rstrip("/") + "/chat/completions"
+
+
+def _parse_narrative_response(
+    response_payload: Any,
+    *,
+    configured_model: str,
+    input_sha256: str,
+    allowed_references: set[str],
+    summary_max_words: int,
+    detailed_max_words: int,
+) -> NarrativeExplanation:
+    content = _response_content(response_payload)
+    try:
+        generated = json.loads(content)
+    except json.JSONDecodeError as error:
+        raise _invalid_narrative_response("invalid_json") from error
+    if not isinstance(generated, dict):
+        raise _invalid_narrative_response("json_object_required")
+    missing_fields = tuple(field for field in _NARRATIVE_RESPONSE_FIELDS if field not in generated)
+    if missing_fields:
+        raise _invalid_narrative_response("missing_required_fields", fields=missing_fields)
+    references = generated["evidence_references"]
+    if isinstance(references, list) and all(isinstance(ref, str) for ref in references):
+        if len(set(references)) != len(references):
+            raise _invalid_narrative_response("duplicate_evidence_references")
+    try:
+        narrative = NarrativeExplanation(
+            status=ComponentStatus.completed,
+            provider=AlibabaQwenNarrativeService.provider,
+            model_id=_response_model_id(response_payload, configured_model),
+            prompt_version=PROMPT_VERSION,
+            input_sha256=input_sha256,
+            summary=generated["summary"],
+            detailed_explanation=generated["detailed_explanation"],
+            evidence_references=generated["evidence_references"],
+        )
+    except ValidationError as error:
+        fields = tuple(sorted({
+            str(item["loc"][0]) if item["loc"] else "narrative"
+            for item in error.errors(include_input=False, include_context=False)
+        }))
+        raise _invalid_narrative_response("schema_validation_failed", fields=fields) from error
+    _validate_narrative(
+        narrative,
+        allowed_references=allowed_references,
+        summary_max_words=summary_max_words,
+        detailed_max_words=detailed_max_words,
+    )
+    return narrative
 
 
 def _narrative_evidence(
@@ -433,17 +541,30 @@ def _narrative_evidence(
 def _system_prompt(
     *, summary_max_words: int, detailed_max_words: int, allowed_references: list[str]
 ) -> str:
+    properties = NarrativeExplanation.model_json_schema()["properties"]
+    response_properties = {field: properties[field] for field in _NARRATIVE_RESPONSE_FIELDS}
+    response_properties["evidence_references"]["uniqueItems"] = True
+    response_properties["evidence_references"]["items"]["enum"] = allowed_references
+    response_schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": list(_NARRATIVE_RESPONSE_FIELDS),
+        "properties": response_properties,
+    }
     return (
         "Return JSON only with exactly these keys: summary, detailed_explanation, "
-        "evidence_references. Explain validated voice-classification XAI evidence "
+        "evidence_references. All three keys are mandatory, including evidence_references. "
+        "Explain validated voice-classification XAI evidence "
         "in plain language. Do not diagnose people, claim proof, invent values, "
         "or override the classifier. Temporal regions are candidate evidence, and "
         "semantic contributions are auxiliary evidence. Preserve limitations and "
         "human-review language. summary must have no more than "
         f"{summary_max_words} words; detailed_explanation no more than "
         f"{detailed_max_words} words. evidence_references must be a non-empty "
-        "JSON array containing only these exact strings: "
-        + json.dumps(allowed_references)
+        "JSON array of unique references actually used in your explanation. "
+        "Copy allowed reference strings exactly; do not invent references. "
+        "The complete response must follow this JSON schema: "
+        + json.dumps(response_schema, separators=(",", ":"))
     )
 
 
@@ -451,15 +572,11 @@ def _response_content(response_payload: Any) -> str:
     try:
         content = response_payload["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError) as error:
-        raise NarrativeGenerationError(
-            "narrative_invalid_response",
-            "The AI narrative service returned an invalid structured response.",
-        ) from error
-    if not isinstance(content, str) or not content.strip():
-        raise NarrativeGenerationError(
-            "narrative_invalid_response",
-            "The AI narrative service returned an invalid structured response.",
-        )
+        raise _invalid_narrative_response("invalid_completion_envelope") from error
+    if not isinstance(content, str):
+        raise _invalid_narrative_response("invalid_content_type")
+    if not content.strip():
+        raise _invalid_narrative_response("empty_content")
     return content
 
 
@@ -476,20 +593,11 @@ def _validate_narrative(
     detailed_max_words: int,
 ) -> None:
     if len(_words(narrative.summary)) > summary_max_words:
-        raise NarrativeGenerationError(
-            "narrative_invalid_response",
-            "The AI narrative service returned an invalid structured response.",
-        )
+        raise _invalid_narrative_response("summary_word_limit_exceeded")
     if len(_words(narrative.detailed_explanation)) > detailed_max_words:
-        raise NarrativeGenerationError(
-            "narrative_invalid_response",
-            "The AI narrative service returned an invalid structured response.",
-        )
+        raise _invalid_narrative_response("detail_word_limit_exceeded")
     if not set(narrative.evidence_references).issubset(allowed_references):
-        raise NarrativeGenerationError(
-            "narrative_invalid_response",
-            "The AI narrative service returned an invalid structured response.",
-        )
+        raise _invalid_narrative_response("unknown_evidence_references")
 
 
 def _words(value: str) -> list[str]:

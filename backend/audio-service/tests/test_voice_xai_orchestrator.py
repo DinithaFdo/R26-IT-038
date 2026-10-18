@@ -2,7 +2,9 @@ import time
 import json
 from datetime import UTC, datetime
 from pathlib import Path
+from unittest.mock import Mock
 
+import httpx
 import numpy as np
 import pytest
 
@@ -28,6 +30,7 @@ from app.voice_xai.artifacts.service import LocalExplanationArtifactStore
 from app.voice_xai.integration.contracts import ClassifierInferenceBundle
 from app.voice_xai.workflow.orchestrator import (
     VoiceXaiOrchestrator,
+    NarrativeRetryJob,
     XaiRetryRequiredError,
     _configuration_hash,
     _configuration_hash_inputs,
@@ -36,7 +39,7 @@ from app.voice_xai.workflow.orchestrator import (
     inference_bundle_from_prediction_document,
 )
 from app.voice_xai.persistence.mongodb import MongoXaiExplanationRepository
-from app.voice_xai.report.service import NarrativeGenerationError
+from app.voice_xai.report.service import AlibabaQwenNarrativeService, NarrativeGenerationError
 from app.voice_xai.temporal.contracts import (
     TemporalAnalysisResult,
     TemporalAttentionError,
@@ -209,6 +212,94 @@ async def test_narrative_is_optional_and_cannot_change_deterministic_report(
     assert response.narrative.summary == "Validated evidence requires qualified human review."
     assert response.component_statuses.narrative == ComponentStatus.completed
     assert narrative_service.received_report == response.combined_report
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("recover_on_initial_run", [True, False])
+async def test_narrative_response_correction_completes_without_repeating_dsp(
+    tmp_path: Path, monkeypatch, recover_on_initial_run: bool
+) -> None:
+    settings = Settings(
+        _env_file=None, xai_enabled=True, xai_mode="real", xai_narrative_enabled=True,
+        xai_narrative_api_key="test-key",
+        xai_narrative_base_url="https://workspace.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
+    )
+    repository = MongoXaiExplanationRepository(FakeDatabase("xai_narrative_correction"))
+    prediction = _prediction()
+    bundle = _bundle(prediction)
+    request_count = 0
+    succeeds_on = 2 if recover_on_initial_run else 4
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal request_count
+        request_count += 1
+        content = {
+            "summary": "Validated evidence requires human review.",
+            "detailed_explanation": "The deterministic report remains authoritative.",
+        }
+        if request_count == succeeds_on:
+            content["evidence_references"] = ["classifier:verdict"]
+        return httpx.Response(200, json={
+            "choices": [{"message": {"content": json.dumps(content)}}],
+        })
+
+    narrative_service = AlibabaQwenNarrativeService(
+        settings,
+        http_client_factory=lambda **kwargs: httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), **kwargs
+        ),
+    )
+    budgets = []
+    generate = narrative_service.generate
+
+    async def record_budget(**kwargs):
+        budgets.append(kwargs["timeout_seconds"])
+        return await generate(**kwargs)
+
+    monkeypatch.setattr(narrative_service, "generate", record_budget)
+    temporal_service = StaticTemporalService()
+    semantic_service = StaticSemanticService()
+    monkeypatch.setattr(temporal_service, "analyze", Mock(wraps=temporal_service.analyze))
+    monkeypatch.setattr(semantic_service, "analyze", Mock(wraps=semantic_service.analyze))
+    orchestrator = VoiceXaiOrchestrator(
+        repository=repository,
+        prediction_repository=PredictionLookup(_document(prediction)),
+        queue=PausedQueue(), app_settings=settings,
+        artifact_store=LocalExplanationArtifactStore(tmp_path / "private"),
+        temporal_service=temporal_service, semantic_service=semantic_service,
+        narrative_service=narrative_service,
+    )
+    explanation_id = await _create(repository, bundle, settings)
+    await orchestrator._run(explanation_id, bundle)
+    response = await orchestrator.get_for_owner(
+        explanation_id=explanation_id, owner_user_id="user-123"
+    )
+    assert response.status.value == "completed"
+    assert response.combined_report is not None
+    if not recover_on_initial_run:
+        assert response.component_statuses.narrative == ComponentStatus.failed
+        assert response.component_errors.narrative.code == "narrative_invalid_response"
+        original_report = response.combined_report
+        await orchestrator.retry_narrative_for_prediction(
+            prediction_id="prediction-123", owner_user_id="user-123"
+        )
+        await orchestrator._run_narrative_retry(NarrativeRetryJob(
+            explanation_id=explanation_id, prediction_id="prediction-123",
+            request_id=bundle.request_id, owner_user_id="user-123",
+        ))
+        response = await orchestrator.get_for_owner(
+            explanation_id=explanation_id, owner_user_id="user-123"
+        )
+        assert response.combined_report == original_report
+        assert budgets[1] == 2 * settings.xai_narrative_timeout_seconds
+
+    assert response.component_statuses.narrative == ComponentStatus.completed
+    assert response.component_errors.narrative is None
+    assert response.narrative is not None
+    assert response.narrative.evidence_references == ["classifier:verdict"]
+    assert request_count == succeeds_on
+    temporal_service.analyze.assert_called_once()
+    semantic_service.analyze.assert_called_once()
 
 
 @pytest.mark.anyio

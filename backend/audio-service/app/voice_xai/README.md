@@ -119,6 +119,21 @@ Detailed contracts and validation procedure are in
    semantic summaries. Artifact downloads verify ownership, expiry, size, and
    SHA-256 integrity before returning bytes.
 
+## Optional AI narrative
+
+Optional AI narratives require `summary`, `detailed_explanation`, and a non-empty,
+unique `evidence_references` array. The prompt includes the response JSON schema
+and allowed reference strings; local validation still checks every response.
+An invalid structured response gets at most one automatic correction attempt
+using the same saved evidence. Provider errors and timeouts are not automatically
+retried. Each request is bounded by `XAI_NARRATIVE_TIMEOUT_SECONDS`; both attempts
+share a total budget of twice that value, capped by the remaining XAI job budget
+for the initial run. The narrative-only retry endpoint receives the same bounded
+generation budget. This does not repeat classification or acoustic extraction.
+If both responses are invalid, narrative status remains failed and the
+deterministic report stays available. Logs contain rejection reasons and retry
+outcomes without generated content or evidence values.
+
 ## User-facing temporal evidence
 
 The completed temporal response provides label-neutral `high_attention_regions`
