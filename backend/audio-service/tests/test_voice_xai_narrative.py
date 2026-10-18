@@ -121,7 +121,12 @@ async def test_qwen_narrative_sends_only_bounded_evidence_and_validates_response
     prompt = captured["body"]["messages"][0]["content"]
     assert "adult with no knowledge of audio engineering or machine learning" in prompt
     assert "summary must have no more than 80 words" in prompt
-    assert "detailed_explanation no more than 200 words" in prompt
+    assert "detailed_explanation no more than 500 words" in prompt
+    assert "Aim for 300-450 words" in prompt
+    assert "supplied display names" in prompt
+    assert "exact start/end intervals" in prompt
+    assert "separate approximation model's raw score" in prompt
+    assert "Respect each metric's scope separately" in prompt
     schema = json.loads(captured["body"]["messages"][0]["content"].split(
         "The complete response must follow this JSON schema: ", 1
     )[1])
@@ -354,7 +359,7 @@ async def test_missing_references_are_corrected_once_with_the_same_evidence(capl
 @pytest.mark.anyio
 @pytest.mark.parametrize(("field", "word_count", "reason"), [
     ("summary", 81, "summary_word_limit_exceeded"),
-    ("detailed_explanation", 201, "detail_word_limit_exceeded"),
+    ("detailed_explanation", 501, "detail_word_limit_exceeded"),
 ])
 async def test_plain_language_limits_are_enforced_on_new_narratives(field, word_count, reason, caplog) -> None:
     request_count = 0
@@ -379,7 +384,31 @@ async def test_plain_language_limits_are_enforced_on_new_narratives(field, word_
     assert narrative.status == ComponentStatus.completed
     assert f"reason={reason}" in caplog.text
     assert len(narrative.summary.split()) <= 80
-    assert len(narrative.detailed_explanation.split()) <= 200
+    assert len(narrative.detailed_explanation.split()) <= 500
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(("configured_max", "word_count"), [(500, 450), (1000, 500)])
+async def test_fuller_detail_is_preserved_without_correction(configured_max, word_count) -> None:
+    requests = []
+    generated = json.loads(_valid_content())
+    generated["detailed_explanation"] = " ".join(["explanation"] * word_count)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(json.loads(request.content))
+        return _completion(json.dumps(generated))
+
+    service = AlibabaQwenNarrativeService(
+        _settings(xai_narrative_detailed_max_words=configured_max),
+        http_client_factory=lambda **kwargs: httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), **kwargs
+        ),
+    )
+    narrative = await service.generate(**_generation_arguments())
+
+    assert len(requests) == 1
+    assert narrative.detailed_explanation == generated["detailed_explanation"]
+    assert "detailed_explanation no more than 500 words" in requests[0]["messages"][0]["content"]
 
 
 @pytest.mark.anyio

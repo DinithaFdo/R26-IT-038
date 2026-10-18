@@ -179,10 +179,10 @@ def _limitations(
     return " ".join(limitations)
 
 
-PROMPT_VERSION = "voice-xai-narrative-v3-plain-language"
+PROMPT_VERSION = "voice-xai-narrative-v4-plain-language-detail"
 NARRATIVE_MAX_RESPONSE_ATTEMPTS = 2
 _SUMMARY_WORD_LIMIT = 80
-_DETAIL_WORD_LIMIT = 200
+_DETAIL_WORD_LIMIT = 500
 _NARRATIVE_RESPONSE_FIELDS = ("summary", "detailed_explanation", "evidence_references")
 
 
@@ -545,6 +545,10 @@ def _narrative_evidence(
 def _system_prompt(
     *, summary_max_words: int, detailed_max_words: int, allowed_references: list[str]
 ) -> str:
+    # Request useful detail without requiring padding or rejecting concise
+    # responses when little evidence is available. Respect lower configured caps.
+    detail_target_min = detailed_max_words * 3 // 5
+    detail_target_max = detailed_max_words * 9 // 10
     properties = NarrativeExplanation.model_json_schema()["properties"]
     response_properties = {field: properties[field] for field in _NARRATIVE_RESPONSE_FIELDS}
     response_properties["evidence_references"]["uniqueItems"] = True
@@ -565,21 +569,50 @@ def _system_prompt(
         "Translate bonafide as 'the model leans toward natural speech' and spoof as "
         "'the model leans toward artificial or manipulated speech'. "
         "A missing verdict means the result is unclear. Never invent a verdict. "
-        "detailed_explanation adds 2-3 short paragraphs explaining why the result was "
-        "reached, what the highlights mean, and what a person should review. "
+        "detailed_explanation is a fuller, audio-specific explanation in short paragraphs. "
+        f"Aim for {detail_target_min}-{detail_target_max} words when the supplied evidence "
+        "supports that much detail; use less when evidence is sparse. Do not add filler "
+        "or invent findings to reach a length target. "
+        "Develop the explanation in this order: the classifier result and supporting "
+        "branch agreement or disagreement; specific measured voice features; exact "
+        "highlighted times and their meaning; explanation quality and coverage; "
+        "and a practical review action. Cover each topic only when evidence is available. "
         "Do not repeat the summary or repeat the same caution in every paragraph. "
-        "Keep model branch names, feature identifiers, SHAP values, R-squared, R2, "
-        "IoU, AOPC, thresholds, and metric tables out of both text fields; "
-        "the interface provides separate technical evidence panels. "
-        "Describe feature contributions as measured voice patterns, without inventing "
-        "audible defects, physical causes, or reasons a feature is high or low. "
+        "Keep summary nontechnical. In detailed_explanation, include useful supplied "
+        "numbers and names with a plain-language explanation, rather than replacing "
+        "all evidence with generic phrases such as 'some voice patterns'. "
+        "You may give the predicted class's supplied probability as a percentage, "
+        "explicitly labelled a model score. Describe branch agreement in ordinary "
+        "words rather than listing model names. "
+        "Identify up to three relevant features by their supplied display names and "
+        "state whether each points toward natural or artificial speech, or is neutral. "
+        "Explain what a feature measures only when supported by the evidence. "
+        "Do not invent audible defects, physical causes, high/low interpretations, "
+        "or comparisons with typical speech when no reference values are supplied. "
+        "Feature contributions explain a separate approximation model's raw score; "
+        "they do not establish which features the classifier itself relied on. "
+        "Do not claim the classifier weighed one feature or branch more heavily "
+        "than another without supplied evidence of those weights. "
         "Explain mixed evidence without changing the classifier's final result. "
         "Temporal highlights show where the model focused, not confirmed fake sections. "
-        "If you mention times, keep the exact supplied intervals separate; never join gaps. "
+        "When temporal regions are supplied, quote up to three exact start/end "
+        "intervals in seconds and explain that these are useful places to listen. "
+        "Keep the exact supplied intervals separate; never join gaps. "
         "Model probabilities are model scores, not verified authenticity, real-world "
-        "accuracy, or certainty. Prefer the direction of the result over raw percentages. "
+        "accuracy, or certainty. Do not call a result certain, clear, or highly "
+        "confident just because its model score is far from the decision threshold. "
+        "Explain relevant available quality metrics in ordinary words; at most two "
+        "values may help, but avoid unexplained acronyms, SHAP numbers, and metric tables. "
+        "Fidelity describes how well the approximation follows the classifier in "
+        "validation; overlap describes agreement between the two explanation maps, "
+        "not accuracy against known edits. "
         "Do not assign reliability grades or good/bad metric thresholds that the evidence "
-        "does not provide. Offline validation metrics are not measurements on this upload. "
+        "does not provide. Respect each metric's scope separately: offline_validation "
+        "means earlier validation, while per_analysis means measured for this explanation. "
+        "Do not describe all quality metrics as offline benchmarks when per_analysis "
+        "metrics are supplied. Neither scope proves the classifier verdict is correct. "
+        "Only describe a comparison with a random baseline when that comparison is "
+        "explicitly supplied; eligibility alone does not establish an advantage. "
         "Experimental window localization is approximate; its coverage refers to analyzed "
         "time with available window evidence, not the fraction of audio that is fake. "
         "Mention incomplete explanations in ordinary words when relevant. "

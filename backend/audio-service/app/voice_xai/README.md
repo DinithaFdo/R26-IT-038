@@ -124,11 +124,16 @@ Detailed contracts and validation procedure are in
 Optional AI narratives require `summary`, `detailed_explanation`, and a non-empty,
 unique `evidence_references` array. The prompt includes the response JSON schema
 and allowed reference strings; local validation still checks every response.
-Prompt `voice-xai-narrative-v3-plain-language` writes for nontechnical readers:
-the summary is capped at 80 words and the optional explanation at 200 words,
-or the configured word limits if lower. The text explains the result, measured
-voice patterns, highlighted regions and a useful next step. Research metrics,
-feature identifiers and model names remain in the technical evidence panels.
+Prompt `voice-xai-narrative-v4-plain-language-detail` writes for nontechnical readers:
+the summary is capped at 80 words and the detailed explanation at 500 words,
+or the configured word limits if lower. With the default detail budget, it aims
+for 300-450 words when enough evidence is available; sparse evidence can produce
+less without padding or a validation failure. The detail explains the result,
+branch agreement, up to three named voice features and exact attention intervals,
+explanation quality and a useful review action. Selected model scores and quality
+values can appear with plain-language explanations. Feature contributions belong
+to the separate surrogate, not proven classifier weights. Quality scopes are
+explained separately for earlier validation and the current analysis.
 Model scores are not presented as verified authenticity, and attention regions
 are not described as proven fake sections. Existing saved narratives keep
 their original text; the writing policy applies to newly generated narratives.
