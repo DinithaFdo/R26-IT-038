@@ -45,6 +45,8 @@ from app.voice_xai.report.service import (
     AlibabaQwenNarrativeService,
     DeterministicReportComposer,
     NarrativeGenerationError,
+    PROMPT_VERSION,
+    narrative_generation_timeout_seconds,
 )
 from app.voice_xai.workflow.replay import (
     StoredAudioReplayService,
@@ -471,7 +473,7 @@ class VoiceXaiOrchestrator:
                 semantic=response.semantic,
                 quality=response.quality,
                 report=response.combined_report,
-                timeout_seconds=self._settings.xai_narrative_timeout_seconds,
+                timeout_seconds=narrative_generation_timeout_seconds(self._settings),
             )
             await repository.finish_narrative_retry(
                 job.explanation_id,
@@ -1273,7 +1275,7 @@ def _configuration_hash_payload(settings: Settings) -> dict[str, object]:
         "spectrogram_max_frames": settings.xai_spectrogram_max_frames,
         "narrative_enabled": settings.xai_narrative_enabled,
         "narrative_model": settings.xai_narrative_model,
-        "narrative_prompt_version": "voice-xai-narrative-v1",
+        "narrative_prompt_version": PROMPT_VERSION,
         "narrative_thinking_budget": settings.xai_narrative_thinking_budget,
     }
 def _completed_provenance(

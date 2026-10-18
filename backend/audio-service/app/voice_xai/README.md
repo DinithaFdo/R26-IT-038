@@ -119,6 +119,46 @@ Detailed contracts and validation procedure are in
    semantic summaries. Artifact downloads verify ownership, expiry, size, and
    SHA-256 integrity before returning bytes.
 
+## Optional AI narrative
+
+Optional AI narratives require `summary`, `detailed_explanation`, and a non-empty,
+unique `evidence_references` array. Requests use native strict JSON Schema with
+all three fields required, no extra keys, and an enum of allowed evidence IDs.
+The prompt also includes the contract. Model Studio's native schema omits the
+unsupported `uniqueItems` keyword; local validation still rejects duplicates,
+unknown references, invalid fields and word-limit violations. There is no silent
+fallback to JSON Object mode if the provider rejects the schema.
+
+The default model is `qwen3.7-flash`, with
+`XAI_NARRATIVE_ENABLE_THINKING=false`; `thinking_budget` is omitted while thinking
+is disabled. Configure an endpoint/model supporting native strict schemas.
+Explicitly enabling thinking sends its configured budget and requires provider
+support for that combination. Schema compliance does not verify the factual
+correctness of the generated prose.
+
+Prompt `voice-xai-narrative-v5-strict-schema-plain-language-detail` writes for nontechnical readers:
+the summary is capped at 80 words and the detailed explanation at 500 words,
+or the configured word limits if lower. With the default detail budget, it aims
+for 300-450 words when enough evidence is available; sparse evidence can produce
+less without padding or a validation failure. The detail explains the result,
+branch agreement, up to three named voice features and exact attention intervals,
+explanation quality and a useful review action. Selected model scores and quality
+values can appear with plain-language explanations. Feature contributions belong
+to the separate surrogate, not proven classifier weights. Quality scopes are
+explained separately for earlier validation and the current analysis.
+Model scores are not presented as verified authenticity, and attention regions
+are not described as proven fake sections. Existing saved narratives keep
+their original text; the writing policy applies to newly generated narratives.
+An invalid structured response gets at most one automatic correction attempt
+using the same saved evidence. Provider errors and timeouts are not automatically
+retried. Each request is bounded by `XAI_NARRATIVE_TIMEOUT_SECONDS`; both attempts
+share a total budget of twice that value, capped by the remaining XAI job budget
+for the initial run. The narrative-only retry endpoint receives the same bounded
+generation budget. This does not repeat classification or acoustic extraction.
+If both responses are invalid, narrative status remains failed and the
+deterministic report stays available. Logs contain rejection reasons and retry
+outcomes without generated content or evidence values.
+
 ## User-facing temporal evidence
 
 The completed temporal response provides label-neutral `high_attention_regions`

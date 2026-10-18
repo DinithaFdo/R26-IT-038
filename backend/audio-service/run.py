@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from runtime_guard import ensure_supported_python
 
 
@@ -13,6 +15,7 @@ def main() -> None:
         host=settings.host,
         port=settings.port,
         reload=settings.debug,
+        reload_dirs=[str(Path(__file__).resolve().parent / "app")] if settings.debug else None,
     )
 
 
