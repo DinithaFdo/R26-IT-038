@@ -230,8 +230,13 @@ async def test_narrative_response_correction_completes_without_repeating_dsp(
     request_count = 0
     succeeds_on = 2 if recover_on_initial_run else 4
 
-    def handler(_request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx.Request) -> httpx.Response:
         nonlocal request_count
+        body = json.loads(request.content)
+        assert body["response_format"]["type"] == "json_schema"
+        assert body["response_format"]["json_schema"]["strict"] is True
+        assert body["enable_thinking"] is False
+        assert "thinking_budget" not in body
         request_count += 1
         content = {
             "summary": "Validated evidence requires human review.",

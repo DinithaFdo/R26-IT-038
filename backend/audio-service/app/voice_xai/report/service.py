@@ -179,7 +179,7 @@ def _limitations(
     return " ".join(limitations)
 
 
-PROMPT_VERSION = "voice-xai-narrative-v4-plain-language-detail"
+PROMPT_VERSION = "voice-xai-narrative-v5-strict-schema-plain-language-detail"
 NARRATIVE_MAX_RESPONSE_ATTEMPTS = 2
 _SUMMARY_WORD_LIMIT = 80
 _DETAIL_WORD_LIMIT = 500
@@ -221,7 +221,7 @@ class AlibabaQwenNarrativeService:
     """Generate an evidence-grounded JSON narrative through Model Studio.
 
     The service performs no audio handling.  It serializes a bounded subset of
-    already validated XAI fields, requests JSON mode, then validates every
+    already validated XAI fields, requests strict JSON Schema, then validates every
     returned evidence reference before it can enter persistence.
     """
 
@@ -288,11 +288,22 @@ class AlibabaQwenNarrativeService:
                     ),
                 },
             ],
-            "response_format": {"type": "json_object"},
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "voice_xai_narrative",
+                    "strict": True,
+                    "schema": _narrative_response_schema(
+                        allowed_references=sorted(allowed_references),
+                        unique_items=False,
+                    ),
+                },
+            },
             "temperature": 0,
             "enable_thinking": self._settings.xai_narrative_enable_thinking,
-            "thinking_budget": self._settings.xai_narrative_thinking_budget,
         }
+        if self._settings.xai_narrative_enable_thinking:
+            payload["thinking_budget"] = self._settings.xai_narrative_thinking_budget
         attempt = 1
         while True:
             remaining = deadline - monotonic()
@@ -542,6 +553,25 @@ def _narrative_evidence(
     return evidence, allowed
 
 
+def _narrative_response_schema(
+    *, allowed_references: list[str], unique_items: bool
+) -> dict[str, Any]:
+    """Share the response contract between the prompt and provider constraint."""
+    properties = NarrativeExplanation.model_json_schema()["properties"]
+    response_properties = {field: properties[field] for field in _NARRATIVE_RESPONSE_FIELDS}
+    # Model Studio does not support uniqueItems in native schemas. Keep it in
+    # the prompt; the local parser always rejects duplicate references.
+    if unique_items:
+        response_properties["evidence_references"]["uniqueItems"] = True
+    response_properties["evidence_references"]["items"]["enum"] = allowed_references
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": list(_NARRATIVE_RESPONSE_FIELDS),
+        "properties": response_properties,
+    }
+
+
 def _system_prompt(
     *, summary_max_words: int, detailed_max_words: int, allowed_references: list[str]
 ) -> str:
@@ -549,16 +579,9 @@ def _system_prompt(
     # responses when little evidence is available. Respect lower configured caps.
     detail_target_min = detailed_max_words * 3 // 5
     detail_target_max = detailed_max_words * 9 // 10
-    properties = NarrativeExplanation.model_json_schema()["properties"]
-    response_properties = {field: properties[field] for field in _NARRATIVE_RESPONSE_FIELDS}
-    response_properties["evidence_references"]["uniqueItems"] = True
-    response_properties["evidence_references"]["items"]["enum"] = allowed_references
-    response_schema = {
-        "type": "object",
-        "additionalProperties": False,
-        "required": list(_NARRATIVE_RESPONSE_FIELDS),
-        "properties": response_properties,
-    }
+    response_schema = _narrative_response_schema(
+        allowed_references=allowed_references, unique_items=True
+    )
     return (
         "Return JSON only with exactly these keys: summary, detailed_explanation, "
         "evidence_references. All three keys are mandatory, including evidence_references. "
