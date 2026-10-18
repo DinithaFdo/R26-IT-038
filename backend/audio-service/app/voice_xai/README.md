@@ -124,6 +124,14 @@ Detailed contracts and validation procedure are in
 Optional AI narratives require `summary`, `detailed_explanation`, and a non-empty,
 unique `evidence_references` array. The prompt includes the response JSON schema
 and allowed reference strings; local validation still checks every response.
+Prompt `voice-xai-narrative-v3-plain-language` writes for nontechnical readers:
+the summary is capped at 80 words and the optional explanation at 200 words,
+or the configured word limits if lower. The text explains the result, measured
+voice patterns, highlighted regions and a useful next step. Research metrics,
+feature identifiers and model names remain in the technical evidence panels.
+Model scores are not presented as verified authenticity, and attention regions
+are not described as proven fake sections. Existing saved narratives keep
+their original text; the writing policy applies to newly generated narratives.
 An invalid structured response gets at most one automatic correction attempt
 using the same saved evidence. Provider errors and timeouts are not automatically
 retried. Each request is bounded by `XAI_NARRATIVE_TIMEOUT_SECONDS`; both attempts

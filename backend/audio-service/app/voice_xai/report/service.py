@@ -179,8 +179,10 @@ def _limitations(
     return " ".join(limitations)
 
 
-PROMPT_VERSION = "voice-xai-narrative-v2"
+PROMPT_VERSION = "voice-xai-narrative-v3-plain-language"
 NARRATIVE_MAX_RESPONSE_ATTEMPTS = 2
+_SUMMARY_WORD_LIMIT = 80
+_DETAIL_WORD_LIMIT = 200
 _NARRATIVE_RESPONSE_FIELDS = ("summary", "detailed_explanation", "evidence_references")
 
 
@@ -255,6 +257,8 @@ class AlibabaQwenNarrativeService:
         deadline = monotonic() + min(
             timeout_seconds, narrative_generation_timeout_seconds(self._settings)
         )
+        summary_max_words = min(self._settings.xai_narrative_summary_max_words, _SUMMARY_WORD_LIMIT)
+        detailed_max_words = min(self._settings.xai_narrative_detailed_max_words, _DETAIL_WORD_LIMIT)
 
         evidence, allowed_references = _narrative_evidence(
             classifier=classifier,
@@ -271,8 +275,8 @@ class AlibabaQwenNarrativeService:
                 {
                     "role": "system",
                     "content": _system_prompt(
-                        summary_max_words=self._settings.xai_narrative_summary_max_words,
-                        detailed_max_words=self._settings.xai_narrative_detailed_max_words,
+                        summary_max_words=summary_max_words,
+                        detailed_max_words=detailed_max_words,
                         allowed_references=sorted(allowed_references),
                     ),
                 },
@@ -310,8 +314,8 @@ class AlibabaQwenNarrativeService:
                     configured_model=self._settings.xai_narrative_model,
                     input_sha256=input_sha256,
                     allowed_references=allowed_references,
-                    summary_max_words=self._settings.xai_narrative_summary_max_words,
-                    detailed_max_words=self._settings.xai_narrative_detailed_max_words,
+                    summary_max_words=summary_max_words,
+                    detailed_max_words=detailed_max_words,
                 )
             except NarrativeGenerationError as error:
                 if (
@@ -554,11 +558,35 @@ def _system_prompt(
     return (
         "Return JSON only with exactly these keys: summary, detailed_explanation, "
         "evidence_references. All three keys are mandatory, including evidence_references. "
-        "Explain validated voice-classification XAI evidence "
-        "in plain language. Do not diagnose people, claim proof, invent values, "
-        "or override the classifier. Temporal regions are candidate evidence, and "
-        "semantic contributions are auxiliary evidence. Preserve limitations and "
-        "human-review language. summary must have no more than "
+        "Write for an adult with no knowledge of audio engineering or machine learning. "
+        "Use familiar words, short sentences, and a calm, direct tone. "
+        "summary is the default user view: in 2-4 sentences, state the model's result, "
+        "the main supporting or mixed evidence, and one useful next step or limitation. "
+        "Translate bonafide as 'the model leans toward natural speech' and spoof as "
+        "'the model leans toward artificial or manipulated speech'. "
+        "A missing verdict means the result is unclear. Never invent a verdict. "
+        "detailed_explanation adds 2-3 short paragraphs explaining why the result was "
+        "reached, what the highlights mean, and what a person should review. "
+        "Do not repeat the summary or repeat the same caution in every paragraph. "
+        "Keep model branch names, feature identifiers, SHAP values, R-squared, R2, "
+        "IoU, AOPC, thresholds, and metric tables out of both text fields; "
+        "the interface provides separate technical evidence panels. "
+        "Describe feature contributions as measured voice patterns, without inventing "
+        "audible defects, physical causes, or reasons a feature is high or low. "
+        "Explain mixed evidence without changing the classifier's final result. "
+        "Temporal highlights show where the model focused, not confirmed fake sections. "
+        "If you mention times, keep the exact supplied intervals separate; never join gaps. "
+        "Model probabilities are model scores, not verified authenticity, real-world "
+        "accuracy, or certainty. Prefer the direction of the result over raw percentages. "
+        "Do not assign reliability grades or good/bad metric thresholds that the evidence "
+        "does not provide. Offline validation metrics are not measurements on this upload. "
+        "Experimental window localization is approximate; its coverage refers to analyzed "
+        "time with available window evidence, not the fraction of audio that is fake. "
+        "Mention incomplete explanations in ordinary words when relevant. "
+        "Do not diagnose people, claim proof, invent values, or override the classifier. "
+        "This is a model assessment that needs human review, not a guarantee of authenticity. "
+        "Use plain text, without Markdown, lists, or technical headings. "
+        "summary must have no more than "
         f"{summary_max_words} words; detailed_explanation no more than "
         f"{detailed_max_words} words. evidence_references must be a non-empty "
         "JSON array of unique references actually used in your explanation. "

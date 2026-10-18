@@ -118,6 +118,10 @@ async def test_qwen_narrative_sends_only_bounded_evidence_and_validates_response
     assert captured["authorization"] == "Bearer test-model-studio-key"
     assert captured["body"]["response_format"] == {"type": "json_object"}
     assert captured["body"]["enable_thinking"] is True
+    prompt = captured["body"]["messages"][0]["content"]
+    assert "adult with no knowledge of audio engineering or machine learning" in prompt
+    assert "summary must have no more than 80 words" in prompt
+    assert "detailed_explanation no more than 200 words" in prompt
     schema = json.loads(captured["body"]["messages"][0]["content"].split(
         "The complete response must follow this JSON schema: ", 1
     )[1])
@@ -345,6 +349,37 @@ async def test_missing_references_are_corrected_once_with_the_same_evidence(capl
     assert "private-invalid" not in json.dumps(requests[1])
     assert "private-invalid" not in caplog.text
     assert "recovered on attempt 2" in caplog.text
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(("field", "word_count", "reason"), [
+    ("summary", 81, "summary_word_limit_exceeded"),
+    ("detailed_explanation", 201, "detail_word_limit_exceeded"),
+])
+async def test_plain_language_limits_are_enforced_on_new_narratives(field, word_count, reason, caplog) -> None:
+    request_count = 0
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal request_count
+        request_count += 1
+        generated = json.loads(_valid_content())
+        if request_count == 1:
+            generated[field] = "word " * word_count
+        return _completion(json.dumps(generated))
+
+    service = AlibabaQwenNarrativeService(
+        _settings(),
+        http_client_factory=lambda **kwargs: httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), **kwargs
+        ),
+    )
+    narrative = await service.generate(**_generation_arguments())
+
+    assert request_count == 2
+    assert narrative.status == ComponentStatus.completed
+    assert f"reason={reason}" in caplog.text
+    assert len(narrative.summary.split()) <= 80
+    assert len(narrative.detailed_explanation.split()) <= 200
 
 
 @pytest.mark.anyio
